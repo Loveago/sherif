@@ -5,7 +5,7 @@ export function GlassCard({
   children,
 }: {
   className?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
     <div className={cn(
