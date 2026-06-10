@@ -143,8 +143,6 @@ adminRouter.post('/products', validate(createProductSchema), async (request, res
 
 adminRouter.put('/products/:id', validate(createProductSchema), async (request, response, next) => {
   try {
-    console.log('[PUT /products/:id] params.id:', request.params.id);
-    console.log('[PUT /products/:id] body:', JSON.stringify(request.body));
     const { rolePrices, promoPrice, showInShop, showForAgents, status, id, ...productData } = request.body;
     const product = await prisma.product.update({
       where: { id: String(request.params.id) },
@@ -179,7 +177,6 @@ adminRouter.put('/products/:id', validate(createProductSchema), async (request, 
 
     return response.json(createSuccessResponse(product, 'Product updated'));
   } catch (error) {
-    console.error('[PUT /products/:id] ERROR:', error);
     return next(error);
   }
 });

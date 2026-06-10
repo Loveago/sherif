@@ -19,7 +19,8 @@ export const validate = (schema: ZodSchema) => {
 
     request.body = result.data.body;
     request.query = result.data.query;
-    request.params = result.data.params;
+    // Preserve original Express route params — schema params defaults to {} which would wipe out :id
+    request.params = { ...request.params, ...result.data.params };
 
     return next();
   };
