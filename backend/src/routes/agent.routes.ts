@@ -827,6 +827,31 @@ agentRouter.get('/withdrawals', async (request, response, next) => {
   }
 });
 
+agentRouter.get('/orders', async (request, response, next) => {
+  try {
+    const { status = '' } = request.query;
+
+    const orders = await prisma.order.findMany({
+      where: {
+        userId: request.auth!.userId,
+        ...(status && { status: String(status) }),
+      },
+      include: {
+        items: {
+          include: {
+            product: { include: { network: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return response.json(createSuccessResponse(orders));
+  } catch (error) {
+    return next(error);
+  }
+});
+
 agentRouter.get('/complaints', async (request, response, next) => {
   try {
     const complaints = await prisma.complaint.findMany({

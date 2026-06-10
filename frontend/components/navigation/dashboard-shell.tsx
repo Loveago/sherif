@@ -21,7 +21,7 @@ const agentLinks: NavLink[] = [
   { href: '/buy-data', label: 'Buy Data', icon: ShoppingBag },
   { href: '/cart', label: 'Cart', icon: ShoppingBag, badge: true },
   { href: '/bulk-orders', label: 'Bulk Data', icon: CreditCard },
-  { href: '/orders', label: 'Orders', icon: Package },
+  { href: '/orders-tracking', label: 'Orders Tracking', icon: Package },
   { href: '/failed-payments', label: 'Failed Payments', icon: AlertCircle },
   { href: '/wallet', label: 'Wallet', icon: Wallet },
   { href: '/commissions', label: 'Transactions', icon: Gauge },
@@ -38,6 +38,7 @@ const agentLinks: NavLink[] = [
 const adminLinks: NavLink[] = [
   { href: '/admin', label: 'Admin Dashboard', icon: Gauge },
   { href: '/admin/products', label: 'Products', icon: ShoppingBag },
+  { href: '/admin/orders', label: 'Orders', icon: Package },
   { href: '/admin/user-management', label: 'User Management', icon: LayoutGrid },
   { href: '/admin/commissions', label: 'Commissions', icon: CreditCard },
   { href: '/admin/reports', label: 'Reports', icon: Gauge },

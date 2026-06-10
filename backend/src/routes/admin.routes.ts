@@ -1060,3 +1060,95 @@ adminRouter.post('/users/:id/wallet', async (request, response, next) => {
     return next(error);
   }
 });
+
+adminRouter.get('/orders', async (request, response, next) => {
+  try {
+    const { search = '', status = '' } = request.query;
+
+    const orders = await prisma.order.findMany({
+      where: {
+        ...(search && {
+          OR: [
+            { receiptNumber: { contains: String(search), mode: 'insensitive' } },
+            { user: { OR: [
+              { firstName: { contains: String(search), mode: 'insensitive' } },
+              { lastName: { contains: String(search), mode: 'insensitive' } },
+              { email: { contains: String(search), mode: 'insensitive' } },
+            ]}},
+          ],
+        }),
+        ...(status && { status: String(status) }),
+      },
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true } },
+        items: {
+          include: {
+            product: { include: { network: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return response.json(createSuccessResponse(orders));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.put('/orders/:id/status', async (request, response, next) => {
+  try {
+    const { status } = request.body;
+
+    if (!status) {
+      return response.status(400).json({ success: false, message: 'Status is required' });
+    }
+
+    const order = await prisma.order.update({
+      where: { id: request.params.id },
+      data: { status },
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true } },
+        items: {
+          include: {
+            product: { include: { network: true } },
+          },
+        },
+      },
+    });
+
+    await createNotification(
+      order.userId,
+      'Order Status Updated',
+      `Your order ${order.receiptNumber} status has been updated to ${status}.`,
+      'ORDER'
+    );
+
+    return response.json(createSuccessResponse(order, 'Order status updated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.put('/orders/items/:id/status', async (request, response, next) => {
+  try {
+    const { status } = request.body;
+
+    if (!status) {
+      return response.status(400).json({ success: false, message: 'Status is required' });
+    }
+
+    const item = await prisma.orderItem.update({
+      where: { id: request.params.id },
+      data: { status },
+      include: {
+        order: true,
+        product: { include: { network: true } },
+      },
+    });
+
+    return response.json(createSuccessResponse(item, 'Item status updated'));
+  } catch (error) {
+    return next(error);
+  }
+});

@@ -29,13 +29,13 @@ export default function WalletPage() {
   const fundMutation = useMutation({
     mutationFn: async (values: FundFormValues) => {
       if (values.method === 'PAYSTACK') {
-        const response = await apiRequest<any>('/wallet/paystack/initialize', {
+        const response = await apiRequest<{ authorization_url: string; access_code: string; reference: string }>('/wallet/paystack/initialize', {
           method: 'POST',
           body: JSON.stringify({ amount: values.amount, method: 'PAYSTACK' }),
         });
         
-        if (response.data?.authorization_url) {
-          window.location.href = response.data.authorization_url;
+        if (response?.authorization_url) {
+          window.location.href = response.authorization_url;
           return response;
         }
         throw new Error('Failed to initialize payment');
