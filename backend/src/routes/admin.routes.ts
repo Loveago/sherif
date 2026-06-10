@@ -1031,12 +1031,13 @@ adminRouter.post('/users/:id/wallet', async (request, response, next) => {
       return response.status(404).json({ success: false, message: 'User or wallet not found' });
     }
 
+    const walletId = user.wallet.id;
     const transactionType = type === 'ADD' ? WalletTransactionType.CREDIT : WalletTransactionType.DEBIT;
     const transactionCategory = WalletTransactionCategory.ADJUSTMENT;
 
     const result = await prisma.$transaction(async (tx) => {
       const { updatedWallet, transaction } = await createWalletTransaction(
-        user.wallet.id,
+        walletId,
         numAmount,
         transactionType,
         transactionCategory,
