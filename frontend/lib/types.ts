@@ -9,6 +9,7 @@ export type User = {
   role: Role;
   companyName?: string | null;
   avatarUrl?: string | null;
+  deletedAt?: string | null;
   storefront?: Storefront | null;
   wallet?: Wallet | null;
 };

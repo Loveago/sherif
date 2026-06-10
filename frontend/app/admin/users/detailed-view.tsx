@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { apiRequest } from '@/lib/api';
+import type { User } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
 
 interface UserDetailedViewProps {
@@ -27,7 +28,7 @@ export function UserDetailedView({ userId, onClose }: UserDetailedViewProps) {
 
   const { data: user, isLoading } = useQuery({
     queryKey: ['admin-user', userId],
-    queryFn: () => apiRequest(`/admin/users/${userId}`),
+    queryFn: () => apiRequest<User>(`/admin/users/${userId}`),
   });
 
   const updateMutation = useMutation({
@@ -119,7 +120,7 @@ export function UserDetailedView({ userId, onClose }: UserDetailedViewProps) {
               {user.deletedAt ? (
                 <Button onClick={() => unsuspendMutation.mutate()} disabled={unsuspendMutation.isPending}>Unsuspend</Button>
               ) : (
-                <Button variant="destructive" onClick={() => suspendMutation.mutate()} disabled={suspendMutation.isPending}>Suspend</Button>
+                <Button variant="secondary" onClick={() => suspendMutation.mutate()} disabled={suspendMutation.isPending}>Suspend</Button>
               )}
             </div>
           </div>
