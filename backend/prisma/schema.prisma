@@ -1,0 +1,417 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  AGENT
+  ADMIN
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  SUSPENDED
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SUCCESSFUL
+  FAILED
+  REFUNDED
+}
+
+enum BatchStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ComplaintStatus {
+  OPEN
+  ASSIGNED
+  RESPONDED
+  RESOLVED
+  ESCALATED
+}
+
+enum RefundStatus {
+  PENDING
+  REVIEW
+  APPROVED
+  REFUNDED
+  REJECTED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  REVIEW
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum PaymentMethod {
+  PAYSTACK
+  MTN_MOMO
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+}
+
+enum WalletTransactionType {
+  CREDIT
+  DEBIT
+}
+
+enum WalletTransactionCategory {
+  FUNDING
+  PURCHASE
+  REFUND
+  WITHDRAWAL
+  COMMISSION
+  ADJUSTMENT
+}
+
+enum ProviderStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+model User {
+  id                   String               @id @default(cuid())
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  deletedAt            DateTime?
+  firstName            String
+  lastName             String
+  email                String               @unique
+  passwordHash         String
+  phone                String
+  role                 UserRole             @default(AGENT)
+  verificationStatus   VerificationStatus   @default(PENDING)
+  twoFactorEnabled     Boolean              @default(false)
+  emailVerifiedAt      DateTime?
+  otpSecret            String?
+  avatarUrl            String?
+  companyName          String?
+  deviceLogs           Session[]
+  wallet               Wallet?
+  storefront           Storefront?
+  orders               Order[]
+  batches              OrderBatch[]
+  commissions          Commission[]
+  withdrawals          Withdrawal[]
+  complaints           Complaint[]
+  notifications        Notification[]
+  payments             Payment[]
+  refunds              Refund[]
+  apiKeys              ApiKey[]
+  auditLogs            AuditLog[]           @relation("ActorAuditLogs")
+  assignedComplaints   Complaint[]          @relation("ComplaintAssignee")
+}
+
+model Wallet {
+  id                String              @id @default(cuid())
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  userId            String              @unique
+  availableBalance  Decimal             @db.Decimal(12, 2)
+  pendingBalance    Decimal             @db.Decimal(12, 2)
+  currency          String              @default("GHS")
+  user              User                @relation(fields: [userId], references: [id])
+  transactions      WalletTransaction[]
+}
+
+model WalletTransaction {
+  id            String                    @id @default(cuid())
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  walletId      String
+  type          WalletTransactionType
+  category      WalletTransactionCategory
+  amount        Decimal                   @db.Decimal(12, 2)
+  balanceBefore Decimal                   @db.Decimal(12, 2)
+  balanceAfter  Decimal                   @db.Decimal(12, 2)
+  description   String
+  reference     String                    @unique
+  wallet        Wallet                    @relation(fields: [walletId], references: [id])
+}
+
+model Network {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  name        String    @unique
+  code        String    @unique
+  color       String
+  logoUrl     String?
+  products    Product[]
+}
+
+model Product {
+  id             String    @id @default(cuid())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+  name           String
+  slug           String    @unique
+  description    String
+  dataSize       String
+  sellingPrice   Decimal   @db.Decimal(12, 2)
+  agentPrice     Decimal   @db.Decimal(12, 2)
+  resellerPrice  Decimal   @db.Decimal(12, 2)
+  buyingPrice    Decimal   @db.Decimal(12, 2)
+  status         Boolean   @default(true)
+  networkId      String
+  network        Network   @relation(fields: [networkId], references: [id])
+  orders         Order[]
+}
+
+model Order {
+  id                 String       @id @default(cuid())
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  userId             String
+  productId          String
+  phoneNumber        String
+  amount             Decimal      @db.Decimal(12, 2)
+  status             OrderStatus  @default(PENDING)
+  providerReference  String?
+  receiptNumber      String       @unique
+  notes              String?
+  batchId            String?
+  user               User         @relation(fields: [userId], references: [id])
+  product            Product      @relation(fields: [productId], references: [id])
+  batch              OrderBatch?  @relation(fields: [batchId], references: [id])
+  commission         Commission?
+  refund             Refund?
+}
+
+model OrderBatch {
+  id               String       @id @default(cuid())
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  userId           String
+  status           BatchStatus  @default(PENDING)
+  fileName         String
+  totalRecords     Int
+  totalAmount      Decimal      @db.Decimal(12, 2)
+  successfulCount  Int          @default(0)
+  failedCount      Int          @default(0)
+  processingCount  Int          @default(0)
+  user             User         @relation(fields: [userId], references: [id])
+  orders           Order[]
+}
+
+model Storefront {
+  id                 String    @id @default(cuid())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  userId             String    @unique
+  slug               String    @unique
+  displayName        String
+  tagline            String
+  description        String
+  bannerUrl          String?
+  logoUrl            String?
+  themeColor         String    @default("#7c3aed")
+  contactEmail       String?
+  contactPhone       String?
+  instagramUrl       String?
+  twitterUrl         String?
+  whatsappUrl        String?
+  seoTitle           String?
+  seoDescription     String?
+  visits             Int       @default(0)
+  sales              Int       @default(0)
+  conversionRate     Decimal   @db.Decimal(5, 2)
+  user               User      @relation(fields: [userId], references: [id])
+}
+
+model Commission {
+  id              String    @id @default(cuid())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  userId          String
+  orderId         String    @unique
+  amount          Decimal   @db.Decimal(12, 2)
+  source          String
+  user            User      @relation(fields: [userId], references: [id])
+  order           Order     @relation(fields: [orderId], references: [id])
+}
+
+model Withdrawal {
+  id              String            @id @default(cuid())
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  userId          String
+  amount          Decimal           @db.Decimal(12, 2)
+  method          String
+  accountName     String
+  accountNumber   String
+  bankName        String?
+  status          WithdrawalStatus  @default(PENDING)
+  reference       String            @unique
+  user            User              @relation(fields: [userId], references: [id])
+}
+
+model Refund {
+  id              String        @id @default(cuid())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  userId          String
+  orderId         String        @unique
+  amount          Decimal       @db.Decimal(12, 2)
+  reason          String
+  status          RefundStatus  @default(PENDING)
+  user            User          @relation(fields: [userId], references: [id])
+  order           Order         @relation(fields: [orderId], references: [id])
+}
+
+model Complaint {
+  id              String           @id @default(cuid())
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  userId          String
+  assignedToId    String?
+  title           String
+  description     String
+  evidenceUrl     String?
+  status          ComplaintStatus  @default(OPEN)
+  user            User             @relation(fields: [userId], references: [id])
+  assignedTo      User?            @relation("ComplaintAssignee", fields: [assignedToId], references: [id])
+}
+
+model Announcement {
+  id              String    @id @default(cuid())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  title           String
+  content         String
+  pinned          Boolean   @default(false)
+  targetRole      UserRole?
+  scheduledFor    DateTime?
+}
+
+model Notification {
+  id              String              @id @default(cuid())
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  userId          String
+  title           String
+  body            String
+  type            String
+  status          NotificationStatus  @default(UNREAD)
+  user            User                @relation(fields: [userId], references: [id])
+}
+
+model Payment {
+  id              String         @id @default(cuid())
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  userId          String
+  amount          Decimal        @db.Decimal(12, 2)
+  method          PaymentMethod
+  status          PaymentStatus  @default(PENDING)
+  reference       String         @unique
+  providerRef     String?
+  user            User           @relation(fields: [userId], references: [id])
+}
+
+model Provider {
+  id              String          @id @default(cuid())
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  name            String          @unique
+  code            String          @unique
+  status          ProviderStatus  @default(ACTIVE)
+  priority        Int             @default(1)
+  apiBaseUrl      String?
+  transactions    ProviderTransaction[]
+}
+
+model ProviderTransaction {
+  id              String      @id @default(cuid())
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  providerId      String
+  orderId         String?
+  requestPayload  Json
+  responsePayload Json
+  status          String
+  provider        Provider    @relation(fields: [providerId], references: [id])
+}
+
+model Webhook {
+  id              String       @id @default(cuid())
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  event           String
+  url             String
+  secret          String
+  active          Boolean      @default(true)
+  logs            WebhookLog[]
+}
+
+model WebhookLog {
+  id              String      @id @default(cuid())
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  webhookId       String
+  event           String
+  statusCode      Int?
+  success         Boolean     @default(false)
+  responseBody    String?
+  webhook         Webhook     @relation(fields: [webhookId], references: [id])
+}
+
+model AuditLog {
+  id              String    @id @default(cuid())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  actorId         String
+  action          String
+  entity          String
+  entityId        String
+  metadata        Json
+  actor           User      @relation("ActorAuditLogs", fields: [actorId], references: [id])
+}
+
+model Session {
+  id              String    @id @default(cuid())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  userId          String
+  ipAddress       String?
+  userAgent       String?
+  deviceName      String?
+  lastActiveAt    DateTime  @default(now())
+  user            User      @relation(fields: [userId], references: [id])
+}
+
+model ApiKey {
+  id              String    @id @default(cuid())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  userId          String
+  name            String
+  keyHash         String
+  lastUsedAt      DateTime?
+  user            User      @relation(fields: [userId], references: [id])
+}

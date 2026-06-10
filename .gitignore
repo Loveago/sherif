@@ -1,0 +1,14 @@
+node_modules
+.next
+dist
+coverage
+.env
+.env.local
+.env.*.local
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+backend/generated
+*.log
+.DS_Store
+.vscode
+.idea

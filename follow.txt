@@ -1,0 +1,1151 @@
+# DATAHUB GHANA
+
+## Enterprise Data Bundle Marketplace, Agent Platform & Management System
+
+# PROJECT OVERVIEW
+
+Build a complete enterprise-grade full-stack data bundle marketplace and management platform for Ghana.
+
+The platform should allow customers, agents, resellers, and administrators to buy, process, manage, fulfill, and track mobile data bundle orders across all major Ghanaian networks.
+
+Supported Networks:
+
+* MTN Ghana
+* Telecel Ghana
+* AirtelTigo Ghana
+
+This should be a modern SaaS platform capable of handling thousands of transactions daily.
+
+The platform must support:
+
+* Wallet funding
+* Data purchases
+* Bulk data purchases
+* Agent storefronts
+* Commission management
+* Order processing
+* Refunds
+* Complaints
+* Announcements
+* Webhooks
+* Provider integrations
+* Analytics
+* Enterprise administration
+
+---
+
+# TECHNOLOGY STACK
+
+## Frontend
+
+* Next.js 15+
+* TypeScript
+* Tailwind CSS
+* Shadcn UI
+* Framer Motion
+* TanStack Query
+* Zustand
+* React Hook Form
+* Zod
+
+## Backend
+
+* Express.js
+* TypeScript
+* PostgreSQL
+* Prisma ORM
+* Redis
+* BullMQ
+* JWT Authentication
+
+## Infrastructure
+
+
+* PM2
+* Nginx
+
+---
+
+# DESIGN SYSTEM
+
+The platform should feel like a premium fintech startup.
+
+Inspirations:
+
+* Stripe
+* Linear
+* Revolut
+* Vercel
+* Binance
+* Notion
+
+Design Style:
+
+* Dark mode first
+* Glassmorphism
+* Gradient backgrounds
+* Floating cards
+* Fluid animations
+* Micro interactions
+* Modern typography
+* Smooth transitions
+* Premium shadows
+* Framer Motion everywhere
+
+The UI should feel alive and interactive.
+
+No boring admin templates.
+
+No generic dashboards.
+
+Everything should feel premium and modern.
+
+---
+
+# LANDING PAGE
+
+Sections:
+
+## Hero
+
+* Animated gradient background
+* Floating data cards
+* Live statistics
+* Call-to-action buttons
+
+## Features
+
+* Instant Data Delivery
+* Wallet Payments
+* Bulk Orders
+* Agent System
+* Secure Transactions
+* Automated Fulfillment
+
+## Supported Networks
+
+Display:
+
+* MTN
+* Telecel
+* AirtelTigo
+
+Using beautiful animated cards.
+
+## Statistics
+
+* Total Orders
+* Active Users
+* Data Delivered
+* Transactions Processed
+
+## Testimonials
+
+## FAQ
+
+## Contact
+
+## Footer
+
+---
+
+# AUTHENTICATION
+
+Features:
+
+* Registration
+* Login
+* Forgot Password
+* Email Verification
+* OTP Verification
+* Two-Factor Authentication
+* Device Tracking
+
+---
+
+# WALLET-FIRST SYSTEM
+
+IMPORTANT:
+
+This platform must use a wallet-first architecture.
+
+Users do not purchase data directly using Paystack.
+
+Flow:
+
+Deposit Funds
+→ Wallet Credited
+→ Buy Data Bundle Using Wallet Balance
+
+Benefits:
+
+* Easier refunds
+* Easier accounting
+* Easier bulk purchases
+* Easier commission tracking
+* Better user experience
+
+---
+
+# PAYMENT SYSTEM
+
+Supported Payment Methods Only:
+
+## Paystack
+
+Features:
+
+* Deposit Funds
+* Payment Verification
+* Webhooks
+* Transaction History
+* Automatic Wallet Credit
+
+Flow:
+
+1. User enters amount.
+2. Paystack payment initialized.
+3. User completes payment.
+4. Payment verified.
+5. Wallet credited automatically.
+
+---
+
+## MTN Mobile Money
+
+Features:
+
+* MTN MoMo Collection API
+* Payment Requests
+* Verification
+* Transaction Tracking
+
+Flow:
+
+1. User enters MTN number.
+2. System sends payment prompt.
+3. User approves payment.
+4. Payment verified.
+5. Wallet credited automatically.
+
+---
+
+
+# DATA PRODUCT SYSTEM
+
+Products are NOT generated automatically.
+
+Administrators will manually create all products.
+
+Example:
+
+MTN
+
+* 1GB — GHS 4.50
+* 2GB — GHS 7.00
+* 3GB — GHS 10.00
+* 5GB — GHS 15.00
+* 10GB — GHS 28.00
+
+Telecel
+
+* 1GB — GHS X.XX
+* 2GB — GHS X.XX
+* 5GB — GHS X.XX
+
+AirtelTigo
+
+* 1GB — GHS X.XX
+* 2GB — GHS X.XX
+* 5GB — GHS X.XX
+
+All products must come from the database.
+
+No hardcoded products.
+
+No hardcoded pricing.
+
+Everything should be dynamic.
+
+---
+
+# PRODUCT PURCHASE FLOW
+
+1. User selects network.
+2. User selects bundle.
+3. User enters phone number.
+4. System validates balance.
+5. Wallet debited.
+6. Order created.
+7. Fulfillment queue triggered.
+8. Provider processes order.
+9. Status updated.
+
+Order Statuses:
+
+* Pending
+* Processing
+* Successful
+* Failed
+* Refunded
+
+---
+
+# BULK DATA PURCHASES
+
+Support:
+
+* CSV Upload
+* XLSX Upload
+
+Fields:
+
+* Phone Number
+* Product
+
+Flow:
+
+1. Upload file.
+2. Validate records.
+3. Preview records.
+4. Calculate cost.
+5. Create order batch.
+6. Process through queue.
+
+Batch Statuses:
+
+* Pending
+* Running
+* Completed
+* Failed
+
+---
+
+# ORDER MANAGEMENT
+
+Users can:
+
+* View Orders
+* Track Orders
+* Search Orders
+* Filter Orders
+* Download Receipts
+* Reorder
+* Request Refunds
+
+---
+
+# COMPLAINT MANAGEMENT
+
+Users can:
+
+* Create Complaints
+* Upload Evidence
+* Track Complaint Status
+
+Admin can:
+
+* Assign Complaints
+* Respond
+* Resolve
+* Escalate
+
+---
+
+# REFUND SYSTEM
+
+Workflow:
+
+Pending
+→ Review
+→ Approved
+→ Refunded
+
+Features:
+
+* Manual Refunds
+* Automated Refunds
+* Wallet Refund Processing
+
+---
+
+# AGENT PORTAL
+
+## OVERVIEW
+
+The platform is agent-first.
+
+There are no regular customer accounts.
+
+Every registered user is an Agent.
+
+Each agent receives:
+
+* Wallet
+* Storefront
+* Commission System
+* Order Management
+* Bulk Orders
+* Earnings Tracking
+* Withdrawal Management
+* Analytics
+
+This means there will be a single unified dashboard instead of separate customer and agent dashboards.
+
+---
+
+# AGENT DASHBOARD
+
+The dashboard should feel like a premium fintech application.
+
+Think:
+
+* Stripe Dashboard
+* Revolut Business
+* Binance
+* Linear
+
+Use:
+
+* Glassmorphism
+* Fluid Animations
+* Floating Cards
+* Smooth Transitions
+* Beautiful Charts
+
+---
+
+# DASHBOARD OVERVIEW
+
+Top Cards:
+
+### Wallet Balance
+
+Display:
+
+* Available Balance
+* Pending Balance
+
+Quick Actions:
+
+* Fund Wallet
+* Withdraw Funds
+
+---
+
+### Today's Revenue
+
+Display:
+
+* Daily Earnings
+* Percentage Change
+
+---
+
+### Orders
+
+Display:
+
+* Total Orders
+* Successful Orders
+* Failed Orders
+* Pending Orders
+
+---
+
+### Commission Earnings
+
+Display:
+
+* Today's Commission
+* Monthly Commission
+
+---
+
+# ANALYTICS SECTION
+
+Charts:
+
+### Revenue Chart
+
+* Daily
+* Weekly
+* Monthly
+
+### Order Analytics
+
+* Success Rate
+* Failed Orders
+* Pending Orders
+
+### Network Usage
+
+* MTN
+* Telecel
+* AirtelTigo
+
+### Storefront Performance
+
+* Visits
+* Conversions
+* Sales
+
+---
+
+# QUICK DATA PURCHASE
+
+One of the most important dashboard widgets.
+
+Agents should be able to buy data directly from the dashboard.
+
+Flow:
+
+1. Select Network
+2. Select Bundle
+3. Enter Phone Number
+4. Confirm Purchase
+
+Supported Networks:
+
+### MTN
+
+Examples:
+
+* 1GB — GHS 4.50
+* 2GB — GHS 7.00
+* 5GB — GHS 15.00
+
+### Telecel
+
+Products fetched from database.
+
+### AirtelTigo
+
+Products fetched from database.
+
+Products must update automatically whenever Admin changes pricing.
+
+---
+
+# WALLET MODULE
+
+Features:
+
+* Wallet Balance
+* Deposit Funds
+* Transaction History
+* Statements
+* Wallet Ledger
+
+Payment Methods:
+
+* Paystack
+* MTN Mobile Money
+
+---
+
+# ORDER MANAGEMENT
+
+Features:
+
+* All Orders
+* Search Orders
+* Filter Orders
+* Export Orders
+* Download Receipts
+* Reorder
+
+Statuses:
+
+* Pending
+* Processing
+* Successful
+* Failed
+* Refunded
+
+---
+
+# BULK PURCHASE MODULE
+
+Features:
+
+* Upload CSV
+* Upload XLSX
+* Validate Numbers
+* Preview Orders
+* Process Batch
+
+Batch Dashboard:
+
+* Total Orders
+* Successful Orders
+* Failed Orders
+* Processing Orders
+
+---
+
+# STOREFRONT MANAGEMENT
+
+Every agent owns a storefront.
+
+Example:
+
+/store/agentname
+
+Features:
+
+* Edit Banner
+* Upload Logo
+* Change Theme
+* Social Media Links
+* Contact Information
+* SEO Settings
+
+Storefront Analytics:
+
+* Visits
+* Sales
+* Conversion Rate
+
+---
+
+# COMMISSION CENTER
+
+Display:
+
+* Total Earnings
+* Today's Earnings
+* Weekly Earnings
+* Monthly Earnings
+
+Commission History:
+
+* Source Order
+* Commission Amount
+* Date
+
+---
+
+# WITHDRAWAL CENTER
+
+Features:
+
+* Withdraw Earnings
+* Withdrawal History
+* Pending Withdrawals
+
+Methods:
+
+* MTN Mobile Money
+* Bank Transfer
+
+---
+
+# COMPLAINT CENTER
+
+Features:
+
+* Create Complaint
+* Upload Evidence
+* View Responses
+* Track Resolution
+
+---
+
+# NOTIFICATION CENTER
+
+Features:
+
+* Order Updates
+* Wallet Updates
+* Refund Updates
+* System Announcements
+
+---
+
+# PROFILE SETTINGS
+
+Features:
+
+* Personal Information
+* Change Password
+* Security Settings
+* API Keys
+* Notification Preferences
+
+---
+
+# MOBILE DASHBOARD
+
+The mobile dashboard must not feel like a shrunk desktop dashboard.
+
+Requirements:
+
+* Bottom Navigation
+* Floating Action Button
+* Quick Purchase Widget
+* Swipeable Cards
+* Mobile Optimized Charts
+
+Bottom Navigation:
+
+* Home
+* Buy Data
+* Orders
+* Wallet
+* Profile
+
+The mobile experience should be as premium as the desktop experience.
+
+---
+
+# USER ROLES
+
+Only two roles should exist:
+
+### Agent
+
+Can:
+
+* Buy Data
+* Fund Wallet
+* Manage Storefront
+* Process Bulk Orders
+* Withdraw Earnings
+
+### Admin
+
+Can:
+
+* Manage Entire Platform
+* Manage Products
+* Manage Agents
+* Manage Providers
+* Manage Payments
+* Manage Refunds
+* Manage Announcements
+* View Analytics
+
+There should be no standard customer role.
+
+
+# COMMISSION SYSTEM
+
+Support:
+
+* Fixed Commissions
+* Percentage Commissions
+* Tier-Based Commissions
+
+Commission rules must be configurable from the Admin Dashboard.
+
+---
+
+# STOREFRONT PLATFORM
+
+Every agent receives a public storefront.
+
+Example:
+
+/store/john-doe
+
+Features:
+
+* Custom Banner
+* Custom Logo
+* Theme Color Selection
+* Product Catalog
+* Contact Information
+* Social Media Links
+
+Storefront Design Requirements:
+
+* Extremely modern
+* Fluid animations
+* Glass effects
+* Floating cards
+* Mobile-first
+* Lightning fast
+* Premium SaaS feel
+
+The storefront should feel like a modern startup website.
+
+---
+
+# WITHDRAWAL SYSTEM
+
+Agents can withdraw earnings.
+
+Methods:
+
+* MTN Mobile Money
+* Bank Transfer
+
+Workflow:
+
+Pending
+→ Review
+→ Approved
+→ Paid
+
+---
+
+# ANNOUNCEMENTS
+
+Admin can:
+
+* Create Announcements
+* Schedule Announcements
+* Target Specific Users
+* Pin Announcements
+
+---
+
+# NOTIFICATION SYSTEM
+
+Support:
+
+* Email Notifications
+* In-App Notifications
+
+Features:
+
+* Read
+* Unread
+* Archive
+
+---
+
+# WEBHOOK SYSTEM
+
+Events:
+
+* Wallet Funded
+* Order Created
+* Order Successful
+* Order Failed
+* Refund Processed
+* Withdrawal Requested
+
+Features:
+
+* Retry Logic
+* Signature Validation
+* Event History
+* Webhook Logs
+
+---
+
+# PROVIDER INTEGRATION SYSTEM
+
+The platform must support multiple data providers.
+
+Architecture:
+
+Provider Interface Layer
+
+Examples:
+
+ProviderAService
+ProviderBService
+ProviderCService
+
+Features:
+
+* Provider Switching
+* Failover Logic
+* Health Monitoring
+* Retry Logic
+
+Admin should be able to switch providers without changing code.
+
+---
+
+# QUEUE SYSTEM
+
+Use BullMQ.
+
+Queues:
+
+* Data Fulfillment
+* Bulk Orders
+* Refund Processing
+* Notifications
+* Webhooks
+
+---
+
+# ADMIN PANEL
+
+Build an enterprise-grade admin dashboard.
+
+Not a basic CRUD panel.
+
+A powerful business management system.
+
+---
+
+# ADMIN DASHBOARD
+
+Widgets:
+
+* Revenue
+* Wallet Balances
+* Active Users
+* Active Agents
+* Orders
+* Refunds
+* Complaints
+
+Charts:
+
+* Revenue Trends
+* Order Trends
+* Network Usage
+* Success Rate
+* Agent Performance
+
+---
+
+# USER MANAGEMENT
+
+Admin can:
+
+* Create Users
+* Suspend Users
+* Verify Users
+* Credit Wallet
+* Debit Wallet
+* View Activity
+
+---
+
+# AGENT MANAGEMENT
+
+Admin can:
+
+* Approve Agents
+* Suspend Agents
+* Set Commission Rates
+* View Earnings
+* View Storefronts
+
+---
+
+# PRODUCT MANAGEMENT
+
+This is one of the most important modules.
+
+Admins must be able to manually manage all bundle products.
+
+Features:
+
+## Product List
+
+* Search Products
+* Filter Products
+* Bulk Actions
+
+## Create Product
+
+Fields:
+
+* Product Name
+* Network
+* Data Size
+* Selling Price
+* Agent Price
+* Reseller Price
+* Buying Price
+* Description
+* Status
+
+Example:
+
+MTN 1GB
+
+* Data Size: 1GB
+* Customer Price: GHS 4.50
+* Agent Price: GHS 4.20
+* Reseller Price: GHS 4.00
+
+## Product Actions
+
+* Create
+* Edit
+* Delete
+* Disable
+* Enable
+* Duplicate
+
+The frontend should automatically update whenever products are modified.
+
+---
+
+# WALLET MANAGEMENT
+
+Admin can:
+
+* Credit Wallets
+* Debit Wallets
+* View Transactions
+* View Ledger
+* Export Reports
+
+---
+
+# WITHDRAWAL MANAGEMENT
+
+Admin can:
+
+* Approve Withdrawals
+* Reject Withdrawals
+* Mark Paid
+
+---
+
+# REFUND MANAGEMENT
+
+Admin can:
+
+* Approve Refunds
+* Reject Refunds
+* Process Refunds
+
+---
+
+# COMPLAINT MANAGEMENT
+
+Admin can:
+
+* View Complaints
+* Assign Staff
+* Resolve Complaints
+* Escalate Complaints
+
+---
+
+# ANNOUNCEMENT MANAGEMENT
+
+Admin can:
+
+* Create
+* Edit
+* Schedule
+* Delete
+
+Announcements
+
+---
+
+# SYSTEM SETTINGS
+
+Admin can manage:
+
+* Platform Fees
+* Commission Rules
+* Paystack Settings
+* MTN MoMo Settings
+* SMTP Settings
+* Branding
+* Maintenance Mode
+* API Keys
+* Provider Settings
+
+---
+
+# DATABASE DESIGN
+
+Core Models:
+
+* User
+* Role
+* Wallet
+* WalletTransaction
+* Product
+* Network
+* Order
+* OrderBatch
+* Agent
+* Storefront
+* Commission
+* Withdrawal
+* Refund
+* Complaint
+* Announcement
+* Notification
+* Payment
+* Provider
+* ProviderTransaction
+* Webhook
+* WebhookLog
+* AuditLog
+* Session
+
+Every table should include:
+
+* id
+* createdAt
+* updatedAt
+
+Support soft deletes where appropriate.
+
+---
+
+# SECURITY
+
+Implement:
+
+* JWT Authentication
+* RBAC
+* Rate Limiting
+* Audit Logs
+* Device Tracking
+* IP Tracking
+* CSRF Protection
+* XSS Protection
+* SQL Injection Protection
+
+---
+
+# PERFORMANCE
+
+Implement:
+
+* Redis Caching
+* Database Indexing
+* Lazy Loading
+* Image Optimization
+* Infinite Scrolling
+* Pagination
+* Background Processing
+
+---
+
+# CODE QUALITY
+
+Architecture Requirements:
+
+* Clean Architecture
+* Service Layer
+* Repository Pattern
+* Feature Modules
+* SOLID Principles
+* Reusable Components
+* Scalable Folder Structure
+
+---
+
+# FINAL GOAL
+
+Build a premium, production-ready SaaS platform that combines:
+
+* Data Bundle Marketplace
+* Wallet System
+* Agent Ecosystem
+* Storefront Platform
+* Bulk Order Processing
+* Fulfillment Engine
+* Enterprise Admin Panel
+
+The finished platform should feel like a modern fintech unicorn startup with exceptional UX, fluid animations, beautiful storefronts, powerful administration tools, and enterprise-grade backend architecture.

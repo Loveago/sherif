@@ -1,0 +1,131 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --bg-0: #060a14;
+  --bg-1: #0b1120;
+  --bg-2: #111827;
+  --panel: rgba(15, 23, 42, 0.85);
+  --panel-2: rgba(17, 24, 39, 0.92);
+  --stroke: rgba(55, 65, 81, 0.5);
+  --violet: #7c3aed;
+  --violet-2: #6d28d9;
+  --magenta: #d946ef;
+  --blue: #38bdf8;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg-0);
+  color: var(--text);
+  font-family: var(--font-space-grotesk), 'Segoe UI', sans-serif;
+  letter-spacing: 0.01em;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(124, 58, 237, 0.4);
+  color: white;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.3);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.5);
+}
+
+/* Card base */
+.card-base {
+  background: var(--bg-1);
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+}
+
+/* KPI tile */
+.kpi-tile {
+  background: var(--bg-1);
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+}
+
+/* Glass effect (kept for compatibility) */
+.glass {
+  position: relative;
+  background: var(--bg-1);
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+}
+
+/* Neon divider */
+.neon-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(124, 58, 237, 0.55) 24%, rgba(56, 189, 248, 0.55) 50%, rgba(217, 70, 239, 0.55) 76%, transparent 100%);
+}
+
+/* Grid pattern */
+.grid-pattern {
+  background-image: linear-gradient(rgba(120, 138, 226, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 138, 226, 0.05) 1px, transparent 1px);
+  background-size: 42px 42px;
+}
+
+/* Soft scrollbar */
+.soft-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.soft-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.3);
+  border-radius: 999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.4);
+  border-radius: 999px;
+}
