@@ -9,7 +9,20 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { apiRequest } from '@/lib/api';
-import { formatDistanceToNow } from 'date-fns';
+function formatRelativeTime(date: Date): string {
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (seconds < 60) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  return date.toLocaleDateString();
+}
 
 interface Chat {
   id: string;
@@ -127,7 +140,7 @@ export default function ChatPage() {
                           : 'bg-slate-700/50 text-gray-200'
                       }`}>
                         <p className="text-sm">{msg.content}</p>
-                        <p className="text-xs text-gray-400 mt-1">{formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}</p>
+                        <p className="text-xs text-gray-400 mt-1">{formatRelativeTime(new Date(msg.createdAt))}</p>
                       </div>
                     </div>
                   ))}
