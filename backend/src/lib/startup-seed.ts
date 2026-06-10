@@ -36,7 +36,7 @@ export async function ensureSeed() {
         verificationStatus: VerificationStatus.VERIFIED,
         emailVerifiedAt: new Date(),
         wallet: { create: { availableBalance: money(25000), pendingBalance: money(0) } },
-        storefront: { create: { slug: 'datahub-admin', displayName: 'DATAHUB Official', tagline: 'Enterprise-grade data operations.', themeColor: '#8b5cf6', conversionRate: money(31.2) } },
+        storefront: { create: { slug: 'datahub-admin', displayName: 'DATAHUB Official', tagline: 'Enterprise-grade data operations.', description: 'Official DATAHUB storefront.', themeColor: '#8b5cf6', conversionRate: money(31.2) } },
       },
     });
 
