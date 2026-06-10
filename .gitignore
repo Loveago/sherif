@@ -12,3 +12,4 @@ backend/generated
 .DS_Store
 .vscode
 .idea
+vercel.txt
