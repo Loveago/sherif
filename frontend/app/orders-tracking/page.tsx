@@ -10,23 +10,14 @@ import { apiRequest } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { CheckCircle2, Clock, XCircle, Package } from 'lucide-react';
 
-interface OrderItem {
-  id: string;
-  productId: string;
-  quantity: number;
-  price: number;
-  status: string;
-  phoneNumber: string;
-  product: { name: string; network: { name: string } };
-}
-
 interface Order {
   id: string;
   receiptNumber: string;
   status: string;
   amount: number;
+  phoneNumber: string;
   createdAt: string;
-  items: OrderItem[];
+  product: { name: string; network: { name: string } };
 }
 
 export default function OrdersTrackingPage() {
@@ -124,7 +115,7 @@ export default function OrdersTrackingPage() {
                     <div>
                       <p className="font-medium text-white">{order.receiptNumber}</p>
                       <p className="text-xs text-gray-500">
-                        {order.items.length} item{order.items.length !== 1 ? 's' : ''}
+                        {order.product.name} ({order.product.network.name})
                       </p>
                     </div>
                   </div>
@@ -135,10 +126,8 @@ export default function OrdersTrackingPage() {
                       <p className="font-medium text-white">GHS {formatCurrency(order.amount)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500">Date</p>
-                      <p className="font-medium text-white">
-                        {new Date(order.createdAt).toLocaleDateString()}
-                      </p>
+                      <p className="text-xs text-gray-500">Phone</p>
+                      <p className="font-medium text-white">{order.phoneNumber}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Status</p>
@@ -199,33 +188,23 @@ export default function OrdersTrackingPage() {
                 </div>
               </div>
 
-              {/* Order Items */}
+              {/* Order Details */}
               <div className="mb-6">
-                <h4 className="text-sm font-semibold text-white mb-3">Order Items</h4>
-                <div className="space-y-2">
-                  {selectedOrder.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-gray-900/30 border border-gray-700/50"
-                    >
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-white">
-                          {item.product.name} ({item.product.network.name})
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Phone: {item.phoneNumber} | Qty: {item.quantity}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <p className="text-sm font-medium text-white">
-                          GHS {formatCurrency(item.price)}
-                        </p>
-                        <Badge variant={item.status === 'SUCCESSFUL' ? 'success' : 'warning'}>
-                          {item.status}
-                        </Badge>
-                      </div>
+                <h4 className="text-sm font-semibold text-white mb-3">Order Details</h4>
+                <div className="p-3 rounded-lg bg-gray-900/30 border border-gray-700/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-white">
+                        {selectedOrder.product.name} ({selectedOrder.product.network.name})
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Phone: {selectedOrder.phoneNumber}
+                      </p>
                     </div>
-                  ))}
+                    <p className="text-sm font-medium text-white">
+                      GHS {formatCurrency(selectedOrder.amount)}
+                    </p>
+                  </div>
                 </div>
               </div>
 

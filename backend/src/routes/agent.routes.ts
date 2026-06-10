@@ -834,14 +834,10 @@ agentRouter.get('/orders', async (request, response, next) => {
     const orders = await prisma.order.findMany({
       where: {
         userId: request.auth!.userId,
-        ...(status && { status: String(status) }),
+        ...(status && { status: status as OrderStatus }),
       },
       include: {
-        items: {
-          include: {
-            product: { include: { network: true } },
-          },
-        },
+        product: { include: { network: true } },
       },
       orderBy: { createdAt: 'desc' },
     });

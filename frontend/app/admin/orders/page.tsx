@@ -7,41 +7,37 @@ import { DashboardShell } from '@/components/navigation/dashboard-shell';
 import { GlassCard } from '@/components/ui/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import { CheckCircle2, Clock, XCircle, Package, Download } from 'lucide-react';
-
-interface OrderItem {
-  id: string;
-  productId: string;
-  quantity: number;
-  price: number;
-  status: string;
-  phoneNumber: string;
-  product: { name: string; network: { name: string } };
-}
+import {
+  CheckCircle2, XCircle, RefreshCw, Loader2,
+  Maximize2, Minimize2, Download, Search
+} from 'lucide-react';
 
 interface Order {
   id: string;
   receiptNumber: string;
-  userId: string;
   status: string;
   amount: number;
+  phoneNumber: string;
   createdAt: string;
-  user: { firstName: string; lastName: string; email: string };
-  items: OrderItem[];
+  user: { firstName: string; lastName: string };
+  product: { name: string; network: { name: string } };
 }
 
 export default function AdminOrdersPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [productFilter, setProductFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [fullTable, setFullTable] = useState(false);
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
 
-  const { data: orders = [] } = useQuery({
+  const { data: orders = [], isLoading } = useQuery({
     queryKey: ['admin-orders', search, statusFilter],
     queryFn: () =>
       apiRequest<Order[]>(
@@ -57,19 +53,23 @@ export default function AdminOrdersPage() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
-      setShowDetailsModal(false);
-      setSelectedOrder(null);
     },
   });
 
-  const updateItemStatusMutation = useMutation({
-    mutationFn: (data: { itemId: string; status: string }) =>
-      apiRequest(`/admin/orders/items/${data.itemId}/status`, {
-        method: 'PUT',
-        body: JSON.stringify({ status: data.status }),
-      }),
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async (data: { orderIds: string[]; status: string }) => {
+      return Promise.all(
+        data.orderIds.map((id) =>
+          apiRequest(`/admin/orders/${id}/status`, {
+            method: 'PUT',
+            body: JSON.stringify({ status: data.status }),
+          })
+        )
+      );
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      setSelectedOrders(new Set());
     },
   });
 
@@ -77,153 +77,379 @@ export default function AdminOrdersPage() {
     mutationFn: () => apiRequest('/admin/export/orders'),
   });
 
-  const statusIcons: Record<string, React.ReactNode> = {
-    PENDING: <Clock className="h-5 w-5 text-amber-400" />,
-    PROCESSING: <Clock className="h-5 w-5 text-blue-400" />,
-    SUCCESSFUL: <CheckCircle2 className="h-5 w-5 text-emerald-400" />,
-    FAILED: <XCircle className="h-5 w-5 text-rose-400" />,
-    CANCELLED: <XCircle className="h-5 w-5 text-rose-400" />,
-    REFUNDED: <CheckCircle2 className="h-5 w-5 text-violet-400" />,
+  const filteredOrders = orders.filter((order) => {
+    const searchLower = search.toLowerCase();
+    const matchesSearch =
+      !search ||
+      order.receiptNumber.toLowerCase().includes(searchLower) ||
+      order.phoneNumber.includes(search) ||
+      order.user.firstName.toLowerCase().includes(searchLower) ||
+      order.user.lastName.toLowerCase().includes(searchLower);
+    const matchesStatus = !statusFilter || order.status === statusFilter;
+    const matchesProduct =
+      !productFilter || order.product.network.name.toLowerCase().includes(productFilter.toLowerCase());
+    const matchesDate =
+      !dateFilter ||
+      new Date(order.createdAt).toISOString().split('T')[0] === dateFilter;
+    return matchesSearch && matchesStatus && matchesProduct && matchesDate;
+  });
+
+  const pendingCount = orders.filter((o) => o.status === 'PENDING').length;
+  const processingCount = orders.filter((o) => o.status === 'PROCESSING').length;
+  const completedCount = orders.filter((o) => o.status === 'SUCCESSFUL').length;
+  const cancelledCount = orders.filter((o) => o.status === 'CANCELLED').length;
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'PENDING':
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-3 py-1 text-xs font-medium text-amber-400 border border-amber-500/20">
+            <RefreshCw className="h-3 w-3" /> Pending
+          </span>
+        );
+      case 'PROCESSING':
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-3 py-1 text-xs font-medium text-blue-400 border border-blue-500/20">
+            <Loader2 className="h-3 w-3 animate-spin" /> Processing
+          </span>
+        );
+      case 'SUCCESSFUL':
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-400 border border-emerald-500/20">
+            <CheckCircle2 className="h-3 w-3" /> Completed
+          </span>
+        );
+      case 'CANCELLED':
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/15 px-3 py-1 text-xs font-medium text-rose-400 border border-rose-500/20">
+            <XCircle className="h-3 w-3" /> Cancelled
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center rounded-full bg-gray-500/15 px-3 py-1 text-xs font-medium text-gray-400 border border-gray-500/20">
+            {status}
+          </span>
+        );
+    }
   };
 
-  const filteredOrders = orders.filter(
-    (order) =>
-      order.receiptNumber.toLowerCase().includes(search.toLowerCase()) ||
-      order.user.firstName.toLowerCase().includes(search.toLowerCase()) ||
-      order.user.lastName.toLowerCase().includes(search.toLowerCase()) ||
-      order.user.email.toLowerCase().includes(search.toLowerCase())
-  );
+  const handleBulkAction = (status: string) => {
+    if (selectedOrders.size === 0) return;
+    bulkUpdateMutation.mutate({
+      orderIds: Array.from(selectedOrders),
+      status,
+    });
+  };
+
+  const toggleSelect = (id: string) => {
+    const next = new Set(selectedOrders);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedOrders(next);
+  };
+
+  const selectAll = () => {
+    if (selectedOrders.size === filteredOrders.length && filteredOrders.length > 0) {
+      setSelectedOrders(new Set());
+    } else {
+      setSelectedOrders(new Set(filteredOrders.map((o) => o.id)));
+    }
+  };
 
   return (
     <AuthGuard>
       <DashboardShell
-        title="Orders Management"
-        description="Manage all orders from agents and users."
+        title="Order Management"
+        description={`${orders.length} orders loaded`}
         mode="admin"
       >
-        {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4 mb-6">
-          <GlassCard className="p-6">
-            <p className="text-sm text-gray-400">Total Orders</p>
-            <p className="mt-2 text-3xl font-bold text-white">{orders.length}</p>
-          </GlassCard>
-          <GlassCard className="p-6">
-            <p className="text-sm text-gray-400">Pending</p>
-            <p className="mt-2 text-3xl font-bold text-amber-400">
-              {orders.filter((o) => o.status === 'PENDING').length}
-            </p>
-          </GlassCard>
-          <GlassCard className="p-6">
-            <p className="text-sm text-gray-400">Processing</p>
-            <p className="mt-2 text-3xl font-bold text-blue-400">
-              {orders.filter((o) => o.status === 'PROCESSING').length}
-            </p>
-          </GlassCard>
-          <GlassCard className="p-6">
-            <p className="text-sm text-gray-400">Completed</p>
-            <p className="mt-2 text-3xl font-bold text-emerald-400">
-              {orders.filter((o) => o.status === 'SUCCESSFUL').length}
-            </p>
-          </GlassCard>
-        </div>
-
-        {/* Filters */}
-        <div className="grid gap-4 md:grid-cols-3 mb-6">
-          <Input
-            placeholder="Search by receipt, name, or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-xl border border-gray-700/50 bg-slate-900/50 px-4 py-2.5 text-sm text-white outline-none transition-all duration-200 hover:border-gray-600/50 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
-          >
-            <option value="">All Statuses</option>
-            <option value="PENDING">Pending</option>
-            <option value="PROCESSING">Processing</option>
-            <option value="SUCCESSFUL">Successful</option>
-            <option value="FAILED">Failed</option>
-            <option value="CANCELLED">Cancelled</option>
-            <option value="REFUNDED">Refunded</option>
-          </select>
-          <Button
-            onClick={() => exportMutation.mutate()}
-            disabled={exportMutation.isPending}
-            className="flex items-center gap-2"
-          >
-            <Download className="h-4 w-4" />
-            {exportMutation.isPending ? 'Exporting...' : 'Export to Excel'}
-          </Button>
-        </div>
-
-        {/* Orders List */}
-        <GlassCard className="p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Orders</h3>
-
-          <div className="space-y-3">
-            {filteredOrders.map((order) => (
-              <div
-                key={order.id}
-                className="flex items-center justify-between rounded-lg border border-gray-700/50 bg-gray-900/30 p-4"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-600/20">
-                      <Package className="h-5 w-5 text-violet-400" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-white">{order.receiptNumber}</p>
-                      <p className="text-xs text-gray-500">
-                        {order.user.firstName} {order.user.lastName}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2 md:grid-cols-4 text-sm text-gray-400 mt-2">
-                    <div>
-                      <p className="text-xs text-gray-500">Amount</p>
-                      <p className="font-medium text-white">GHS {formatCurrency(order.amount)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Items</p>
-                      <p className="font-medium text-white">{order.items.length}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Date</p>
-                      <p className="font-medium text-white">
-                        {new Date(order.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Status</p>
-                      <Badge variant={order.status === 'SUCCESSFUL' ? 'success' : 'warning'}>
-                        {order.status}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 ml-4">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedOrder(order);
-                      setNewStatus(order.status);
-                      setShowDetailsModal(true);
-                    }}
-                  >
-                    View Details
-                  </Button>
-                </div>
-              </div>
-            ))}
-
-            {filteredOrders.length === 0 && (
-              <p className="text-center text-gray-500 py-8">No orders found</p>
-            )}
+        {/* Header Actions */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white">
+            All Orders ({filteredOrders.length})
+          </h2>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => setFullTable(!fullTable)}
+              className="flex items-center gap-2"
+              variant="secondary"
+            >
+              {fullTable ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )}
+              {fullTable ? 'Close Table' : 'Open Full Table'}
+            </Button>
+            <div className="relative">
+              <Input
+                placeholder="Search orders..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-64 pl-9"
+              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+            </div>
           </div>
+        </div>
+
+        {/* Stats */}
+        <div className="flex flex-wrap gap-3 mb-6">
+          <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-2">
+            <span className="font-bold text-amber-400">{pendingCount}</span>
+            <span className="text-sm text-amber-300">Pending</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-4 py-2">
+            <span className="font-bold text-blue-400">{processingCount}</span>
+            <span className="text-sm text-blue-300">Processing</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2">
+            <span className="font-bold text-emerald-400">{completedCount}</span>
+            <span className="text-sm text-emerald-300">Completed</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg bg-rose-500/10 border border-rose-500/20 px-4 py-2">
+            <span className="font-bold text-rose-400">{cancelledCount}</span>
+            <span className="text-sm text-rose-300">Cancelled</span>
+          </div>
+        </div>
+
+        {/* Full Table Filters */}
+        {fullTable && (
+          <GlassCard className="p-4 mb-4">
+            <div className="grid gap-3 md:grid-cols-6">
+              <Input
+                placeholder="Order ID..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <Input
+                placeholder="Phone..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <select
+                value={productFilter}
+                onChange={(e) => setProductFilter(e.target.value)}
+                className="rounded-xl border border-gray-700/50 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none"
+              >
+                <option value="">All Products</option>
+                <option value="MTN">MTN</option>
+                <option value="Telecel">Telecel</option>
+                <option value="Vodafone">Vodafone</option>
+                <option value="AirtelTigo">AirtelTigo</option>
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="rounded-xl border border-gray-700/50 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none"
+              >
+                <option value="">All Status</option>
+                <option value="PENDING">Pending</option>
+                <option value="PROCESSING">Processing</option>
+                <option value="SUCCESSFUL">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+              <select className="rounded-xl border border-gray-700/50 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none">
+                <option value="">All Sources</option>
+                <option value="DASHBOARD">Dashboard</option>
+                <option value="STOREFRONT">Storefront</option>
+                <option value="API">API</option>
+              </select>
+              <Input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="text-gray-400"
+              />
+            </div>
+
+            {/* Bulk Actions */}
+            <div className="flex items-center gap-3 mt-4">
+              <Button
+                onClick={() => handleBulkAction('SUCCESSFUL')}
+                disabled={selectedOrders.size === 0 || bulkUpdateMutation.isPending}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Complete All
+              </Button>
+              <Button
+                onClick={() => exportMutation.mutate()}
+                disabled={exportMutation.isPending}
+                className="flex items-center gap-2"
+                variant="secondary"
+              >
+                <Download className="h-4 w-4" />
+                Download Excel
+              </Button>
+              <label className="flex items-center gap-2 text-sm text-gray-400 ml-auto cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedOrders.size === filteredOrders.length && filteredOrders.length > 0}
+                  onChange={selectAll}
+                  className="rounded border-gray-600 bg-gray-800"
+                />
+                Select All ({selectedOrders.size})
+              </label>
+            </div>
+          </GlassCard>
+        )}
+
+        {/* Orders Table */}
+        <GlassCard className="overflow-hidden">
+          {isLoading ? (
+            <div className="p-8 text-center text-gray-500">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+              Loading orders...
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-gray-700/50 text-xs text-gray-400 uppercase">
+                    {fullTable && (
+                      <th className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedOrders.size === filteredOrders.length && filteredOrders.length > 0}
+                          onChange={selectAll}
+                          className="rounded border-gray-600 bg-gray-800"
+                        />
+                      </th>
+                    )}
+                    <th className="px-4 py-3">Order ID</th>
+                    <th className="px-4 py-3">Customer</th>
+                    <th className="px-4 py-3">Mobile</th>
+                    <th className="px-4 py-3">Product</th>
+                    {fullTable && <th className="px-4 py-3">Data</th>}
+                    <th className="px-4 py-3">Status</th>
+                    {fullTable && (
+                      <>
+                        <th className="px-4 py-3">Source</th>
+                        <th className="px-4 py-3">Date</th>
+                        <th className="px-4 py-3">Price</th>
+                      </>
+                    )}
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm">
+                  {filteredOrders.map((order) => (
+                    <tr
+                      key={order.id}
+                      className="border-b border-gray-700/30 hover:bg-gray-800/30 transition-colors"
+                    >
+                      {fullTable && (
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedOrders.has(order.id)}
+                            onChange={() => toggleSelect(order.id)}
+                            className="rounded border-gray-600 bg-gray-800"
+                          />
+                        </td>
+                      )}
+                      <td className="px-4 py-3 font-medium text-white">
+                        {order.receiptNumber}
+                      </td>
+                      <td className="px-4 py-3 text-gray-300">
+                        {order.user.firstName} {order.user.lastName}
+                      </td>
+                      <td className="px-4 py-3 text-gray-300 font-mono">
+                        {order.phoneNumber}
+                      </td>
+                      <td className="px-4 py-3 text-gray-300">
+                        {order.product.network.name}
+                      </td>
+                      {fullTable && (
+                        <td className="px-4 py-3 text-violet-400 font-medium">
+                          {order.product.name.replace(/[^0-9]/g, '') || '3'} GB
+                        </td>
+                      )}
+                      <td className="px-4 py-3">{getStatusBadge(order.status)}</td>
+                      {fullTable && (
+                        <>
+                          <td className="px-4 py-3">
+                            <span className="rounded bg-violet-500/10 px-2 py-0.5 text-xs text-violet-400 border border-violet-500/20">
+                              Dashboard
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-400">
+                            {new Date(order.createdAt).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </td>
+                          <td className="px-4 py-3 text-emerald-400 font-medium">
+                            GHS {formatCurrency(order.amount)}
+                          </td>
+                        </>
+                      )}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          {/* Processing Button - Blue */}
+                          {order.status !== 'PROCESSING' && order.status !== 'SUCCESSFUL' && order.status !== 'CANCELLED' && (
+                            <button
+                              onClick={() =>
+                                updateOrderStatusMutation.mutate({
+                                  orderId: order.id,
+                                  status: 'PROCESSING',
+                                })
+                              }
+                              disabled={updateOrderStatusMutation.isPending}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors border border-blue-500/30"
+                              title="Mark as Processing"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </button>
+                          )}
+                          {/* Complete Button - Green */}
+                          {order.status !== 'SUCCESSFUL' && order.status !== 'CANCELLED' && (
+                            <button
+                              onClick={() =>
+                                updateOrderStatusMutation.mutate({
+                                  orderId: order.id,
+                                  status: 'SUCCESSFUL',
+                                })
+                              }
+                              disabled={updateOrderStatusMutation.isPending}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30"
+                              title="Mark as Completed"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </button>
+                          )}
+                          {/* Cancel Button - Red */}
+                          {order.status !== 'CANCELLED' && order.status !== 'SUCCESSFUL' && (
+                            <button
+                              onClick={() =>
+                                updateOrderStatusMutation.mutate({
+                                  orderId: order.id,
+                                  status: 'CANCELLED',
+                                })
+                              }
+                              disabled={updateOrderStatusMutation.isPending}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 transition-colors border border-rose-500/30"
+                              title="Cancel Order"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {filteredOrders.length === 0 && (
+                <p className="text-center text-gray-500 py-8">No orders found</p>
+              )}
+            </div>
+          )}
         </GlassCard>
 
         {/* Order Details Modal */}
@@ -234,89 +460,57 @@ export default function AdminOrdersPage() {
                 Order Details - {selectedOrder.receiptNumber}
               </h3>
 
-              {/* Order Info */}
               <div className="mb-6 p-4 rounded-lg bg-gray-900/30 border border-gray-700/50">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
-                    <p className="text-xs text-gray-500">Customer</p>
-                    <p className="font-medium text-white">
-                      {selectedOrder.user.firstName} {selectedOrder.user.lastName}
-                    </p>
-                    <p className="text-sm text-gray-400">{selectedOrder.user.email}</p>
+                    <p className="text-xs text-gray-500">Order ID</p>
+                    <p className="font-medium text-white">{selectedOrder.id}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Receipt Number</p>
+                    <p className="font-medium text-white">{selectedOrder.receiptNumber}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Amount</p>
-                    <p className="font-medium text-white">
-                      GHS {formatCurrency(selectedOrder.amount)}
-                    </p>
+                    <p className="font-medium text-white">GHS {formatCurrency(selectedOrder.amount)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Date</p>
-                    <p className="font-medium text-white">
-                      {new Date(selectedOrder.createdAt).toLocaleDateString()}
-                    </p>
+                    <p className="font-medium text-white">{new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Phone Number</p>
+                    <p className="font-medium text-white">{selectedOrder.phoneNumber}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Status</p>
-                    <Badge variant={selectedOrder.status === 'SUCCESSFUL' ? 'success' : 'warning'}>
-                      {selectedOrder.status}
-                    </Badge>
+                    <p>{getStatusBadge(selectedOrder.status)}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Order Items */}
               <div className="mb-6">
-                <h4 className="text-sm font-semibold text-white mb-3">Order Items</h4>
-                <div className="space-y-2">
-                  {selectedOrder.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-gray-900/30 border border-gray-700/50"
-                    >
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-white">
-                          {item.product.name} ({item.product.network.name})
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Phone: {item.phoneNumber} | Qty: {item.quantity}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <p className="text-sm font-medium text-white">
-                          GHS {formatCurrency(item.price)}
-                        </p>
-                        <select
-                          value={item.status}
-                          onChange={(e) =>
-                            updateItemStatusMutation.mutate({
-                              itemId: item.id,
-                              status: e.target.value,
-                            })
-                          }
-                          className="rounded-lg border border-gray-700/50 bg-slate-900/50 px-2 py-1 text-xs text-white outline-none transition-all duration-200 hover:border-gray-600/50 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
-                        >
-                          <option value="PENDING">Pending</option>
-                          <option value="PROCESSING">Processing</option>
-                          <option value="SUCCESSFUL">Successful</option>
-                          <option value="FAILED">Failed</option>
-                        </select>
-                      </div>
+                <h4 className="text-sm font-semibold text-white mb-3">Product Details</h4>
+                <div className="p-3 rounded-lg bg-gray-900/30 border border-gray-700/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-white">
+                        {selectedOrder.product.name} ({selectedOrder.product.network.name})
+                      </p>
+                      <p className="text-xs text-gray-500">Phone: {selectedOrder.phoneNumber}</p>
                     </div>
-                  ))}
+                    <p className="text-sm font-medium text-white">GHS {formatCurrency(selectedOrder.amount)}</p>
+                  </div>
                 </div>
               </div>
 
-              {/* Status Update */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Update Order Status
-                </label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Update Order Status</label>
                 <div className="flex gap-2">
                   <select
                     value={newStatus}
                     onChange={(e) => setNewStatus(e.target.value)}
-                    className="flex-1 rounded-xl border border-gray-700/50 bg-slate-900/50 px-4 py-2.5 text-sm text-white outline-none transition-all duration-200 hover:border-gray-600/50 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                    className="flex-1 rounded-xl border border-gray-700/50 bg-slate-900/50 px-4 py-2.5 text-sm text-white outline-none"
                   >
                     <option value="PENDING">Pending</option>
                     <option value="PROCESSING">Processing</option>
@@ -326,12 +520,7 @@ export default function AdminOrdersPage() {
                     <option value="REFUNDED">Refunded</option>
                   </select>
                   <Button
-                    onClick={() =>
-                      updateOrderStatusMutation.mutate({
-                        orderId: selectedOrder.id,
-                        status: newStatus,
-                      })
-                    }
+                    onClick={() => updateOrderStatusMutation.mutate({ orderId: selectedOrder.id, status: newStatus })}
                     disabled={updateOrderStatusMutation.isPending}
                   >
                     {updateOrderStatusMutation.isPending ? 'Updating...' : 'Update'}
@@ -339,15 +528,9 @@ export default function AdminOrdersPage() {
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={() => setShowDetailsModal(false)}
-                >
-                  Close
-                </Button>
-              </div>
+              <Button variant="secondary" className="w-full" onClick={() => setShowDetailsModal(false)}>
+                Close
+              </Button>
             </GlassCard>
           </div>
         )}

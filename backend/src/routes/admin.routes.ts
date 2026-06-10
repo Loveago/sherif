@@ -1077,15 +1077,11 @@ adminRouter.get('/orders', async (request, response, next) => {
             ]}},
           ],
         }),
-        ...(status && { status: String(status) }),
+        ...(status && { status: status as OrderStatus }),
       },
       include: {
-        user: { select: { firstName: true, lastName: true, email: true } },
-        items: {
-          include: {
-            product: { include: { network: true } },
-          },
-        },
+        user: { select: { firstName: true, lastName: true } },
+        product: { include: { network: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -1106,14 +1102,9 @@ adminRouter.put('/orders/:id/status', async (request, response, next) => {
 
     const order = await prisma.order.update({
       where: { id: request.params.id },
-      data: { status },
+      data: { status: status as OrderStatus },
       include: {
-        user: { select: { firstName: true, lastName: true, email: true } },
-        items: {
-          include: {
-            product: { include: { network: true } },
-          },
-        },
+        product: { include: { network: true } },
       },
     });
 
@@ -1125,29 +1116,6 @@ adminRouter.put('/orders/:id/status', async (request, response, next) => {
     );
 
     return response.json(createSuccessResponse(order, 'Order status updated'));
-  } catch (error) {
-    return next(error);
-  }
-});
-
-adminRouter.put('/orders/items/:id/status', async (request, response, next) => {
-  try {
-    const { status } = request.body;
-
-    if (!status) {
-      return response.status(400).json({ success: false, message: 'Status is required' });
-    }
-
-    const item = await prisma.orderItem.update({
-      where: { id: request.params.id },
-      data: { status },
-      include: {
-        order: true,
-        product: { include: { network: true } },
-      },
-    });
-
-    return response.json(createSuccessResponse(item, 'Item status updated'));
   } catch (error) {
     return next(error);
   }
