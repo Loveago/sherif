@@ -7,6 +7,8 @@ import { announcementSchema, createProductSchema, creditWalletSchema } from '../
 import { createSuccessResponse } from '../utils/response.js';
 import { generateReference } from '../utils/refs.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
+import { createNotification } from '../services/notification.service.js';
+import { exportToCSV, exportToExcel } from '../services/export.service.js';
 
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
 
@@ -614,8 +616,46 @@ adminRouter.get('/commissions', async (request, response, next) => {
     });
 
     const total = commissions.reduce((sum, c) => sum + c.amount.toNumber(), 0);
+    const pending = commissions.filter((c) => c.status === 'PENDING').length;
+    const paid = commissions.filter((c) => c.status === 'PAID').length;
 
-    return response.json(createSuccessResponse({ commissions, total }));
+    const topAgent = commissions.reduce(
+      (acc, c) => {
+        const amount = c.amount.toNumber();
+        if (amount > acc.amount) {
+          return { name: `${c.user.firstName} ${c.user.lastName}`, amount };
+        }
+        return acc;
+      },
+      { name: '', amount: 0 }
+    );
+
+    return response.json(createSuccessResponse({ 
+      commissions, 
+      total,
+      stats: { total, pending, paid, topAgent }
+    }));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/commissions/:id/payout', async (request, response, next) => {
+  try {
+    const commission = await prisma.commission.update({
+      where: { id: request.params.id },
+      data: { status: 'PAID', paidAt: new Date() },
+      include: { user: true, order: true },
+    });
+
+    await createNotification(
+      commission.userId,
+      'Commission Paid',
+      `Your commission of GHS ${commission.amount} has been paid.`,
+      'COMMISSION'
+    );
+
+    return response.json(createSuccessResponse(commission, 'Commission payout processed'));
   } catch (error) {
     return next(error);
   }
@@ -651,6 +691,370 @@ adminRouter.delete('/announcements/:id', async (request, response, next) => {
     });
 
     return response.json(createSuccessResponse({ id: request.params.id }, 'Announcement deleted'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.get('/reports/:type', async (request, response, next) => {
+  try {
+    const { type } = request.params;
+    const { startDate, endDate } = request.query;
+
+    const whereClause = {
+      ...(startDate && { createdAt: { gte: new Date(String(startDate)) } }),
+      ...(endDate && { createdAt: { lte: new Date(String(endDate)) } }),
+    };
+
+    const [orders, users, products, payments] = await Promise.all([
+      prisma.order.findMany({ where: whereClause, include: { product: true } }),
+      prisma.user.findMany({ where: { ...whereClause, deletedAt: null } }),
+      prisma.product.findMany(),
+      prisma.walletTransaction.findMany({ where: whereClause }),
+    ]);
+
+    const totalRevenue = orders.reduce((sum, o) => sum + o.amount.toNumber(), 0);
+    const totalOrders = orders.length;
+    const totalUsers = users.length;
+    const successfulOrders = orders.filter((o) => o.status === 'SUCCESSFUL').length;
+    const successRate = totalOrders > 0 ? (successfulOrders / totalOrders) * 100 : 0;
+
+    // Sales data (daily)
+    const salesByDate: Record<string, number> = {};
+    orders.forEach((order) => {
+      const date = order.createdAt.toISOString().split('T')[0];
+      salesByDate[date] = (salesByDate[date] || 0) + order.amount.toNumber();
+    });
+
+    const sales = Object.entries(salesByDate).map(([date, amount]) => ({ date, amount }));
+
+    // User growth (daily)
+    const usersByDate: Record<string, number> = {};
+    users.forEach((user) => {
+      const date = user.createdAt.toISOString().split('T')[0];
+      usersByDate[date] = (usersByDate[date] || 0) + 1;
+    });
+
+    const userGrowth = Object.entries(usersByDate).map(([date, count]) => ({ date, count }));
+
+    // Orders by status
+    const ordersByStatus = [
+      { status: 'SUCCESSFUL', count: orders.filter((o) => o.status === 'SUCCESSFUL').length },
+      { status: 'PENDING', count: orders.filter((o) => o.status === 'PENDING').length },
+      { status: 'FAILED', count: orders.filter((o) => o.status === 'FAILED').length },
+      { status: 'CANCELLED', count: orders.filter((o) => o.status === 'CANCELLED').length },
+    ];
+
+    // Top products
+    const productSales: Record<string, { sales: number; revenue: number }> = {};
+    orders.forEach((order) => {
+      const productName = order.product.name;
+      if (!productSales[productName]) {
+        productSales[productName] = { sales: 0, revenue: 0 };
+      }
+      productSales[productName].sales += 1;
+      productSales[productName].revenue += order.amount.toNumber();
+    });
+
+    const topProducts = Object.entries(productSales)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+
+    // Payment methods
+    const paymentMethods: Record<string, { count: number; amount: number }> = {};
+    payments.forEach((payment) => {
+      const method = payment.category || 'Other';
+      if (!paymentMethods[method]) {
+        paymentMethods[method] = { count: 0, amount: 0 };
+      }
+      paymentMethods[method].count += 1;
+      paymentMethods[method].amount += payment.amount.toNumber();
+    });
+
+    const paymentMethodsArray = Object.entries(paymentMethods).map(([method, data]) => ({ method, ...data }));
+
+    const reportData = {
+      sales,
+      users: userGrowth,
+      orders: ordersByStatus,
+      topProducts,
+      paymentMethods: paymentMethodsArray,
+      totalRevenue,
+      totalOrders,
+      totalUsers,
+      successRate,
+    };
+
+    return response.json(createSuccessResponse(reportData));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.get('/export/users', async (request, response, next) => {
+  try {
+    const { format = 'csv' } = request.query;
+    const users = await prisma.user.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+
+    if (format === 'excel') {
+      const buffer = exportToExcel(users, 'users');
+      response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      response.setHeader('Content-Disposition', 'attachment; filename="users.xlsx"');
+      return response.send(buffer);
+    } else {
+      const buffer = exportToCSV(users, 'users');
+      response.setHeader('Content-Type', 'text/csv');
+      response.setHeader('Content-Disposition', 'attachment; filename="users.csv"');
+      return response.send(buffer);
+    }
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.get('/export/orders', async (request, response, next) => {
+  try {
+    const { format = 'csv' } = request.query;
+    const orders = await prisma.order.findMany({
+      include: {
+        product: { select: { name: true } },
+        user: { select: { firstName: true, lastName: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const formattedOrders = orders.map((order) => ({
+      receiptNumber: order.receiptNumber,
+      customer: `${order.user.firstName} ${order.user.lastName}`,
+      email: order.user.email,
+      product: order.product.name,
+      phoneNumber: order.phoneNumber,
+      amount: order.amount.toNumber(),
+      status: order.status,
+      createdAt: order.createdAt,
+    }));
+
+    if (format === 'excel') {
+      const buffer = exportToExcel(formattedOrders, 'orders');
+      response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      response.setHeader('Content-Disposition', 'attachment; filename="orders.xlsx"');
+      return response.send(buffer);
+    } else {
+      const buffer = exportToCSV(formattedOrders, 'orders');
+      response.setHeader('Content-Type', 'text/csv');
+      response.setHeader('Content-Disposition', 'attachment; filename="orders.csv"');
+      return response.send(buffer);
+    }
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.get('/export/commissions', async (request, response, next) => {
+  try {
+    const { format = 'csv' } = request.query;
+    const commissions = await prisma.commission.findMany({
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true } },
+        order: { select: { receiptNumber: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const formattedCommissions = commissions.map((commission) => ({
+      agent: `${commission.user.firstName} ${commission.user.lastName}`,
+      email: commission.user.email,
+      orderNumber: commission.order.receiptNumber,
+      amount: commission.amount.toNumber(),
+      status: commission.status || 'PENDING',
+      createdAt: commission.createdAt,
+    }));
+
+    if (format === 'excel') {
+      const buffer = exportToExcel(formattedCommissions, 'commissions');
+      response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      response.setHeader('Content-Disposition', 'attachment; filename="commissions.xlsx"');
+      return response.send(buffer);
+    } else {
+      const buffer = exportToCSV(formattedCommissions, 'commissions');
+      response.setHeader('Content-Type', 'text/csv');
+      response.setHeader('Content-Disposition', 'attachment; filename="commissions.csv"');
+      return response.send(buffer);
+    }
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.get('/audit-logs', async (request, response, next) => {
+  try {
+    const { search = '', action = '' } = request.query;
+
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        ...(search && {
+          OR: [
+            { action: { contains: String(search), mode: 'insensitive' } },
+            { entity: { contains: String(search), mode: 'insensitive' } },
+            { actor: { OR: [
+              { firstName: { contains: String(search), mode: 'insensitive' } },
+              { lastName: { contains: String(search), mode: 'insensitive' } },
+              { email: { contains: String(search), mode: 'insensitive' } },
+            ]}},
+          ],
+        }),
+        ...(action && { action: String(action) }),
+      },
+      include: {
+        actor: { select: { firstName: true, lastName: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    const formattedLogs = logs.map((log) => ({
+      id: log.id,
+      userId: log.actorId,
+      action: log.action,
+      resource: log.entity,
+      resourceId: log.entityId,
+      changes: log.metadata,
+      ipAddress: '',
+      userAgent: '',
+      status: 'SUCCESS',
+      createdAt: log.createdAt,
+      user: {
+        firstName: log.actor.firstName,
+        lastName: log.actor.lastName,
+        email: log.actor.email,
+      },
+    }));
+
+    return response.json(createSuccessResponse(formattedLogs));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.get('/users', async (request, response, next) => {
+  try {
+    const { search = '' } = request.query;
+
+    const users = await prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        ...(search && {
+          OR: [
+            { firstName: { contains: String(search), mode: 'insensitive' } },
+            { lastName: { contains: String(search), mode: 'insensitive' } },
+            { email: { contains: String(search), mode: 'insensitive' } },
+          ],
+        }),
+      },
+      include: {
+        wallet: { select: { availableBalance: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return response.json(createSuccessResponse(users));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.put('/users/:id', async (request, response, next) => {
+  try {
+    const { firstName, lastName, email, phone } = request.body;
+
+    const user = await prisma.user.update({
+      where: { id: request.params.id },
+      data: {
+        ...(firstName && { firstName }),
+        ...(lastName && { lastName }),
+        ...(email && { email }),
+        ...(phone && { phone }),
+      },
+      include: { wallet: { select: { availableBalance: true } } },
+    });
+
+    return response.json(createSuccessResponse(user, 'User updated successfully'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.delete('/users/:id', async (request, response, next) => {
+  try {
+    const user = await prisma.user.update({
+      where: { id: request.params.id },
+      data: { deletedAt: new Date() },
+    });
+
+    return response.json(createSuccessResponse(user, 'User deleted successfully'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/users/:id/wallet', async (request, response, next) => {
+  try {
+    const { amount, type, reason } = request.body;
+
+    if (!amount || !type || !reason) {
+      return response.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    const numAmount = parseFloat(String(amount));
+    if (isNaN(numAmount) || numAmount <= 0) {
+      return response.status(400).json({ success: false, message: 'Invalid amount' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: request.params.id },
+      include: { wallet: true },
+    });
+
+    if (!user || !user.wallet) {
+      return response.status(404).json({ success: false, message: 'User or wallet not found' });
+    }
+
+    const transactionType = type === 'ADD' ? WalletTransactionType.CREDIT : WalletTransactionType.DEBIT;
+    const transactionCategory = WalletTransactionCategory.ADMIN_ADJUSTMENT;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const { updatedWallet, transaction } = await createWalletTransaction(
+        user.wallet.id,
+        numAmount,
+        transactionType,
+        transactionCategory,
+        `Admin ${type === 'ADD' ? 'credit' : 'debit'}: ${reason}`,
+        tx,
+      );
+
+      await createNotification(
+        user.id,
+        'Wallet Updated',
+        `Your wallet has been ${type === 'ADD' ? 'credited' : 'debited'} with GHS ${numAmount}. Reason: ${reason}`,
+        'WALLET'
+      );
+
+      return { updatedWallet, transaction };
+    });
+
+    return response.json(createSuccessResponse(result, 'Wallet updated successfully'));
   } catch (error) {
     return next(error);
   }

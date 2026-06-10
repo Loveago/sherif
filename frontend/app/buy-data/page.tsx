@@ -2,15 +2,17 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { AuthGuard } from '@/components/auth/auth-guard';
 import { DashboardShell } from '@/components/navigation/dashboard-shell';
 import { GlassCard } from '@/components/ui/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/lib/api';
+import { useCartStore } from '@/store/cart-store';
 import type { Product } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
-import { Check, ChevronRight } from 'lucide-react';
+import { Check, ChevronRight, ShoppingCart } from 'lucide-react';
 
 const networks = [
   { code: 'MTN', name: 'MTN', color: 'bg-yellow-500', textColor: 'text-yellow-400', borderColor: 'border-yellow-500/50' },
@@ -20,10 +22,12 @@ const networks = [
 
 export default function BuyDataPage() {
   const queryClient = useQueryClient();
+  const { addItem } = useCartStore();
   const [selectedNetwork, setSelectedNetwork] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [step, setStep] = useState(1);
+  const [addedToCart, setAddedToCart] = useState(false);
 
   const { data: products = [] } = useQuery({
     queryKey: ['products'],
@@ -182,16 +186,30 @@ export default function BuyDataPage() {
                     onChange={(e) => setPhoneNumber(e.target.value)}
                   />
                 </div>
-                <div className="flex gap-3">
-                  <Button variant="secondary" className="flex-1" onClick={() => setStep(2)}>
-                    Back
-                  </Button>
+                <div className="space-y-3">
                   <Button
-                    className="flex-1"
+                    className="w-full"
                     onClick={handleConfirm}
                     disabled={!phoneNumber || purchaseMutation.isPending}
                   >
-                    {purchaseMutation.isPending ? 'Processing...' : 'Continue'}
+                    {purchaseMutation.isPending ? 'Processing...' : 'Buy Now'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    onClick={() => {
+                      if (selectedProduct) {
+                        addItem(selectedProduct, 1, selectedProduct.sellingPrice);
+                        setAddedToCart(true);
+                        setTimeout(() => setAddedToCart(false), 2000);
+                      }
+                    }}
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    {addedToCart ? 'Added to Cart!' : 'Add to Cart'}
+                  </Button>
+                  <Button variant="ghost" className="w-full" onClick={() => setStep(2)}>
+                    Back
                   </Button>
                 </div>
               </div>

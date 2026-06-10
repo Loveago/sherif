@@ -336,6 +336,56 @@ agentRouter.post('/orders', validate(createOrderSchema), async (request, respons
   }
 });
 
+agentRouter.post('/orders/:id/cancel', async (request, response, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: request.params.id,
+        userId: request.auth!.userId,
+      },
+      include: { user: { include: { wallet: true } } },
+    });
+
+    if (!order) {
+      return response.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    if (['SUCCESSFUL', 'REFUNDED', 'CANCELLED'].includes(order.status)) {
+      return response.status(400).json({ success: false, message: 'Cannot cancel this order' });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      if (order.user.wallet) {
+        await createWalletTransaction(
+          order.user.wallet.id,
+          order.amount.toNumber(),
+          WalletTransactionType.CREDIT,
+          WalletTransactionCategory.REFUND,
+          `Order cancellation refund for ${order.receiptNumber}`,
+          tx,
+        );
+      }
+
+      return tx.order.update({
+        where: { id: order.id },
+        data: { status: 'CANCELLED' },
+        include: { product: { include: { network: true } } },
+      });
+    });
+
+    await createNotification(
+      request.auth!.userId,
+      'Order cancelled',
+      `Your order ${order.receiptNumber} has been cancelled and refunded.`,
+      'ORDER'
+    );
+
+    return response.json(createSuccessResponse(result, 'Order cancelled successfully'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
 agentRouter.post('/orders/refund', validate(refundRequestSchema), async (request, response, next) => {
   try {
     const order = await prisma.order.findFirst({
@@ -494,6 +544,283 @@ agentRouter.get('/commissions', async (request, response, next) => {
     });
 
     return response.json(createSuccessResponse(commissions));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/api-keys', async (request, response, next) => {
+  try {
+    const keys = await prisma.apiKey.findMany({
+      where: { userId: request.auth!.userId },
+      select: {
+        id: true,
+        name: true,
+        key: true,
+        status: true,
+        lastUsed: true,
+        createdAt: true,
+        usageCount: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return response.json(createSuccessResponse(keys));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.post('/api-keys', async (request, response, next) => {
+  try {
+    const { name } = request.body;
+
+    if (!name || typeof name !== 'string') {
+      return response.status(400).json({ success: false, message: 'Name is required' });
+    }
+
+    const key = `sk_${generateReference('KEY')}`;
+
+    const apiKey = await prisma.apiKey.create({
+      data: {
+        userId: request.auth!.userId,
+        name,
+        key,
+        status: 'ACTIVE',
+      },
+    });
+
+    return response.status(201).json(createSuccessResponse(apiKey, 'API key created successfully'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.delete('/api-keys/:id', async (request, response, next) => {
+  try {
+    const apiKey = await prisma.apiKey.findFirst({
+      where: {
+        id: request.params.id,
+        userId: request.auth!.userId,
+      },
+    });
+
+    if (!apiKey) {
+      return response.status(404).json({ success: false, message: 'API key not found' });
+    }
+
+    await prisma.apiKey.delete({
+      where: { id: request.params.id },
+    });
+
+    return response.json(createSuccessResponse({ id: request.params.id }, 'API key deleted'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/storefront/analytics', async (request, response, next) => {
+  try {
+    const orders = await prisma.order.findMany({
+      where: { userId: request.auth!.userId },
+      include: { product: true },
+    });
+
+    const commissions = await prisma.commission.findMany({
+      where: { userId: request.auth!.userId },
+    });
+
+    const totalViews = orders.length * 5; // Placeholder: 5 views per order
+    const totalOrders = orders.length;
+    const totalCommission = commissions.reduce((sum, c) => sum + c.amount.toNumber(), 0);
+    const conversionRate = totalViews > 0 ? (totalOrders / totalViews) * 100 : 0;
+    const averageOrderValue = totalOrders > 0 ? orders.reduce((sum, o) => sum + o.amount.toNumber(), 0) / totalOrders : 0;
+
+    // Top products
+    const productSales: Record<string, { sales: number; commission: number }> = {};
+    orders.forEach((order) => {
+      const productName = order.product.name;
+      if (!productSales[productName]) {
+        productSales[productName] = { sales: 0, commission: 0 };
+      }
+      productSales[productName].sales += 1;
+    });
+
+    commissions.forEach((commission) => {
+      const order = orders.find((o) => o.id === commission.orderId);
+      if (order && productSales[order.product.name]) {
+        productSales[order.product.name].commission += commission.amount.toNumber();
+      }
+    });
+
+    const topProducts = Object.entries(productSales)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.commission - a.commission)
+      .slice(0, 5);
+
+    // Daily views (placeholder)
+    const dailyViews = Array.from({ length: 7 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      return {
+        date: date.toISOString().split('T')[0],
+        views: Math.floor(Math.random() * 50) + 10,
+      };
+    }).reverse();
+
+    // Daily orders
+    const dailyOrders: Record<string, { orders: number; revenue: number }> = {};
+    orders.forEach((order) => {
+      const date = order.createdAt.toISOString().split('T')[0];
+      if (!dailyOrders[date]) {
+        dailyOrders[date] = { orders: 0, revenue: 0 };
+      }
+      dailyOrders[date].orders += 1;
+      dailyOrders[date].revenue += order.amount.toNumber();
+    });
+
+    const dailyOrdersArray = Object.entries(dailyOrders)
+      .map(([date, data]) => ({ date, ...data }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    return response.json(
+      createSuccessResponse({
+        totalViews,
+        totalOrders,
+        totalCommission,
+        topProducts,
+        dailyViews,
+        dailyOrders: dailyOrdersArray,
+        conversionRate,
+        averageOrderValue,
+      })
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/loans', async (request, response, next) => {
+  try {
+    const loans = await prisma.loan.findMany({
+      where: { userId: request.auth!.userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return response.json(createSuccessResponse(loans));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/failed-payments', async (request, response, next) => {
+  try {
+    const failedOrders = await prisma.order.findMany({
+      where: {
+        userId: request.auth!.userId,
+        status: 'FAILED',
+      },
+      include: {
+        product: { include: { network: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const failedPayments = failedOrders.map((order) => ({
+      id: order.id,
+      receiptNumber: order.receiptNumber,
+      product: order.product.name,
+      network: order.product.network.code,
+      phoneNumber: order.phoneNumber,
+      amount: order.amount.toNumber(),
+      status: order.status,
+      failureReason: order.notes || 'Payment processing failed',
+      createdAt: order.createdAt,
+      retryCount: 0,
+    }));
+
+    return response.json(createSuccessResponse(failedPayments));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.post('/failed-payments/:id/retry', async (request, response, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: request.params.id,
+        userId: request.auth!.userId,
+        status: 'FAILED',
+      },
+      include: { product: { include: { network: true } } },
+    });
+
+    if (!order) {
+      return response.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: order.id },
+      data: { status: 'PENDING' },
+      include: { product: { include: { network: true } } },
+    });
+
+    await createNotification(
+      request.auth!.userId,
+      'Payment Retry',
+      `Payment retry initiated for order ${order.receiptNumber}`,
+      'PAYMENT'
+    );
+
+    return response.json(createSuccessResponse(updatedOrder, 'Payment retry initiated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/afa-registrations', async (request, response, next) => {
+  try {
+    const registrations = await prisma.aFARegistration.findMany({
+      where: { userId: request.auth!.userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return response.json(createSuccessResponse(registrations));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.post('/afa-registrations', async (request, response, next) => {
+  try {
+    const { agentName, businessName, email, phone, businessType, notes } = request.body;
+
+    if (!agentName || !businessName || !email) {
+      return response.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    const registration = await prisma.aFARegistration.create({
+      data: {
+        userId: request.auth!.userId,
+        agentName,
+        businessName,
+        email,
+        phone,
+        businessType,
+        notes,
+        status: 'PENDING',
+      },
+    });
+
+    await createNotification(
+      request.auth!.userId,
+      'AFA Registration Submitted',
+      `Your AFA registration for ${businessName} has been submitted for review.`,
+      'REGISTRATION'
+    );
+
+    return response.status(201).json(createSuccessResponse(registration, 'AFA registration submitted'));
   } catch (error) {
     return next(error);
   }

@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Commission" ADD COLUMN "status" TEXT NOT NULL DEFAULT 'PENDING',
+ADD COLUMN "paidAt" TIMESTAMP(3);
