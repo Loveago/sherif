@@ -26,8 +26,12 @@ export default function WalletPage() {
   const fundForm = useForm<FundFormValues>({ defaultValues: { amount: 100, method: 'PAYSTACK' } });
   const withdrawForm = useForm<WithdrawFormValues>({ defaultValues: { amount: 50, method: 'MTN Mobile Money', accountName: '', accountNumber: '', bankName: '' } });
 
+  const [fundError, setFundError] = useState<string | null>(null);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+
   const fundMutation = useMutation({
     mutationFn: async (values: FundFormValues) => {
+      setFundError(null);
       if (values.method === 'PAYSTACK') {
         const response = await apiRequest<{ authorization_url: string; access_code: string; reference: string }>('/wallet/paystack/initialize', {
           method: 'POST',
@@ -47,6 +51,9 @@ export default function WalletPage() {
       queryClient.invalidateQueries({ queryKey: ['wallet'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
+    onError: (error: any) => {
+      setFundError(error?.message || 'Failed to fund wallet. Please try again.');
+    },
   });
 
   const withdrawMutation = useMutation({
@@ -54,6 +61,9 @@ export default function WalletPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['wallet'] });
       queryClient.invalidateQueries({ queryKey: ['withdrawals'] });
+    },
+    onError: (error: any) => {
+      setWithdrawError(error?.message || 'Withdrawal failed. Please try again.');
     },
   });
 
@@ -108,7 +118,12 @@ export default function WalletPage() {
                     <option value="MTN_MOMO" className="bg-gray-900">MTN Mobile Money</option>
                   </Select>
                 </div>
-                <Button className="w-full" disabled={fundMutation.isPending}>
+                {fundError && (
+                  <p className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
+                    {fundError}
+                  </p>
+                )}
+                <Button type="submit" className="w-full" disabled={fundMutation.isPending}>
                   {fundMutation.isPending ? 'Funding...' : 'Fund Wallet'}
                 </Button>
               </form>
@@ -131,7 +146,12 @@ export default function WalletPage() {
                 <Input placeholder="Account Name" {...withdrawForm.register('accountName')} />
                 <Input placeholder="Account Number" {...withdrawForm.register('accountNumber')} />
                 <Input placeholder="Bank Name" {...withdrawForm.register('bankName')} />
-                <Button className="w-full" variant="secondary" disabled={withdrawMutation.isPending}>
+                {withdrawError && (
+                  <p className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
+                    {withdrawError}
+                  </p>
+                )}
+                <Button type="submit" className="w-full" variant="secondary" disabled={withdrawMutation.isPending}>
                   {withdrawMutation.isPending ? 'Submitting...' : 'Request Withdrawal'}
                 </Button>
               </form>
