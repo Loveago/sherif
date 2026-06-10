@@ -55,9 +55,9 @@ export default function ProfilePage() {
 
   const updateMutation = useMutation({
     mutationFn: (data: { firstName?: string; lastName?: string; email?: string; phone?: string; companyName?: string | null }) =>
-      apiRequest('/me', { method: 'PUT', body: JSON.stringify(data) }),
-    onSuccess: (data: User) => {
-      if (token && data) {
+      apiRequest<User>('/me', { method: 'PUT', body: JSON.stringify(data) }),
+    onSuccess: (data) => {
+      if (token) {
         setAuth(token, data);
       }
       queryClient.invalidateQueries({ queryKey: ['me'] });
