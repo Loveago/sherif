@@ -32,17 +32,22 @@ export async function initializePaystackPayment(
   email: string,
   amount: number,
   reference: string,
+  callback_url?: string,
   metadata?: Record<string, any>
 ): Promise<PaystackInitializeResponse> {
   try {
+    const payload: any = {
+      email,
+      amount: Math.round(amount * 100),
+      reference,
+      metadata,
+    };
+    if (callback_url) {
+      payload.callback_url = callback_url;
+    }
     const response = await axios.post<PaystackInitializeResponse>(
       `${PAYSTACK_BASE_URL}/transaction/initialize`,
-      {
-        email,
-        amount: Math.round(amount * 100),
-        reference,
-        metadata,
-      },
+      payload,
       {
         headers: {
           Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,

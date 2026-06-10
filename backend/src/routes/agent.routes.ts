@@ -15,7 +15,8 @@ import { generateReference } from '../utils/refs.js';
 import { createNotification } from '../services/notification.service.js';
 import { emitWebhookEvent } from '../services/webhook.service.js';
 import { parseBulkFile } from '../utils/uploads.js';
-import { initializePaystackPayment } from '../services/paystack.service.js';
+import { initializePaystackPayment, verifyPaystackPayment } from '../services/paystack.service.js';
+import { env } from '../config/env.js';
 
 const upload = multer();
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
@@ -207,17 +208,97 @@ agentRouter.post('/wallet/paystack/initialize', validate(fundWalletSchema), asyn
     }
 
     const reference = generateReference('PST');
+    const callbackUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/wallet/payment-callback`;
+
     const paystackResponse = await initializePaystackPayment(
       user.email,
       request.body.amount,
       reference,
+      callbackUrl,
       {
         userId: user.id,
         amount: request.body.amount,
       }
     );
 
+    await prisma.payment.create({
+      data: {
+        userId: user.id,
+        amount: toDecimal(request.body.amount),
+        method: 'PAYSTACK',
+        status: 'PENDING',
+        reference: generateReference('PAY'),
+        providerRef: reference,
+      },
+    });
+
     return response.json(createSuccessResponse(paystackResponse.data));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/wallet/paystack/verify', async (request, response, next) => {
+  try {
+    const { reference } = request.query;
+    if (!reference || typeof reference !== 'string') {
+      return response.status(400).json({ success: false, message: 'Reference is required' });
+    }
+
+    const payment = await prisma.payment.findFirst({
+      where: { providerRef: reference },
+    });
+
+    if (!payment) {
+      return response.status(404).json({ success: false, message: 'Payment record not found' });
+    }
+
+    if (payment.status === 'SUCCESSFUL') {
+      return response.json(createSuccessResponse({ status: 'SUCCESSFUL', amount: payment.amount }, 'Payment already verified'));
+    }
+
+    const paystackResponse = await verifyPaystackPayment(reference);
+
+    if (!paystackResponse.status || paystackResponse.data.status !== 'success') {
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: 'FAILED' },
+      });
+      return response.status(400).json({ success: false, message: 'Payment verification failed' });
+    }
+
+    const wallet = await getWalletByUserId(payment.userId);
+
+    await prisma.$transaction(async (tx) => {
+      await createWalletTransaction(
+        wallet.id,
+        payment.amount.toNumber(),
+        WalletTransactionType.CREDIT,
+        WalletTransactionCategory.FUNDING,
+        'Wallet funded via Paystack',
+        tx,
+      );
+    });
+
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { status: 'SUCCESSFUL' },
+    });
+
+    await createNotification(
+      payment.userId,
+      'Wallet funded',
+      `Your wallet has been credited with GHS ${payment.amount.toFixed(2)}.`,
+      'WALLET',
+    );
+
+    await emitWebhookEvent('wallet.funded', {
+      userId: payment.userId,
+      amount: payment.amount.toNumber(),
+      reference: payment.reference,
+    });
+
+    return response.json(createSuccessResponse({ status: 'SUCCESSFUL', amount: payment.amount }, 'Wallet funded successfully'));
   } catch (error) {
     return next(error);
   }
