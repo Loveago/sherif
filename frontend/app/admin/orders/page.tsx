@@ -11,7 +11,7 @@ import { apiRequest } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import {
   CheckCircle2, XCircle, RefreshCw, Loader2,
-  Maximize2, Minimize2, Download, Search
+  Maximize2, Minimize2, Download, Search, Slash
 } from 'lucide-react';
 
 interface Order {
@@ -98,6 +98,7 @@ export default function AdminOrdersPage() {
   const processingCount = orders.filter((o) => o.status === 'PROCESSING').length;
   const completedCount = orders.filter((o) => o.status === 'SUCCESSFUL').length;
   const cancelledCount = orders.filter((o) => o.status === 'CANCELLED').length;
+  const failedCount = orders.filter((o) => o.status === 'FAILED').length;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -123,6 +124,12 @@ export default function AdminOrdersPage() {
         return (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/15 px-3 py-1 text-xs font-medium text-rose-400 border border-rose-500/20">
             <XCircle className="h-3 w-3" /> Cancelled
+          </span>
+        );
+      case 'FAILED':
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600/15 px-3 py-1 text-xs font-medium text-red-500 border border-red-600/20">
+            <XCircle className="h-3 w-3" /> Failed
           </span>
         );
       default:
@@ -212,6 +219,10 @@ export default function AdminOrdersPage() {
             <span className="font-bold text-rose-400">{cancelledCount}</span>
             <span className="text-sm text-rose-300">Cancelled</span>
           </div>
+          <div className="flex items-center gap-2 rounded-lg bg-red-600/10 border border-red-600/20 px-4 py-2">
+            <span className="font-bold text-red-500">{failedCount}</span>
+            <span className="text-sm text-red-400">Failed</span>
+          </div>
         </div>
 
         {/* Full Table Filters */}
@@ -248,6 +259,7 @@ export default function AdminOrdersPage() {
                 <option value="PENDING">Pending</option>
                 <option value="PROCESSING">Processing</option>
                 <option value="SUCCESSFUL">Completed</option>
+                <option value="FAILED">Failed</option>
                 <option value="CANCELLED">Cancelled</option>
               </select>
               <select className="rounded-xl border border-gray-700/50 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none">
@@ -265,7 +277,15 @@ export default function AdminOrdersPage() {
             </div>
 
             {/* Bulk Actions */}
-            <div className="flex items-center gap-3 mt-4">
+            <div className="flex flex-wrap items-center gap-3 mt-4">
+              <Button
+                onClick={() => handleBulkAction('PROCESSING')}
+                disabled={selectedOrders.size === 0 || bulkUpdateMutation.isPending}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Process All
+              </Button>
               <Button
                 onClick={() => handleBulkAction('SUCCESSFUL')}
                 disabled={selectedOrders.size === 0 || bulkUpdateMutation.isPending}
@@ -273,6 +293,22 @@ export default function AdminOrdersPage() {
               >
                 <CheckCircle2 className="h-4 w-4" />
                 Complete All
+              </Button>
+              <Button
+                onClick={() => handleBulkAction('FAILED')}
+                disabled={selectedOrders.size === 0 || bulkUpdateMutation.isPending}
+                className="flex items-center gap-2 bg-red-600 hover:bg-red-700"
+              >
+                <XCircle className="h-4 w-4" />
+                Fail All
+              </Button>
+              <Button
+                onClick={() => handleBulkAction('CANCELLED')}
+                disabled={selectedOrders.size === 0 || bulkUpdateMutation.isPending}
+                className="flex items-center gap-2 bg-rose-600 hover:bg-rose-700"
+              >
+                <Slash className="h-4 w-4" />
+                Cancel All
               </Button>
               <Button
                 onClick={() => exportMutation.mutate()}
@@ -422,7 +458,23 @@ export default function AdminOrdersPage() {
                               <CheckCircle2 className="h-4 w-4" />
                             </button>
                           )}
-                          {/* Cancel Button - Red */}
+                          {/* Failed Button - Dark Red */}
+                          {order.status !== 'FAILED' && order.status !== 'SUCCESSFUL' && order.status !== 'CANCELLED' && (
+                            <button
+                              onClick={() =>
+                                updateOrderStatusMutation.mutate({
+                                  orderId: order.id,
+                                  status: 'FAILED',
+                                })
+                              }
+                              disabled={updateOrderStatusMutation.isPending}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-600/20 text-red-500 hover:bg-red-600/30 transition-colors border border-red-600/30"
+                              title="Mark as Failed"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </button>
+                          )}
+                          {/* Cancel Button - Rose */}
                           {order.status !== 'CANCELLED' && order.status !== 'SUCCESSFUL' && (
                             <button
                               onClick={() =>
@@ -435,7 +487,7 @@ export default function AdminOrdersPage() {
                               className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 transition-colors border border-rose-500/30"
                               title="Cancel Order"
                             >
-                              <XCircle className="h-4 w-4" />
+                              <Slash className="h-4 w-4" />
                             </button>
                           )}
                         </div>
