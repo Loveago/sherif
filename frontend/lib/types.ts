@@ -49,6 +49,10 @@ export type Product = {
   agentPrice: number;
   resellerPrice: number;
   buyingPrice: number;
+  promoPrice?: number | null;
+  stock?: number;
+  showInShop?: boolean;
+  showForAgents?: boolean;
   status: boolean;
   network: Network;
 };
