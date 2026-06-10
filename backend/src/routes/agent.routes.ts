@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { Prisma, UserRole, WalletTransactionCategory, WalletTransactionType } from '@prisma/client';
+import { Prisma, UserRole, WalletTransactionCategory, WalletTransactionType, OrderStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
