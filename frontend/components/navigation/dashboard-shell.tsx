@@ -1,8 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, CreditCard, Gauge, LayoutGrid, LifeBuoy, LogOut, Package, Search, Settings, ShoppingBag, Store, Wallet, ChevronDown, User, Link2, AlertCircle, FileText } from 'lucide-react';
+import {
+  Bell, CreditCard, Gauge, LayoutGrid, LifeBuoy, LogOut,
+  Package, Search, Settings, ShoppingBag, Store, Wallet,
+  ChevronDown, User, Link2, AlertCircle, FileText,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
@@ -31,7 +36,6 @@ const agentLinks: NavLink[] = [
   { href: '/storefront-analytics', label: 'Analytics', icon: Gauge },
   { href: '/complaints', label: 'Complaints', icon: LifeBuoy },
   { href: '/storefront', label: 'Storefront', icon: Store },
-  { href: '/settings', label: 'Settings', icon: Settings },
   { href: '/notifications', label: 'Support', icon: Bell },
 ];
 
@@ -62,6 +66,13 @@ export function DashboardShell({
   const router = useRouter();
   const { user, clearAuth } = useAuthStore();
   const links = mode === 'admin' ? adminLinks : agentLinks;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const cartItems = useCartStore((state) => state.getItemCount());
+
+  const handleLogout = () => {
+    clearAuth();
+    router.push('/login');
+  };
 
   return (
     <div className="flex min-h-screen bg-[#060a14]">
@@ -87,8 +98,12 @@ export function DashboardShell({
             <User className="h-4 w-4" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">{user ? `${user.firstName} ${user.lastName}` : 'Guest'}</p>
-            <p className="text-xs text-gray-500">{mode === 'admin' ? 'Administrator' : 'Customer'}</p>
+            <p className="text-sm font-medium text-white truncate">
+              {user ? `${user.firstName} ${user.lastName}` : 'Guest'}
+            </p>
+            <p className="text-xs text-gray-500">
+              {mode === 'admin' ? 'Administrator' : 'Customer'}
+            </p>
           </div>
           <ChevronDown className="h-4 w-4 text-gray-500" />
         </div>
@@ -98,7 +113,6 @@ export function DashboardShell({
           {links.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href;
-            const cartItems = useCartStore((state) => state.getItemCount());
 
             return (
               <Link
@@ -123,6 +137,18 @@ export function DashboardShell({
           })}
         </nav>
 
+        {/* Admin Logout */}
+        {mode === 'admin' && (
+          <div className="px-3 pb-4">
+            <button
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-rose-400 hover:bg-rose-500/10 transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Log Out</span>
+            </button>
+          </div>
+        )}
       </aside>
 
       {/* Main Content */}
@@ -140,12 +166,59 @@ export function DashboardShell({
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-gray-700 bg-gray-900 text-gray-400 hover:text-white">
-              <Bell className="h-4 w-4" />
-              <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-violet-500" />
-            </button>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-600 text-sm font-medium text-white">
-              {user?.firstName?.[0] || 'U'}
+            <Link href="/notifications">
+              <button className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-gray-700 bg-gray-900 text-gray-400 hover:text-white">
+                <Bell className="h-4 w-4" />
+                <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-violet-500" />
+              </button>
+            </Link>
+
+            {/* Profile Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-600 text-sm font-medium text-white hover:bg-violet-500 transition-colors"
+              >
+                {user?.firstName?.[0] || 'U'}
+              </button>
+
+              {menuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-12 z-50 w-48 overflow-hidden rounded-xl border border-gray-700 bg-[#0f172a] shadow-xl">
+                    <Link
+                      href="/profile"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                    >
+                      <User className="h-4 w-4" />
+                      Profile
+                    </Link>
+                    <Link
+                      href="/settings"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                    >
+                      <Settings className="h-4 w-4" />
+                      Settings
+                    </Link>
+                    <div className="border-t border-gray-700/50" />
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        handleLogout();
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-rose-400 hover:bg-rose-500/10 transition-colors"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Log Out
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </header>
@@ -160,16 +233,26 @@ export function DashboardShell({
           {/* Welcome Header */}
           <div className="mb-6 flex items-start justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-white">Welcome back, {user?.firstName || 'User'}! 👋</h1>
-              <p className="mt-1 text-sm text-gray-400">Here's what's happening with your account today.</p>
+              <h1 className="text-2xl font-bold text-white">
+                Welcome back, {user?.firstName || 'User'}! 👋
+              </h1>
+              <p className="mt-1 text-sm text-gray-400">
+                Here's what's happening with your account today.
+              </p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-2">
-                <p className="text-xs text-gray-400">Wallet Balance</p>
-                <p className="text-lg font-bold text-white">GHS {Number(user?.wallet?.availableBalance ?? 0).toFixed(2)}</p>
+            {mode !== 'admin' && (
+              <div className="flex items-center gap-4">
+                <div className="rounded-xl border border-gray-800 bg-gray-900 px-4 py-2">
+                  <p className="text-xs text-gray-400">Wallet Balance</p>
+                  <p className="text-lg font-bold text-white">
+                    GHS {Number(user?.wallet?.availableBalance ?? 0).toFixed(2)}
+                  </p>
+                </div>
+                <Link href="/wallet">
+                  <Button>+ Fund Wallet</Button>
+                </Link>
               </div>
-              <Button>+ Fund Wallet</Button>
-            </div>
+            )}
           </div>
 
           {children}

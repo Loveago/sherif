@@ -9,6 +9,8 @@ import { fundWalletSchema, withdrawSchema } from '../schemas/wallet.schema.js';
 import { createOrderSchema, refundRequestSchema } from '../schemas/orders.schema.js';
 import { createComplaintSchema } from '../schemas/complaints.schema.js';
 import { updateStorefrontSchema } from '../schemas/storefront.schema.js';
+import { updateProfileSchema, changePasswordSchema } from '../schemas/auth.schema.js';
+import bcrypt from 'bcryptjs';
 import { createWalletTransaction, getWalletByUserId } from '../services/wallet.service.js';
 import { generateReference } from '../utils/refs.js';
 import { createNotification } from '../services/notification.service.js';
@@ -1024,6 +1026,49 @@ agentRouter.put('/storefront/me', validate(updateStorefrontSchema), async (reque
     });
 
     return response.json(createSuccessResponse(storefront, 'Storefront updated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.put('/me', validate(updateProfileSchema), async (request, response, next) => {
+  try {
+    const { firstName, lastName, email, phone, companyName } = request.body;
+    const user = await prisma.user.update({
+      where: { id: request.auth!.userId },
+      data: {
+        ...(firstName !== undefined && { firstName }),
+        ...(lastName !== undefined && { lastName }),
+        ...(email !== undefined && { email }),
+        ...(phone !== undefined && { phone }),
+        ...(companyName !== undefined && { companyName }),
+      },
+    });
+    return response.json(createSuccessResponse(user, 'Profile updated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.post('/me/change-password', validate(changePasswordSchema), async (request, response, next) => {
+  try {
+    const { currentPassword, newPassword } = request.body;
+    const user = await prisma.user.findUnique({
+      where: { id: request.auth!.userId },
+    });
+    if (!user) {
+      return response.status(404).json({ success: false, message: 'User not found' });
+    }
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) {
+      return response.status(400).json({ success: false, message: 'Current password is incorrect' });
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await prisma.user.update({
+      where: { id: request.auth!.userId },
+      data: { passwordHash },
+    });
+    return response.json(createSuccessResponse({}, 'Password changed successfully'));
   } catch (error) {
     return next(error);
   }
