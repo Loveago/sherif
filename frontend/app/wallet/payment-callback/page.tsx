@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
@@ -8,7 +8,7 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle2, XCircle, Wallet } from 'lucide-react';
 
-export default function PaymentCallbackPage() {
+function PaymentCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const reference = searchParams.get('reference') || searchParams.get('trxref');
@@ -89,5 +89,27 @@ export default function PaymentCallbackPage() {
         )}
       </GlassCard>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4">
+      <GlassCard className="w-full max-w-md p-8 text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">Loading...</h2>
+        <p className="text-gray-400 text-sm">Please wait while we set things up.</p>
+      </GlassCard>
+    </div>
+  );
+}
+
+export default function PaymentCallbackPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <PaymentCallbackContent />
+    </Suspense>
   );
 }
