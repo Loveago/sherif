@@ -217,7 +217,7 @@ agentRouter.post('/wallet/paystack/initialize', validate(fundWalletSchema), asyn
       }
     );
 
-    return response.json(createSuccessResponse(paystackResponse));
+    return response.json(createSuccessResponse(paystackResponse.data));
   } catch (error) {
     return next(error);
   }
