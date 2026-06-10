@@ -194,6 +194,19 @@ adminRouter.delete('/products/:id', async (request, response, next) => {
   }
 });
 
+adminRouter.patch('/products/:id', async (request, response, next) => {
+  try {
+    const product = await prisma.product.update({
+      where: { id: String(request.params.id) },
+      data: request.body,
+      include: { network: true, rolePrices: true },
+    });
+    return response.json(createSuccessResponse(product, 'Product updated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
 adminRouter.post('/users/:id/suspend', async (request, response, next) => {
   try {
     const user = await prisma.user.update({

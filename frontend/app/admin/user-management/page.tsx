@@ -34,6 +34,7 @@ export default function AdminUserManagementPage() {
     lastName: '',
     email: '',
     phone: '',
+    role: 'AGENT' as 'AGENT' | 'ADMIN',
   });
   const [walletData, setWalletData] = useState({
     amount: '',
@@ -89,6 +90,7 @@ export default function AdminUserManagementPage() {
       lastName: user.lastName,
       email: user.email,
       phone: user.phone,
+      role: (user.role as 'AGENT' | 'ADMIN') ?? 'AGENT',
     });
     setShowEditModal(true);
   };
@@ -161,7 +163,13 @@ export default function AdminUserManagementPage() {
                   </div>
 
                   <div className="mt-2">
-                    <Badge variant="default">{user.role}</Badge>
+                    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium border ${
+                      user.role === 'ADMIN'
+                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                        : 'bg-violet-500/10 text-violet-400 border-violet-500/20'
+                    }`}>
+                      {user.role === 'ADMIN' ? 'Administrator' : 'Agent'}
+                    </span>
                   </div>
                 </div>
 
@@ -241,6 +249,17 @@ export default function AdminUserManagementPage() {
                     value={editFormData.phone}
                     onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Role</label>
+                  <select
+                    value={editFormData.role}
+                    onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value as 'AGENT' | 'ADMIN' })}
+                    className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  >
+                    <option value="AGENT" className="bg-gray-900">Agent</option>
+                    <option value="ADMIN" className="bg-gray-900">Admin</option>
+                  </select>
                 </div>
                 <div className="flex gap-3">
                   <Button

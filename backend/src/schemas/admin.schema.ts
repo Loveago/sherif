@@ -1,20 +1,36 @@
 import { z } from 'zod';
 
+const booleanFromString = z.union([z.boolean(), z.string()]).transform((val) => {
+  if (typeof val === 'boolean') return val;
+  return val === 'true' || val === '1';
+});
+
+const safeNumber = z.preprocess(
+  (val) => {
+    if (val === '' || val === null || val === undefined || Number.isNaN(val)) return 0;
+    return Number(val);
+  },
+  z.number()
+);
+
 export const createProductSchema = z.object({
   body: z.object({
     name: z.string().min(1),
     description: z.string().min(1),
-    dataSize: z.string().min(1),
-    sellingPrice: z.coerce.number().positive(),
-    agentPrice: z.coerce.number().positive(),
-    resellerPrice: z.coerce.number().positive(),
-    buyingPrice: z.coerce.number().positive(),
-    promoPrice: z.coerce.number().positive().optional().nullable(),
+    dataSize: z.string().optional().default(''),
+    sellingPrice: safeNumber.refine((v) => v > 0, { message: 'Selling price must be greater than 0' }),
+    agentPrice: safeNumber.optional().default(0),
+    resellerPrice: safeNumber.optional().default(0),
+    buyingPrice: safeNumber.optional().default(0),
+    promoPrice: z.preprocess(
+      (val) => (val === '' || val === null || val === undefined || Number.isNaN(val) ? null : Number(val)),
+      z.number().positive().nullable()
+    ).optional(),
     networkId: z.string().min(1),
-    status: z.boolean().default(true),
-    showInShop: z.boolean().default(true),
-    showForAgents: z.boolean().default(true),
-    rolePrices: z.record(z.coerce.number()).optional(),
+    status: booleanFromString.default(true),
+    showInShop: booleanFromString.default(true),
+    showForAgents: booleanFromString.default(true),
+    rolePrices: z.record(safeNumber).optional(),
   }),
   query: z.object({}).optional().default({}),
   params: z.object({}).optional().default({}),

@@ -24,7 +24,11 @@ interface AdminProductsResponse {
 type FormValues = {
   name: string;
   description: string;
+  dataSize: string;
   sellingPrice: number;
+  agentPrice: number;
+  resellerPrice: number;
+  buyingPrice: number;
   promoPrice?: number | null;
   networkId: string;
   showInShop: boolean;
@@ -74,7 +78,11 @@ export default function AdminProductsPage() {
     defaultValues: {
       name: '',
       description: '',
+      dataSize: '',
       sellingPrice: 0,
+      agentPrice: 0,
+      resellerPrice: 0,
+      buyingPrice: 0,
       promoPrice: null,
       networkId: '',
       showInShop: true,
@@ -118,7 +126,7 @@ export default function AdminProductsPage() {
   const toggleMutation = useMutation({
     mutationFn: ({ id, field, value }: { id: string; field: string; value: boolean }) =>
       apiRequest(`/admin/products/${id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         body: JSON.stringify({ [field]: value }),
       }),
     onSuccess: () => {
@@ -136,7 +144,11 @@ export default function AdminProductsPage() {
     form.reset({
       name: product.name,
       description: product.description,
+      dataSize: product.dataSize ?? '',
       sellingPrice: product.sellingPrice,
+      agentPrice: product.agentPrice ?? 0,
+      resellerPrice: product.resellerPrice ?? 0,
+      buyingPrice: product.buyingPrice ?? 0,
       promoPrice: product.promoPrice ?? null,
       networkId: product.networkId ?? product.network.id,
       showInShop: product.showInShop ?? true,
@@ -152,7 +164,11 @@ export default function AdminProductsPage() {
     form.reset({
       name: '',
       description: '',
+      dataSize: '',
       sellingPrice: 0,
+      agentPrice: 0,
+      resellerPrice: 0,
+      buyingPrice: 0,
       promoPrice: null,
       networkId: networks[0]?.id ?? '',
       showInShop: true,
@@ -241,23 +257,70 @@ export default function AdminProductsPage() {
             </div>
 
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              {/* Basic Fields */}
-              <div className="grid gap-4 md:grid-cols-4">
+              {/* Row 1: Name + Description + Data Size */}
+              <div className="grid gap-4 md:grid-cols-3">
                 <div>
                   <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Name</label>
-                  <Input placeholder="e.g. MTN" {...form.register('name')} />
+                  <Input placeholder="e.g. MTN 1GB" {...form.register('name')} />
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Description</label>
-                  <Input placeholder="e.g. 1GB" {...form.register('description')} />
+                  <Input placeholder="e.g. 1GB data bundle" {...form.register('description')} />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Price (GHS)</label>
-                  <Input type="number" step="0.01" {...form.register('sellingPrice', { valueAsNumber: true })} />
+                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Data Size</label>
+                  <Input placeholder="e.g. 1GB, 500MB" {...form.register('dataSize')} />
+                </div>
+              </div>
+
+              {/* Row 2: Network + Status */}
+              <div className="grid gap-4 md:grid-cols-4">
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Network</label>
+                  <select
+                    {...form.register('networkId')}
+                    className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  >
+                    {networks.map((net) => (
+                      <option key={net.id} value={net.id} className="bg-gray-900">
+                        {net.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Promo (GHS)</label>
+                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Selling Price (GHS)</label>
+                  <Input type="number" step="0.01" placeholder="0.00" {...form.register('sellingPrice', { valueAsNumber: true })} />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Promo Price (GHS)</label>
                   <Input type="number" step="0.01" placeholder="Optional" {...form.register('promoPrice', { valueAsNumber: true })} />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Status</label>
+                  <select
+                    {...form.register('status')}
+                    className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  >
+                    <option value="true" className="bg-gray-900">Active</option>
+                    <option value="false" className="bg-gray-900">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 3: Pricing Tiers */}
+              <div className="grid gap-4 md:grid-cols-4">
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Buying Price (GHS)</label>
+                  <Input type="number" step="0.01" placeholder="Cost price" {...form.register('buyingPrice', { valueAsNumber: true })} />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Agent Price (GHS)</label>
+                  <Input type="number" step="0.01" placeholder="Agent price" {...form.register('agentPrice', { valueAsNumber: true })} />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Reseller Price (GHS)</label>
+                  <Input type="number" step="0.01" placeholder="Reseller price" {...form.register('resellerPrice', { valueAsNumber: true })} />
                 </div>
               </div>
 
