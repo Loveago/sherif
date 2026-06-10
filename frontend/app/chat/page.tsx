@@ -28,6 +28,14 @@ interface Chat {
   participant2: { id: string; firstName: string; lastName: string };
 }
 
+interface Message {
+  id: string;
+  content: string;
+  createdAt: string;
+  senderId: string;
+  status: string;
+}
+
 export default function ChatPage() {
   const queryClient = useQueryClient();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
@@ -41,7 +49,7 @@ export default function ChatPage() {
 
   const { data: messages } = useQuery({
     queryKey: ['chat-messages', selectedChatId],
-    queryFn: () => selectedChatId ? apiRequest(`/chats/${selectedChatId}/messages`) : null,
+    queryFn: () => selectedChatId ? apiRequest<Message[]>(`/chats/${selectedChatId}/messages`) : null,
     enabled: !!selectedChatId,
   });
 
@@ -55,8 +63,8 @@ export default function ChatPage() {
   });
 
   const startChatMutation = useMutation({
-    mutationFn: (data: any) => apiRequest('/chat/start', { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: (chat) => {
+    mutationFn: (data: any) => apiRequest<Chat>('/chat/start', { method: 'POST', body: JSON.stringify(data) }),
+    onSuccess: (chat: Chat) => {
       setSelectedChatId(chat.id);
       setReceiverId('');
       queryClient.invalidateQueries({ queryKey: ['chats'] });
@@ -111,7 +119,7 @@ export default function ChatPage() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto space-y-4 mb-4">
-                  {messages?.map((msg: any) => (
+                  {messages?.map((msg) => (
                     <div key={msg.id} className={`flex ${msg.senderId === (window as any).__userId ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-xs px-4 py-2 rounded-lg ${
                         msg.senderId === (window as any).__userId 

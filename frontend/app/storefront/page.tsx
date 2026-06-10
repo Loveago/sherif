@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import type { Storefront, Order, Withdrawal } from '@/lib/types';
+import type { Storefront, Order, Withdrawal, Product } from '@/lib/types';
 import { Store, Eye, BarChart3, Users, TrendingUp, Copy, Check, Wallet, ArrowUpRight, Package, Clock, AlertCircle } from 'lucide-react';
 
 export default function StorefrontPage() {
@@ -24,7 +24,7 @@ export default function StorefrontPage() {
   const { data: storefront } = useQuery({ queryKey: ['storefront'], queryFn: () => apiRequest<Storefront>('/storefront/me') });
   const { data: orders } = useQuery({ queryKey: ['storefront-orders'], queryFn: () => apiRequest<Order[]>('/storefront/orders') });
   const { data: withdrawals } = useQuery({ queryKey: ['withdrawals'], queryFn: () => apiRequest<Withdrawal[]>('/withdrawals') });
-  const { data: products } = useQuery({ queryKey: ['storefront-products'], queryFn: () => apiRequest('/storefront/products') });
+  const { data: products } = useQuery({ queryKey: ['storefront-products'], queryFn: () => apiRequest<Product[]>('/storefront/products') });
 
   const form = useForm<Storefront>({ values: storefront });
 
