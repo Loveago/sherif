@@ -10,7 +10,6 @@ import { createOrderSchema, refundRequestSchema } from '../schemas/orders.schema
 import { createComplaintSchema } from '../schemas/complaints.schema.js';
 import { updateStorefrontSchema } from '../schemas/storefront.schema.js';
 import { createWalletTransaction, getWalletByUserId } from '../services/wallet.service.js';
-import { queueFulfillment } from '../queues/index.js';
 import { generateReference } from '../utils/refs.js';
 import { createNotification } from '../services/notification.service.js';
 import { emitWebhookEvent } from '../services/webhook.service.js';
@@ -402,11 +401,10 @@ agentRouter.post('/orders', validate(createOrderSchema), async (request, respons
       });
     });
 
-    await queueFulfillment(order.id);
     await createNotification(
       request.auth!.userId,
       'Order created',
-      `${product.name} order for ${request.body.phoneNumber} has been queued for fulfillment.`,
+      `${product.name} order for ${request.body.phoneNumber} is pending admin review.`,
       'ORDER',
     );
     await emitWebhookEvent('order.created', { orderId: order.id, userId: request.auth!.userId });
@@ -585,7 +583,6 @@ agentRouter.post('/bulk-orders/process', async (request, response, next) => {
           },
         });
 
-        await queueFulfillment(order.id);
       }
 
       return createdBatch;
