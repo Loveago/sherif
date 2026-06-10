@@ -1032,7 +1032,7 @@ adminRouter.post('/users/:id/wallet', async (request, response, next) => {
     }
 
     const transactionType = type === 'ADD' ? WalletTransactionType.CREDIT : WalletTransactionType.DEBIT;
-    const transactionCategory = WalletTransactionCategory.ADMIN_ADJUSTMENT;
+    const transactionCategory = WalletTransactionCategory.ADJUSTMENT;
 
     const result = await prisma.$transaction(async (tx) => {
       const { updatedWallet, transaction } = await createWalletTransaction(

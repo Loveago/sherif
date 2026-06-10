@@ -14,11 +14,12 @@ import { CheckCircle2, Clock, XCircle, FileText } from 'lucide-react';
 
 interface AFARegistration {
   id: string;
-  agentName: string;
-  businessName: string;
-  email: string;
+  fullName: string;
   phone: string;
-  businessType: string;
+  location: string;
+  occupation: string;
+  idType: string;
+  idNumber: string;
   status: string;
   notes: string;
   createdAt: string;
@@ -29,11 +30,12 @@ export default function AFARegistrationPage() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
-    agentName: '',
-    businessName: '',
-    email: '',
+    fullName: '',
     phone: '',
-    businessType: '',
+    location: '',
+    occupation: '',
+    idType: '',
+    idNumber: '',
     notes: '',
   });
 
@@ -48,11 +50,12 @@ export default function AFARegistrationPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['afa-registrations'] });
       setFormData({
-        agentName: '',
-        businessName: '',
-        email: '',
+        fullName: '',
         phone: '',
-        businessType: '',
+        location: '',
+        occupation: '',
+        idType: '',
+        idNumber: '',
         notes: '',
       });
       setShowForm(false);
@@ -117,31 +120,11 @@ export default function AFARegistrationPage() {
             <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Agent Name</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
                   <Input
                     placeholder="Your full name"
-                    value={formData.agentName}
-                    onChange={(e) => setFormData({ ...formData, agentName: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Business Name</label>
-                  <Input
-                    placeholder="Your business name"
-                    value={formData.businessName}
-                    onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
-                  <Input
-                    type="email"
-                    placeholder="your@email.com"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    value={formData.fullName}
+                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                   />
                 </div>
                 <div>
@@ -155,19 +138,46 @@ export default function AFARegistrationPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Business Type</label>
-                <select
-                  value={formData.businessType}
-                  onChange={(e) => setFormData({ ...formData, businessType: e.target.value })}
-                  className="w-full rounded-xl border border-gray-700/50 bg-slate-900/50 px-4 py-2.5 text-sm text-white outline-none transition-all duration-200 hover:border-gray-600/50 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:bg-slate-900/80"
-                >
-                  <option value="">Select business type</option>
-                  <option value="RETAIL">Retail</option>
-                  <option value="WHOLESALE">Wholesale</option>
-                  <option value="DISTRIBUTOR">Distributor</option>
-                  <option value="AGENT">Agent</option>
-                  <option value="OTHER">Other</option>
-                </select>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Location</label>
+                <Input
+                  placeholder="Your business location"
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Occupation</label>
+                  <Input
+                    placeholder="Your occupation"
+                    value={formData.occupation}
+                    onChange={(e) => setFormData({ ...formData, occupation: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">ID Type</label>
+                  <select
+                    value={formData.idType}
+                    onChange={(e) => setFormData({ ...formData, idType: e.target.value })}
+                    className="w-full rounded-xl border border-gray-700/50 bg-slate-900/50 px-4 py-2.5 text-sm text-white outline-none transition-all duration-200 hover:border-gray-600/50 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:bg-slate-900/80"
+                  >
+                    <option value="">Select ID type</option>
+                    <option value="GHANA_CARD">Ghana Card</option>
+                    <option value="PASSPORT">Passport</option>
+                    <option value="DRIVERS_LICENSE">Driver's License</option>
+                    <option value="VOTERS_ID">Voter's ID</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">ID Number</label>
+                <Input
+                  placeholder="Your ID number"
+                  value={formData.idNumber}
+                  onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
+                />
               </div>
 
               <div>
@@ -183,11 +193,11 @@ export default function AFARegistrationPage() {
               <div className="flex gap-3">
                 <Button
                   onClick={() => {
-                    if (formData.agentName && formData.businessName && formData.email) {
+                    if (formData.fullName && formData.phone && formData.location) {
                       submitMutation.mutate(formData);
                     }
                   }}
-                  disabled={submitMutation.isPending || !formData.agentName || !formData.businessName}
+                  disabled={submitMutation.isPending || !formData.fullName || !formData.phone || !formData.location}
                   className="flex-1"
                 >
                   {submitMutation.isPending ? 'Submitting...' : 'Submit Registration'}
@@ -219,7 +229,7 @@ export default function AFARegistrationPage() {
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h4 className="font-medium text-white">{registration.businessName}</h4>
+                      <h4 className="font-medium text-white">{registration.fullName}</h4>
                       <Badge
                         variant={
                           registration.status === 'APPROVED'
@@ -233,10 +243,10 @@ export default function AFARegistrationPage() {
                       </Badge>
                     </div>
                     <div className="grid gap-2 md:grid-cols-2 text-sm text-gray-400">
-                      <p>Agent: {registration.agentName}</p>
-                      <p>Email: {registration.email}</p>
                       <p>Phone: {registration.phone}</p>
-                      <p>Type: {registration.businessType}</p>
+                      <p>Location: {registration.location}</p>
+                      <p>Occupation: {registration.occupation}</p>
+                      <p>ID: {registration.idType} - {registration.idNumber}</p>
                     </div>
                     {registration.notes && (
                       <p className="text-xs text-gray-500 mt-2">Notes: {registration.notes}</p>

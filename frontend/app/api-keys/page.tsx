@@ -16,7 +16,7 @@ interface APIKey {
   name: string;
   key: string;
   status: string;
-  lastUsed: string | null;
+  lastUsedAt: string | null;
   createdAt: string;
   usageCount: number;
 }
@@ -166,10 +166,10 @@ export default function APIKeysPage() {
                           <CheckCircle2 className="h-4 w-4" />
                           <span>{key.usageCount} requests</span>
                         </div>
-                        {key.lastUsed ? (
+                        {key.lastUsedAt ? (
                           <div className="flex items-center gap-2 text-gray-500">
                             <Clock className="h-4 w-4" />
-                            <span>Last used: {new Date(key.lastUsed).toLocaleDateString()}</span>
+                            <span>Last used: {new Date(key.lastUsedAt).toLocaleDateString()}</span>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 text-gray-500">

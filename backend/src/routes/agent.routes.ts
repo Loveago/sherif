@@ -558,7 +558,7 @@ agentRouter.get('/api-keys', async (request, response, next) => {
         name: true,
         key: true,
         status: true,
-        lastUsed: true,
+        lastUsedAt: true,
         createdAt: true,
         usageCount: true,
       },
@@ -586,6 +586,7 @@ agentRouter.post('/api-keys', async (request, response, next) => {
         userId: request.auth!.userId,
         name,
         key,
+        keyHash: key,
         status: 'ACTIVE',
       },
     });
@@ -700,19 +701,6 @@ agentRouter.get('/storefront/analytics', async (request, response, next) => {
   }
 });
 
-agentRouter.get('/loans', async (request, response, next) => {
-  try {
-    const loans = await prisma.loan.findMany({
-      where: { userId: request.auth!.userId },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return response.json(createSuccessResponse(loans));
-  } catch (error) {
-    return next(error);
-  }
-});
-
 agentRouter.get('/failed-payments', async (request, response, next) => {
   try {
     const failedOrders = await prisma.order.findMany({
@@ -794,29 +782,29 @@ agentRouter.get('/afa-registrations', async (request, response, next) => {
 
 agentRouter.post('/afa-registrations', async (request, response, next) => {
   try {
-    const { agentName, businessName, email, phone, businessType, notes } = request.body;
+    const { fullName, phone, location, occupation, idType, idNumber, notes } = request.body;
 
-    if (!agentName || !businessName || !email) {
+    if (!fullName || !phone || !location) {
       return response.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
     const registration = await prisma.aFARegistration.create({
       data: {
         userId: request.auth!.userId,
-        agentName,
-        businessName,
-        email,
+        fullName,
         phone,
-        businessType,
+        location,
+        occupation,
+        idType,
+        idNumber,
         notes,
-        status: 'PENDING',
       },
     });
 
     await createNotification(
       request.auth!.userId,
       'AFA Registration Submitted',
-      `Your AFA registration for ${businessName} has been submitted for review.`,
+      `Your AFA registration has been submitted for review.`,
       'REGISTRATION'
     );
 
