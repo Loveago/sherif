@@ -65,6 +65,7 @@ export default function AdminProductsPage() {
   const [priceFilter, setPriceFilter] = useState<'all' | 'promo' | 'main'>('all');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   const { data } = useQuery<AdminProductsResponse>({
     queryKey: ['admin-products'],
@@ -96,10 +97,14 @@ export default function AdminProductsPage() {
     mutationFn: (values: FormValues) =>
       apiRequest('/admin/products', { method: 'POST', body: JSON.stringify(values) }),
     onSuccess: () => {
+      setMutationError(null);
       form.reset();
       setShowForm(false);
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+    onError: (err: any) => {
+      setMutationError(err?.message || 'Failed to create product');
     },
   });
 
@@ -107,11 +112,15 @@ export default function AdminProductsPage() {
     mutationFn: (values: FormValues & { id: string }) =>
       apiRequest(`/admin/products/${values.id}`, { method: 'PUT', body: JSON.stringify(values) }),
     onSuccess: () => {
+      setMutationError(null);
       form.reset();
       setEditingProduct(null);
       setShowForm(false);
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+    onError: (err: any) => {
+      setMutationError(err?.message || 'Failed to update product');
     },
   });
 
@@ -137,6 +146,7 @@ export default function AdminProductsPage() {
 
   const startEdit = (product: Product) => {
     setEditingProduct(product);
+    setMutationError(null);
     const rp: Record<string, number> = {};
     product.rolePrices?.forEach((rpItem) => {
       rp[rpItem.role] = rpItem.price;
@@ -161,6 +171,7 @@ export default function AdminProductsPage() {
 
   const startCreate = () => {
     setEditingProduct(null);
+    setMutationError(null);
     form.reset({
       name: '',
       description: '',
@@ -180,10 +191,21 @@ export default function AdminProductsPage() {
   };
 
   const onSubmit = (values: FormValues) => {
+    setMutationError(null);
+    // Strip out empty/0 role prices so they don't overwrite existing values
+    const cleanedRolePrices: Record<string, number> = {};
+    if (values.rolePrices) {
+      for (const [role, price] of Object.entries(values.rolePrices)) {
+        if (price && price > 0) {
+          cleanedRolePrices[role] = price;
+        }
+      }
+    }
+    const payload = { ...values, rolePrices: cleanedRolePrices };
     if (editingProduct) {
-      updateMutation.mutate({ ...values, id: editingProduct.id });
+      updateMutation.mutate({ ...payload, id: editingProduct.id });
     } else {
-      createMutation.mutate(values);
+      createMutation.mutate(payload);
     }
   };
 
@@ -249,18 +271,24 @@ export default function AdminProductsPage() {
                 )}
               </div>
               <button
-                onClick={() => { setShowForm(false); setEditingProduct(null); }}
+                onClick={() => { setShowForm(false); setEditingProduct(null); setMutationError(null); }}
                 className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
+            {mutationError && (
+              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">
+                {mutationError}
+              </div>
+            )}
+
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              {/* Row 1: Name + Description + Data Size */}
+              {/* Row 1: Bundle + Description + Bundle Size */}
               <div className="grid gap-4 md:grid-cols-3">
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Name</label>
+                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Bundle</label>
                   <Input placeholder="e.g. MTN 1GB" {...form.register('name')} />
                 </div>
                 <div>
@@ -268,7 +296,7 @@ export default function AdminProductsPage() {
                   <Input placeholder="e.g. 1GB data bundle" {...form.register('description')} />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Data Size</label>
+                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Bundle Size</label>
                   <Input placeholder="e.g. 1GB, 500MB" {...form.register('dataSize')} />
                 </div>
               </div>
