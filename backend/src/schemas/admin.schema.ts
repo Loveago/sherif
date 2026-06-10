@@ -2,15 +2,19 @@ import { z } from 'zod';
 
 export const createProductSchema = z.object({
   body: z.object({
-    name: z.string().min(2),
-    description: z.string().min(10),
-    dataSize: z.string().min(2),
+    name: z.string().min(1),
+    description: z.string().min(1),
+    dataSize: z.string().min(1),
     sellingPrice: z.coerce.number().positive(),
     agentPrice: z.coerce.number().positive(),
     resellerPrice: z.coerce.number().positive(),
     buyingPrice: z.coerce.number().positive(),
+    promoPrice: z.coerce.number().positive().optional().nullable(),
     networkId: z.string().min(1),
     status: z.boolean().default(true),
+    showInShop: z.boolean().default(true),
+    showForAgents: z.boolean().default(true),
+    rolePrices: z.record(z.coerce.number()).optional(),
   }),
   query: z.object({}).optional().default({}),
   params: z.object({}).optional().default({}),

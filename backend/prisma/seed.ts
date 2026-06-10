@@ -123,16 +123,19 @@ async function main() {
 
   const products = await prisma.product.createManyAndReturn({
     data: [
-      { name: 'MTN 1GB Bundle', slug: 'mtn-1gb-bundle', description: 'Instant MTN 1GB bundle delivery.', dataSize: '1GB', sellingPrice: money(4.5), agentPrice: money(4.2), resellerPrice: money(4.0), buyingPrice: money(3.8), networkId: mtn.id, status: true },
-      { name: 'MTN 2GB Bundle', slug: 'mtn-2gb-bundle', description: 'Instant MTN 2GB bundle delivery.', dataSize: '2GB', sellingPrice: money(7.0), agentPrice: money(6.7), resellerPrice: money(6.5), buyingPrice: money(6.1), networkId: mtn.id, status: true },
-      { name: 'MTN 5GB Bundle', slug: 'mtn-5gb-bundle', description: 'Instant MTN 5GB bundle delivery.', dataSize: '5GB', sellingPrice: money(15.0), agentPrice: money(14.2), resellerPrice: money(13.8), buyingPrice: money(13.1), networkId: mtn.id, status: true },
-      { name: 'MTN 10GB Bundle', slug: 'mtn-10gb-bundle', description: 'Instant MTN 10GB bundle delivery.', dataSize: '10GB', sellingPrice: money(28.0), agentPrice: money(27.2), resellerPrice: money(26.6), buyingPrice: money(25.4), networkId: mtn.id, status: true },
-      { name: 'Telecel 1GB Bundle', slug: 'telecel-1gb-bundle', description: 'Instant Telecel 1GB bundle.', dataSize: '1GB', sellingPrice: money(4.9), agentPrice: money(4.6), resellerPrice: money(4.4), buyingPrice: money(4.1), networkId: telecel.id, status: true },
-      { name: 'Telecel 2GB Bundle', slug: 'telecel-2gb-bundle', description: 'Instant Telecel 2GB bundle.', dataSize: '2GB', sellingPrice: money(7.9), agentPrice: money(7.4), resellerPrice: money(7.1), buyingPrice: money(6.8), networkId: telecel.id, status: true },
-      { name: 'Telecel 5GB Bundle', slug: 'telecel-5gb-bundle', description: 'Instant Telecel 5GB bundle.', dataSize: '5GB', sellingPrice: money(16.5), agentPrice: money(15.9), resellerPrice: money(15.2), buyingPrice: money(14.7), networkId: telecel.id, status: true },
-      { name: 'AirtelTigo 1GB Bundle', slug: 'airteltigo-1gb-bundle', description: 'Instant AirtelTigo 1GB bundle.', dataSize: '1GB', sellingPrice: money(4.7), agentPrice: money(4.4), resellerPrice: money(4.1), buyingPrice: money(3.9), networkId: airtelTigo.id, status: true },
-      { name: 'AirtelTigo 2GB Bundle', slug: 'airteltigo-2gb-bundle', description: 'Instant AirtelTigo 2GB bundle.', dataSize: '2GB', sellingPrice: money(7.5), agentPrice: money(7.1), resellerPrice: money(6.8), buyingPrice: money(6.4), networkId: airtelTigo.id, status: true },
-      { name: 'AirtelTigo 5GB Bundle', slug: 'airteltigo-5gb-bundle', description: 'Instant AirtelTigo 5GB bundle.', dataSize: '5GB', sellingPrice: money(15.8), agentPrice: money(15.1), resellerPrice: money(14.5), buyingPrice: money(13.9), networkId: airtelTigo.id, status: true },
+      // MTN products
+      { name: 'MTN', slug: 'mtn-1gb', description: '1GB', dataSize: '1GB', sellingPrice: money(4.5), agentPrice: money(4.2), resellerPrice: money(4.0), buyingPrice: money(3.8), networkId: mtn.id, status: true, stock: 999999 },
+      { name: 'MTN', slug: 'mtn-2gb', description: '2GB', dataSize: '2GB', sellingPrice: money(7.0), agentPrice: money(6.7), resellerPrice: money(6.5), buyingPrice: money(6.1), networkId: mtn.id, status: true, stock: 999999 },
+      { name: 'MTN', slug: 'mtn-5gb', description: '5GB', dataSize: '5GB', sellingPrice: money(15.0), agentPrice: money(14.2), resellerPrice: money(13.8), buyingPrice: money(13.1), networkId: mtn.id, status: true, stock: 999999 },
+      { name: 'MTN', slug: 'mtn-10gb', description: '10GB', dataSize: '10GB', sellingPrice: money(28.0), agentPrice: money(27.2), resellerPrice: money(26.6), buyingPrice: money(25.4), networkId: mtn.id, status: true, stock: 999999 },
+      // Telecel products
+      { name: 'Telecel', slug: 'telecel-1gb', description: '1GB', dataSize: '1GB', sellingPrice: money(4.9), agentPrice: money(4.6), resellerPrice: money(4.4), buyingPrice: money(4.1), networkId: telecel.id, status: true, stock: 999999 },
+      { name: 'Telecel', slug: 'telecel-2gb', description: '2GB', dataSize: '2GB', sellingPrice: money(7.9), agentPrice: money(7.4), resellerPrice: money(7.1), buyingPrice: money(6.8), networkId: telecel.id, status: true, stock: 999999 },
+      { name: 'Telecel', slug: 'telecel-5gb', description: '5GB', dataSize: '5GB', sellingPrice: money(16.5), agentPrice: money(15.9), resellerPrice: money(15.2), buyingPrice: money(14.7), networkId: telecel.id, status: true, stock: 999999 },
+      // AirtelTigo products
+      { name: 'AirtelTigo', slug: 'airteltigo-1gb', description: '1GB', dataSize: '1GB', sellingPrice: money(4.7), agentPrice: money(4.4), resellerPrice: money(4.1), buyingPrice: money(3.9), networkId: airtelTigo.id, status: true, stock: 999999 },
+      { name: 'AirtelTigo', slug: 'airteltigo-2gb', description: '2GB', dataSize: '2GB', sellingPrice: money(7.5), agentPrice: money(7.1), resellerPrice: money(6.8), buyingPrice: money(6.4), networkId: airtelTigo.id, status: true, stock: 999999 },
+      { name: 'AirtelTigo', slug: 'airteltigo-5gb', description: '5GB', dataSize: '5GB', sellingPrice: money(15.8), agentPrice: money(15.1), resellerPrice: money(14.5), buyingPrice: money(13.9), networkId: airtelTigo.id, status: true, stock: 999999 },
     ],
   });
 

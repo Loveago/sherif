@@ -41,6 +41,12 @@ export type Network = {
   color: string;
 };
 
+export type RolePrice = {
+  id: string;
+  role: string;
+  price: number;
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -55,7 +61,9 @@ export type Product = {
   showInShop?: boolean;
   showForAgents?: boolean;
   status: boolean;
+  networkId: string;
   network: Network;
+  rolePrices?: RolePrice[];
 };
 
 export type Order = {

@@ -88,7 +88,14 @@ adminRouter.get('/users', async (_request, response, next) => {
 adminRouter.get('/products', async (_request, response, next) => {
   try {
     const [products, networks] = await Promise.all([
-      prisma.product.findMany({ include: { network: true }, orderBy: { createdAt: 'desc' } }),
+      prisma.product.findMany({
+        where: { deletedAt: null },
+        include: { network: true, rolePrices: true },
+        orderBy: [
+          { network: { name: 'asc' } },
+          { createdAt: 'asc' },
+        ],
+      }),
       prisma.network.findMany({ orderBy: { name: 'asc' } }),
     ]);
     return response.json(createSuccessResponse({ products, networks }));
@@ -99,17 +106,34 @@ adminRouter.get('/products', async (_request, response, next) => {
 
 adminRouter.post('/products', validate(createProductSchema), async (request, response, next) => {
   try {
+    const { rolePrices, promoPrice, showInShop, showForAgents, status, ...productData } = request.body;
     const product = await prisma.product.create({
       data: {
-        ...request.body,
-        slug: `${request.body.name}-${Date.now()}`.toLowerCase().replace(/\s+/g, '-'),
-        sellingPrice: toDecimal(request.body.sellingPrice),
-        agentPrice: toDecimal(request.body.agentPrice),
-        resellerPrice: toDecimal(request.body.resellerPrice),
-        buyingPrice: toDecimal(request.body.buyingPrice),
+        ...productData,
+        slug: `${productData.name}-${Date.now()}`.toLowerCase().replace(/\s+/g, '-'),
+        sellingPrice: toDecimal(productData.sellingPrice),
+        agentPrice: toDecimal(productData.agentPrice),
+        resellerPrice: toDecimal(productData.resellerPrice),
+        buyingPrice: toDecimal(productData.buyingPrice),
+        promoPrice: promoPrice ? toDecimal(promoPrice) : undefined,
+        showInShop: showInShop ?? true,
+        showForAgents: showForAgents ?? true,
+        status: status ?? true,
       },
       include: { network: true },
     });
+
+    if (rolePrices && Object.keys(rolePrices).length > 0) {
+      await prisma.rolePrice.createMany({
+        data: Object.entries(rolePrices).map(([role, price]) => ({
+          productId: product.id,
+          role: role as any,
+          price: toDecimal(price as number),
+          userId: '',
+        })),
+        skipDuplicates: true,
+      });
+    }
 
     return response.status(201).json(createSuccessResponse(product, 'Product created'));
   } catch (error) {
@@ -119,17 +143,37 @@ adminRouter.post('/products', validate(createProductSchema), async (request, res
 
 adminRouter.put('/products/:id', validate(createProductSchema), async (request, response, next) => {
   try {
+    const { rolePrices, promoPrice, showInShop, showForAgents, status, ...productData } = request.body;
     const product = await prisma.product.update({
       where: { id: String(request.params.id) },
       data: {
-        ...request.body,
-        sellingPrice: toDecimal(request.body.sellingPrice),
-        agentPrice: toDecimal(request.body.agentPrice),
-        resellerPrice: toDecimal(request.body.resellerPrice),
-        buyingPrice: toDecimal(request.body.buyingPrice),
+        ...productData,
+        sellingPrice: toDecimal(productData.sellingPrice),
+        agentPrice: toDecimal(productData.agentPrice),
+        resellerPrice: toDecimal(productData.resellerPrice),
+        buyingPrice: toDecimal(productData.buyingPrice),
+        promoPrice: promoPrice ? toDecimal(promoPrice) : null,
+        showInShop: showInShop ?? true,
+        showForAgents: showForAgents ?? true,
+        status: status ?? true,
       },
-      include: { network: true },
+      include: { network: true, rolePrices: true },
     });
+
+    if (rolePrices && Object.keys(rolePrices).length > 0) {
+      for (const [role, price] of Object.entries(rolePrices)) {
+        await prisma.rolePrice.upsert({
+          where: { productId_role: { productId: product.id, role: role as any } },
+          update: { price: toDecimal(price as number) },
+          create: {
+            productId: product.id,
+            role: role as any,
+            price: toDecimal(price as number),
+            userId: '',
+          },
+        });
+      }
+    }
 
     return response.json(createSuccessResponse(product, 'Product updated'));
   } catch (error) {
