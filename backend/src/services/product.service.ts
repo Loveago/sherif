@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { UserRole } from "@prisma/client";
+import { Prisma, UserRole } from "@prisma/client";
 
 export class ProductService {
   async getAllProducts(filters?: {
@@ -53,11 +53,11 @@ export class ProductService {
       data: {
         ...data,
         slug,
-        sellingPrice: BigInt(Math.round(data.sellingPrice * 100)) / 100n,
-        agentPrice: BigInt(Math.round(data.agentPrice * 100)) / 100n,
-        resellerPrice: BigInt(Math.round(data.resellerPrice * 100)) / 100n,
-        buyingPrice: BigInt(Math.round(data.buyingPrice * 100)) / 100n,
-        promoPrice: data.promoPrice ? BigInt(Math.round(data.promoPrice * 100)) / 100n : null,
+        sellingPrice: new Prisma.Decimal(data.sellingPrice),
+        agentPrice: new Prisma.Decimal(data.agentPrice),
+        resellerPrice: new Prisma.Decimal(data.resellerPrice),
+        buyingPrice: new Prisma.Decimal(data.buyingPrice),
+        promoPrice: data.promoPrice ? new Prisma.Decimal(data.promoPrice) : null,
       },
       include: {
         network: true,

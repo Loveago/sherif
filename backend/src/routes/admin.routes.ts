@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { Prisma, UserRole, WalletTransactionCategory, WalletTransactionType } from '@prisma/client';
+import { Prisma, UserRole, OrderStatus, WalletTransactionCategory, WalletTransactionType } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -538,7 +538,7 @@ adminRouter.get('/orders', async (request, response, next) => {
     
     const orders = await prisma.order.findMany({
       where: {
-        ...(status && { status }),
+        ...(status && { status: status as OrderStatus }),
         ...(userId && { userId: String(userId) }),
         ...(productId && { productId: String(productId) }),
         ...(startDate && { createdAt: { gte: new Date(String(startDate)) } }),

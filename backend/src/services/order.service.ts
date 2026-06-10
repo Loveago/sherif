@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { OrderStatus } from "@prisma/client";
+import { Prisma, OrderStatus } from "@prisma/client";
 import { nanoid } from "nanoid";
 
 export class OrderService {
@@ -16,7 +16,7 @@ export class OrderService {
       data: {
         ...data,
         receiptNumber,
-        amount: BigInt(Math.round(data.amount * 100)) / 100n,
+        amount: new Prisma.Decimal(data.amount),
         status: OrderStatus.PENDING,
       },
       include: {
