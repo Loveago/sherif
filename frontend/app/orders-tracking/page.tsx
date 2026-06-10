@@ -51,26 +51,26 @@ export default function OrdersTrackingPage() {
         description="Track all your orders and their status."
       >
         {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4 mb-6">
-          <GlassCard className="p-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-6">
+          <GlassCard className="p-4 sm:p-6">
             <p className="text-sm text-gray-400">Total Orders</p>
-            <p className="mt-2 text-3xl font-bold text-white">{orders.length}</p>
+            <p className="mt-2 text-xl sm:text-2xl md:text-3xl font-bold text-white">{orders.length}</p>
           </GlassCard>
-          <GlassCard className="p-6">
+          <GlassCard className="p-4 sm:p-6">
             <p className="text-sm text-gray-400">Pending</p>
-            <p className="mt-2 text-3xl font-bold text-amber-400">
+            <p className="mt-2 text-xl sm:text-2xl md:text-3xl font-bold text-amber-400">
               {orders.filter((o) => o.status === 'PENDING').length}
             </p>
           </GlassCard>
-          <GlassCard className="p-6">
+          <GlassCard className="p-4 sm:p-6">
             <p className="text-sm text-gray-400">Processing</p>
-            <p className="mt-2 text-3xl font-bold text-blue-400">
+            <p className="mt-2 text-xl sm:text-2xl md:text-3xl font-bold text-blue-400">
               {orders.filter((o) => o.status === 'PROCESSING').length}
             </p>
           </GlassCard>
-          <GlassCard className="p-6">
+          <GlassCard className="p-4 sm:p-6">
             <p className="text-sm text-gray-400">Completed</p>
-            <p className="mt-2 text-3xl font-bold text-emerald-400">
+            <p className="mt-2 text-xl sm:text-2xl md:text-3xl font-bold text-emerald-400">
               {orders.filter((o) => o.status === 'SUCCESSFUL').length}
             </p>
           </GlassCard>

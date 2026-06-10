@@ -101,7 +101,7 @@ export default function BuyDataPage() {
           <div className="mx-auto max-w-2xl">
             <GlassCard className="p-6">
               <h3 className="text-lg font-semibold text-white">Select Network</h3>
-              <div className="mt-6 grid grid-cols-3 gap-4">
+              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
                 {networks.map((network) => (
                   <button
                     key={network.code}

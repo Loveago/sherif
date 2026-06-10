@@ -23,9 +23,9 @@ export function MetricCard({
   };
 
   return (
-    <div className="rounded-2xl border border-gray-800 bg-[#0f172a] p-5">
+    <div className="rounded-2xl border border-gray-800 bg-[#0f172a] p-3 sm:p-5">
       <p className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</p>
-      <h3 className="mt-2 text-3xl font-bold text-white">{value}</h3>
+      <h3 className="mt-2 text-xl sm:text-2xl lg:text-3xl font-bold text-white">{value}</h3>
       <div className="mt-3 flex items-center gap-1">
         {isPositive && <ArrowUpRight className="h-3 w-3 text-emerald-400" />}
         {isNegative && <ArrowDownRight className="h-3 w-3 text-rose-400" />}

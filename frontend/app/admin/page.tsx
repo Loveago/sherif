@@ -25,7 +25,7 @@ export default function AdminPage() {
           <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-sm text-slate-400">Loading admin dashboard...</div>
         ) : (
           <div className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-4">
               <MetricCard label="Platform Revenue" value={formatCurrency(data.metrics.revenue)} change="Live order revenue" tone="violet" />
               <MetricCard label="Active Users" value={String(data.metrics.activeUsers)} change="Across the ecosystem" tone="sky" />
               <MetricCard label="Pending Withdrawals" value={String(data.metrics.pendingWithdrawals)} change="Needs review" tone="amber" />

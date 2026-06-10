@@ -437,9 +437,10 @@ export default function AdminProductsPage() {
           </div>
         </div>
 
-        {/* Product Table */}
+        {/* Product List — Cards on mobile, Table on desktop */}
         <GlassCard className="overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-gray-700/50 text-xs text-gray-400 uppercase tracking-wider">
@@ -558,13 +559,116 @@ export default function AdminProductsPage() {
                 })}
               </tbody>
             </table>
-            {filtered.length === 0 && (
-              <div className="py-12 text-center">
-                <Package className="mx-auto h-12 w-12 text-gray-600" />
-                <p className="mt-3 text-sm text-gray-500">No products found</p>
-              </div>
-            )}
           </div>
+
+          {/* Mobile Cards */}
+          <div className="md:hidden">
+            {filtered.map((product, index) => {
+              const netColor = getNetworkColor(product.network.name);
+              const isInactive = !product.status;
+              return (
+                <div
+                  key={product.id}
+                  className={`border-b border-gray-700/30 p-4 ${isInactive ? 'opacity-50' : ''}`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: netColor }}
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-white">{product.name}</p>
+                        <p className="text-xs text-gray-400">{product.description}</p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-500 ml-2">#{index + 1}</span>
+                  </div>
+                  <div className="mt-3 flex items-center gap-3">
+                    <span className="text-sm font-semibold text-white">
+                      GHS {formatCurrency(product.sellingPrice)}
+                    </span>
+                    {product.promoPrice && (
+                      <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400 border border-amber-500/20">
+                        Promo GHS {formatCurrency(product.promoPrice)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3 flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">Shop</span>
+                      <button
+                        onClick={() =>
+                          toggleMutation.mutate({
+                            id: product.id,
+                            field: 'showInShop',
+                            value: !product.showInShop,
+                          })
+                        }
+                        disabled={toggleMutation.isPending}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          product.showInShop ? 'bg-emerald-500' : 'bg-gray-600'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                            product.showInShop ? 'translate-x-5' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">Agent</span>
+                      <button
+                        onClick={() =>
+                          toggleMutation.mutate({
+                            id: product.id,
+                            field: 'showForAgents',
+                            value: !product.showForAgents,
+                          })
+                        }
+                        disabled={toggleMutation.isPending}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          product.showForAgents ? 'bg-violet-500' : 'bg-gray-600'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                            product.showForAgents ? 'translate-x-5' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      onClick={() => startEdit(product)}
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gray-800 py-2 text-xs text-gray-300 hover:bg-blue-500/20 hover:text-blue-400 transition-colors border border-gray-700/50"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Delete this product?')) deleteMutation.mutate(product.id);
+                      }}
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gray-800 py-2 text-xs text-gray-300 hover:bg-rose-500/20 hover:text-rose-400 transition-colors border border-gray-700/50"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {filtered.length === 0 && (
+            <div className="py-12 text-center">
+              <Package className="mx-auto h-12 w-12 text-gray-600" />
+              <p className="mt-3 text-sm text-gray-500">No products found</p>
+            </div>
+          )}
         </GlassCard>
       </DashboardShell>
     </AuthGuard>
