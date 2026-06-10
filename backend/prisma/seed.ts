@@ -29,6 +29,13 @@ async function main() {
   await prisma.session.deleteMany();
   await prisma.apiKey.deleteMany();
   await prisma.provider.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.chat.deleteMany();
+  await prisma.referralCode.deleteMany();
+  await prisma.afaRegistration.deleteMany();
+  await prisma.mtnExpressBundle.deleteMany();
+  await prisma.rolePrice.deleteMany();
+  await prisma.adminSettings.deleteMany();
   await prisma.product.deleteMany();
   await prisma.network.deleteMany();
   await prisma.user.deleteMany();

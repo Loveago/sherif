@@ -401,3 +401,234 @@ adminRouter.get('/settings', async (_request, response, next) => {
     return next(error);
   }
 });
+
+adminRouter.get('/users/:id', async (request, response, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: request.params.id },
+      include: {
+        wallet: true,
+        storefront: true,
+        orders: { take: 10 },
+        withdrawals: { take: 10 },
+        commissions: { take: 10 },
+      },
+    });
+
+    if (!user) {
+      return response.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return response.json(createSuccessResponse(user));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.put('/users/:id', async (request, response, next) => {
+  try {
+    const { firstName, lastName, email, phone, role } = request.body;
+    const user = await prisma.user.update({
+      where: { id: request.params.id },
+      data: {
+        ...(firstName && { firstName }),
+        ...(lastName && { lastName }),
+        ...(email && { email }),
+        ...(phone && { phone }),
+        ...(role && { role }),
+      },
+      include: { wallet: true, storefront: true },
+    });
+
+    return response.json(createSuccessResponse(user, 'User updated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/users/:id/unsuspend', async (request, response, next) => {
+  try {
+    const user = await prisma.user.update({
+      where: { id: request.params.id },
+      data: { deletedAt: null },
+    });
+    return response.json(createSuccessResponse(user, 'User unsuspended'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/users/:id/change-password', async (request, response, next) => {
+  try {
+    const { password } = request.body;
+    if (!password) {
+      return response.status(400).json({ success: false, message: 'Password is required' });
+    }
+
+    const bcrypt = require('bcryptjs');
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.update({
+      where: { id: request.params.id },
+      data: { passwordHash },
+    });
+
+    return response.json(createSuccessResponse(user, 'Password changed'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/products/:id/stock', async (request, response, next) => {
+  try {
+    const { quantity, operation } = request.body;
+    const product = await prisma.product.findUnique({
+      where: { id: request.params.id },
+    });
+
+    if (!product) {
+      return response.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const newStock = operation === 'add' 
+      ? product.stock + quantity 
+      : Math.max(0, product.stock - quantity);
+
+    const updated = await prisma.product.update({
+      where: { id: request.params.id },
+      data: { stock: newStock },
+      include: { network: true },
+    });
+
+    return response.json(createSuccessResponse(updated, 'Stock updated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/products/:id/role-price', async (request, response, next) => {
+  try {
+    const { role, price } = request.body;
+    
+    const rolePrice = await prisma.rolePrice.upsert({
+      where: {
+        productId_role: {
+          productId: request.params.id,
+          role,
+        },
+      },
+      update: { price: toDecimal(price) },
+      create: {
+        productId: request.params.id,
+        role,
+        price: toDecimal(price),
+        userId: '', // Placeholder
+      },
+    });
+
+    return response.json(createSuccessResponse(rolePrice, 'Role price updated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.get('/orders', async (request, response, next) => {
+  try {
+    const { status, userId, productId, startDate, endDate } = request.query;
+    
+    const orders = await prisma.order.findMany({
+      where: {
+        ...(status && { status }),
+        ...(userId && { userId: String(userId) }),
+        ...(productId && { productId: String(productId) }),
+        ...(startDate && { createdAt: { gte: new Date(String(startDate)) } }),
+        ...(endDate && { createdAt: { lte: new Date(String(endDate)) } }),
+      },
+      include: {
+        product: { include: { network: true } },
+        user: true,
+        commission: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return response.json(createSuccessResponse(orders));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.put('/orders/:id/status', async (request, response, next) => {
+  try {
+    const { status } = request.body;
+    const order = await prisma.order.update({
+      where: { id: request.params.id },
+      data: { status },
+      include: { product: { include: { network: true } }, user: true },
+    });
+
+    return response.json(createSuccessResponse(order, 'Order status updated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.get('/commissions', async (request, response, next) => {
+  try {
+    const { userId, startDate, endDate } = request.query;
+    
+    const commissions = await prisma.commission.findMany({
+      where: {
+        ...(userId && { userId: String(userId) }),
+        ...(startDate && { createdAt: { gte: new Date(String(startDate)) } }),
+        ...(endDate && { createdAt: { lte: new Date(String(endDate)) } }),
+      },
+      include: {
+        user: true,
+        order: { include: { product: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const total = commissions.reduce((sum, c) => sum + c.amount.toNumber(), 0);
+
+    return response.json(createSuccessResponse({ commissions, total }));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/announcements/:id', async (request, response, next) => {
+  try {
+    const { title, content, targetRole, displayLocation, priority, pinned, active } = request.body;
+    
+    const announcement = await prisma.announcement.update({
+      where: { id: request.params.id },
+      data: {
+        ...(title && { title }),
+        ...(content && { content }),
+        ...(targetRole && { targetRole }),
+        ...(displayLocation && { displayLocation }),
+        ...(priority && { priority }),
+        ...(pinned !== undefined && { pinned }),
+        ...(active !== undefined && { active }),
+      },
+    });
+
+    return response.json(createSuccessResponse(announcement, 'Announcement updated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.delete('/announcements/:id', async (request, response, next) => {
+  try {
+    await prisma.announcement.delete({
+      where: { id: request.params.id },
+    });
+
+    return response.json(createSuccessResponse({ id: request.params.id }, 'Announcement deleted'));
+  } catch (error) {
+    return next(error);
+  }
+});

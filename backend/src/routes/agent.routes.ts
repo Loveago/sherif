@@ -614,3 +614,277 @@ agentRouter.put('/storefront/me', validate(updateStorefrontSchema), async (reque
     return next(error);
   }
 });
+
+agentRouter.post('/chat/start', async (request, response, next) => {
+  try {
+    const { receiverId } = request.body;
+    const senderId = request.auth!.userId;
+
+    if (!receiverId) {
+      return response.status(400).json({ success: false, message: 'Receiver ID is required' });
+    }
+
+    const [id1, id2] = [senderId, receiverId].sort();
+
+    let chat = await prisma.chat.findUnique({
+      where: {
+        participant1Id_participant2Id: {
+          participant1Id: id1,
+          participant2Id: id2,
+        },
+      },
+    });
+
+    if (!chat) {
+      chat = await prisma.chat.create({
+        data: {
+          type: 'ADMIN_AGENT',
+          participant1Id: id1,
+          participant2Id: id2,
+        },
+      });
+    }
+
+    return response.json(createSuccessResponse(chat));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/chats', async (request, response, next) => {
+  try {
+    const userId = request.auth!.userId;
+
+    const chats = await prisma.chat.findMany({
+      where: {
+        OR: [
+          { participant1Id: userId },
+          { participant2Id: userId },
+        ],
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+        participant1: true,
+        participant2: true,
+      },
+      orderBy: { lastMessageAt: 'desc' },
+    });
+
+    return response.json(createSuccessResponse(chats));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/chats/:chatId/messages', async (request, response, next) => {
+  try {
+    const { limit = '50', offset = '0' } = request.query;
+
+    const messages = await prisma.message.findMany({
+      where: { chatId: request.params.chatId },
+      include: {
+        sender: true,
+        receiver: true,
+        replyTo: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: parseInt(String(limit)),
+      skip: parseInt(String(offset)),
+    });
+
+    return response.json(createSuccessResponse(messages));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.post('/chats/:chatId/messages', async (request, response, next) => {
+  try {
+    const { content, receiverId, replyToId } = request.body;
+    const senderId = request.auth!.userId;
+
+    if (!content || !receiverId) {
+      return response.status(400).json({ success: false, message: 'Content and receiver ID are required' });
+    }
+
+    const message = await prisma.message.create({
+      data: {
+        chatId: request.params.chatId,
+        senderId,
+        receiverId,
+        content,
+        replyToId,
+        status: 'SENT',
+      },
+      include: {
+        sender: true,
+        receiver: true,
+      },
+    });
+
+    await prisma.chat.update({
+      where: { id: request.params.chatId },
+      data: { lastMessageAt: new Date() },
+    });
+
+    return response.status(201).json(createSuccessResponse(message, 'Message sent'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.post('/chats/:chatId/messages/:messageId/read', async (request, response, next) => {
+  try {
+    const message = await prisma.message.update({
+      where: { id: request.params.messageId },
+      data: {
+        status: 'DELIVERED',
+        readAt: new Date(),
+      },
+      include: {
+        sender: true,
+        receiver: true,
+      },
+    });
+
+    return response.json(createSuccessResponse(message));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.post('/complaints', validate(createComplaintSchema), async (request, response, next) => {
+  try {
+    const { title, description, evidenceUrl } = request.body;
+
+    const complaint = await prisma.complaint.create({
+      data: {
+        userId: request.auth!.userId,
+        title,
+        description,
+        evidenceUrl,
+        status: 'OPEN',
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    await createNotification(request.auth!.userId, 'Complaint Submitted', 'Your complaint has been submitted successfully', 'complaint');
+
+    return response.status(201).json(createSuccessResponse(complaint, 'Complaint submitted'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/complaints', async (request, response, next) => {
+  try {
+    const complaints = await prisma.complaint.findMany({
+      where: { userId: request.auth!.userId },
+      include: {
+        user: true,
+        assignedTo: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return response.json(createSuccessResponse(complaints));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/complaints/:id', async (request, response, next) => {
+  try {
+    const complaint = await prisma.complaint.findUnique({
+      where: { id: request.params.id },
+      include: {
+        user: true,
+        assignedTo: true,
+      },
+    });
+
+    if (!complaint || complaint.userId !== request.auth!.userId) {
+      return response.status(404).json({ success: false, message: 'Complaint not found' });
+    }
+
+    return response.json(createSuccessResponse(complaint));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.post('/referral-codes/generate', async (request, response, next) => {
+  try {
+    const { maxUses, expiresAt } = request.body;
+    const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    const referralCode = await prisma.referralCode.create({
+      data: {
+        code,
+        createdById: request.auth!.userId,
+        maxUses,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        status: 'ACTIVE',
+      },
+      include: {
+        createdBy: true,
+        usedBy: true,
+      },
+    });
+
+    return response.status(201).json(createSuccessResponse(referralCode, 'Referral code generated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/referral-codes', async (request, response, next) => {
+  try {
+    const codes = await prisma.referralCode.findMany({
+      where: { createdById: request.auth!.userId },
+      include: {
+        createdBy: true,
+        usedBy: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const stats = {
+      total: codes.length,
+      active: codes.filter(c => c.status === 'ACTIVE').length,
+      totalUses: codes.reduce((sum, c) => sum + c.currentUses, 0),
+    };
+
+    return response.json(createSuccessResponse({ codes, stats }));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.put('/referral-codes/:id', async (request, response, next) => {
+  try {
+    const { maxUses, expiresAt, status } = request.body;
+
+    const referralCode = await prisma.referralCode.update({
+      where: { id: request.params.id },
+      data: {
+        ...(maxUses !== undefined && { maxUses }),
+        ...(expiresAt && { expiresAt: new Date(expiresAt) }),
+        ...(status && { status }),
+      },
+      include: {
+        createdBy: true,
+        usedBy: true,
+      },
+    });
+
+    return response.json(createSuccessResponse(referralCode, 'Referral code updated'));
+  } catch (error) {
+    return next(error);
+  }
+});

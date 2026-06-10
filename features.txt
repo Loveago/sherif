@@ -1,0 +1,1236 @@
+
+==================================================================================
+                            TABLE OF CONTENTS
+==================================================================================
+
+1. AUTHENTICATION & USER MANAGEMENT
+2. ADMIN PANEL FEATURES
+3. AGENT/USER FEATURES
+4. PRODUCT MANAGEMENT
+5. ORDER MANAGEMENT SYSTEM
+6. PAYMENT INTEGRATION
+7. STOREFRONT & REFERRAL SYSTEM
+8. COMMISSION & WALLET SYSTEM
+9. CHAT & MESSAGING
+10. REPORTS & ANALYTICS
+11. API & WEBHOOK SYSTEM
+12. SETTINGS & CONFIGURATION
+13. MISCELLANEOUS FEATURES
+
+==================================================================================
+                 1. AUTHENTICATION & USER MANAGEMENT
+==================================================================================
+
+1.1 USER AUTHENTICATION
+    ✓ Registration (Sign Up) with email & password
+    ✓ Login with JWT token generation
+    ✓ Password reset functionality
+    ✓ Auto-login session persistence
+    ✓ Role-based access control (admin, user, premium, normal, super, agent)
+    ✓ Force logout when admin changes user password or role
+    ✓ Email verification (optional)
+    ✓ Remember me functionality
+    ✓ Session timeout management
+
+1.2 USER PROFILE MANAGEMENT
+    ✓ View profile information (name, email, phone, role)
+    ✓ Edit profile (name, email, phone, password)
+    ✓ Delete account functionality
+    ✓ User suspension/deactivation by admin
+    ✓ Account status tracking (logged in, suspended)
+    ✓ Last login tracking
+    ✓ User creation by admin (super admin feature)
+    ✓ Bulk user import (admin)
+    ✓ User activity logs
+
+1.3 ROLE MANAGEMENT
+    ✓ Admin role with full access
+    ✓ Agent/Shop owner role (can create personal storefront)
+    ✓ Customer role (normal user)
+    ✓ Premium user role (with role-specific pricing)
+    ✓ Multiple account types: USER, PREMIUM, NORMAL, SUPER, OTHER
+    ✓ Custom pricing per role
+    ✓ Role-based feature restrictions
+    ✓ Role upgrade/downgrade by admin
+
+==================================================================================
+                     2. ADMIN PANEL FEATURES
+==================================================================================
+
+2.1 DASHBOARD & ANALYTICS
+    ✓ Dashboard overview with KPIs:
+        - Total revenue
+        - Total orders (completed, pending, cancelled)
+        - Total users (active, suspended)
+        - Total agents
+        - Recent transactions
+        - Commission payouts summary
+        - Withdrawal requests pending
+    ✓ Real-time order statistics
+    ✓ Revenue charts (daily, weekly, monthly)
+    ✓ User growth tracking
+    ✓ Product performance analytics
+    ✓ Agent performance tracking
+    ✓ Top products by sales
+    ✓ Payment method breakdown
+
+2.2 USER MANAGEMENT
+    ✓ View all users list with search/filter
+    ✓ Create new user (admin only)
+    ✓ Edit user details (name, email, phone, role)
+    ✓ Delete user accounts
+    ✓ Suspend/unsuspend users
+    ✓ Assign loan balance to users
+    ✓ View user order history
+    ✓ View user transaction history
+    ✓ Force user logout
+    ✓ Change user password
+    ✓ Export user list to CSV/Excel
+    ✓ User status management
+    ✓ Bulk operations on users
+
+2.3 PRODUCT/PACKAGE MANAGEMENT
+    ✓ Add new products with details:
+        - Name, description, price
+        - Stock management
+        - Promo price with on/off toggle
+        - Show in shop toggle
+        - Show for agents toggle
+    ✓ Edit product information
+    ✓ Delete products
+    ✓ Stock quantity management
+    ✓ View all products list
+    ✓ Search products
+    ✓ Product categories (implied from network labels)
+    ✓ Role-based pricing (different price per role)
+    ✓ Bulk product import from Excel
+    ✓ Price history tracking
+    ✓ Product performance reports
+
+2.4 ORDER MANAGEMENT
+    ✓ View all orders (global admin view)
+    ✓ Filter orders by:
+        - Status (pending, processing, completed, cancelled)
+        - Date range
+        - User/Agent
+        - Product
+        - Network type
+    ✓ Update order status
+    ✓ Update individual order item status
+    ✓ Process order items in batch
+    ✓ Mark orders as completed
+    ✓ Cancel orders/items
+    ✓ View order details (items, mobile numbers, prices)
+    ✓ Download orders to Excel
+    ✓ Order tracking with status history
+    ✓ External API order processing (Skanka5 integration)
+    ✓ Order refund management
+    ✓ Bulk order status updates
+
+2.5 PAYMENT & TRANSACTION MANAGEMENT
+    ✓ View all payment transactions
+    ✓ Payment status tracking:
+        - Pending, completed, failed, refunded
+    ✓ View payment details (mobile number, amount, reference)
+    ✓ Paystack payment integration management
+    ✓ Payment method tracking:
+        - Paystack
+        - Wallet
+    ✓ Refund management system
+    ✓ Transaction history
+    ✓ Revenue reports by payment method
+    ✓ Failed payment investigation
+    ✓ Retry payment processing
+
+2.6 COMPLAINT MANAGEMENT
+    ✓ View all complaints
+    ✓ Complaint filtering by:
+        - Status (pending, reviewed, resolved, refunded)
+        - Date range
+        - Product
+        - User
+    ✓ Mark complaints as reviewed
+    ✓ Resolve complaints
+    ✓ Issue refunds with proof image upload
+    ✓ Add admin notes to complaints
+    ✓ Contact customer (phone/WhatsApp)
+    ✓ Complaint response template system
+    ✓ Complaint statistics
+    ✓ Refund tracking
+
+2.7 ANNOUNCEMENT MANAGEMENT
+    ✓ Create announcements with:
+        - Title, message, priority level
+        - Active/inactive toggle
+        - Target audience selection
+    ✓ Target audience options:
+        - All users
+        - Shop users only
+        - Premium users
+        - Normal users
+        - Agents only
+    ✓ Display location (login page, shop page, all)
+    ✓ Edit announcements
+    ✓ Delete announcements
+    ✓ View announcement read status
+    ✓ Mark as read by users
+    ✓ Announcement scheduling (optional)
+    ✓ Bulk announcements
+
+2.8 STOREFRONT MANAGEMENT (Agent Storefronts)
+    ✓ View all agent storefronts
+    ✓ Manage storefront custom pricing:
+        - Product base price (admin price)
+        - Agent custom price (markup allowed)
+        - Commission calculation (difference)
+    ✓ Activate/deactivate storefronts
+    ✓ Approve agent storefronts
+    ✓ View storefront performance
+    ✓ Manage storefront WhatsApp number
+    ✓ View storefront earnings
+    ✓ Storefront product listing management
+
+2.9 COMMISSION & PAYOUT MANAGEMENT
+    ✓ View commission calculations
+    ✓ Weekly commission calculation:
+        - Calculate per agent
+        - Calculate from referral orders
+        - Commission = agent price - base price
+    ✓ Commission payout history
+    ✓ Process commission payouts
+    ✓ Commission payment methods (wallet, mobile money)
+    ✓ Payout status tracking (pending, paid)
+    ✓ Batch payout processing
+    ✓ Commission reports per agent
+    ✓ Payment reference tracking
+
+2.10 WITHDRAWAL REQUEST PROCESSING
+    ✓ View pending withdrawal requests
+    ✓ View withdrawal request history
+    ✓ Approve withdrawal requests
+    ✓ Reject withdrawal requests with reason
+    ✓ Process mobile money payouts
+    ✓ Add admin notes
+    ✓ Mark as processed
+    ✓ Withdrawal amount limits
+    ✓ Withdrawal history tracking
+    ✓ Mobile money number validation
+
+2.11 REFERRAL CODE MANAGEMENT
+    ✓ Generate referral codes
+    ✓ Set max uses per code (unlimited option)
+    ✓ Set expiration date
+    ✓ Activate/deactivate codes
+    ✓ View usage statistics per code
+    ✓ Bulk code generation
+    ✓ Edit code details
+    ✓ Track users signed up with code
+    ✓ Code validity monitoring
+
+2.12 CHAT WITH AGENTS
+    ✓ Real-time chat system
+    ✓ Start chat with specific agent
+    ✓ View chat history
+    ✓ Send/receive encrypted messages
+    ✓ Message read status
+    ✓ Reply to specific messages
+    ✓ Forward messages
+    ✓ Delete messages (personal or for all)
+    ✓ Chat list with last message preview
+    ✓ Unread message count
+    ✓ Chat notifications
+    ✓ Message timestamp
+
+2.13 SHOP CHAT (Chat with Customers)
+    ✓ Real-time shop chat system
+    ✓ Identify customers by phone number
+    ✓ Send/receive messages to shop visitors
+    ✓ Chat history per customer
+    ✓ Message encryption
+    ✓ Chat notifications
+    ✓ Admin response to customer inquiries
+    ✓ Message templates for quick responses
+    ✓ Chat list management
+
+2.14 SETTINGS & CONFIGURATION
+    ✓ App settings key-value store
+    ✓ Edit business settings:
+        - Business name
+        - Logo/images
+        - Email
+        - Support phone numbers
+    ✓ Payment gateway settings:
+        - Paystack API keys
+    ✓ Notification settings
+    ✓ SMS gateway settings
+    ✓ Email settings
+    ✓ API rate limiting configuration
+    ✓ Security settings
+    ✓ Backup settings
+
+2.15 EXTERNAL API MANAGEMENT
+    ✓ Manage external API keys (partner integrations)
+    ✓ View partner integrations
+    ✓ Generate API keys for partners
+    ✓ Activate/deactivate partner keys
+    ✓ Track partner API usage (total orders)
+    ✓ Last used timestamp tracking
+    ✓ API key regeneration
+
+2.16 USER API MANAGEMENT
+    ✓ View all user API keys
+    ✓ Generate API key for user
+    ✓ Deactivate API keys
+    ✓ Track API key usage (total orders)
+    ✓ Webhook URL management
+    ✓ Enable/disable webhooks
+    ✓ Webhook event logs
+    ✓ API key permissions
+
+2.17 AFA REGISTRATION PROCESSING
+    ✓ View pending AFA registrations
+    ✓ Approve/reject registrations
+    ✓ View registration details:
+        - Full name, phone, location
+        - Occupation, ID type, ID number
+    ✓ Add admin notes
+    ✓ Track payment status
+    ✓ Link registration to user account
+    ✓ Export registration list
+
+2.18 MTN EXPRESS BUNDLE MANAGEMENT
+    ✓ View MTN Express orders
+    ✓ Approve/reject MTN Express requests
+    ✓ Manage bundle sizes and prices
+    ✓ Generate receipt numbers
+    ✓ Track order status
+    ✓ Add admin notes
+    ✓ Payment tracking per order
+
+2.19 REPORTS & EXPORTS
+    ✓ Export users to CSV
+    ✓ Export orders to Excel with formatting
+    ✓ Export transactions list
+    ✓ Export sales reports
+    ✓ Export complaints data
+    ✓ Export commissions data
+    ✓ Date range filtering for exports
+    ✓ Multiple export formats
+
+2.20 ADMIN AUDIT & LOGS
+    ✓ Admin action logging
+    ✓ View system activity logs
+    ✓ Admin login history
+    ✓ Changes tracking (who changed what, when)
+    ✓ Failed login attempts
+    ✓ Permission denied attempts
+
+==================================================================================
+                     3. AGENT/USER FEATURES
+==================================================================================
+
+3.1 USER DASHBOARD
+    ✓ Dashboard overview with:
+        - User balance/wallet
+        - Recent orders
+        - Active storefront (if agent)
+        - Pending withdrawal requests
+        - Commission earned (if agent)
+        - Total spent
+    ✓ Quick action links
+    ✓ Recent transactions
+    ✓ Profile summary
+
+3.2 PRODUCT BROWSING & SHOPPING
+    ✓ View all available products
+    ✓ Product filtering:
+        - By network (MTN, AIRTEL, TELECEL)
+        - By price range
+        - By category
+    ✓ Search products
+    ✓ Product details view:
+        - Name, description, price
+        - Stock status
+        - Promo price (if applicable)
+    ✓ Role-based pricing display (show price for user's role)
+    ✓ Stock availability indicator
+    ✓ Add to cart functionality
+
+3.3 SHOPPING CART
+    ✓ View cart items
+    ✓ Add items to cart
+    ✓ Remove items from cart
+    ✓ Update item quantity
+    ✓ Calculate cart total
+    ✓ Cart persistence (save across sessions)
+    ✓ View cart summary
+    ✓ Promo price application in cart
+    ✓ Clear cart
+
+3.4 ORDERING SYSTEM
+    ✓ Single product ordering
+    ✓ Cart checkout
+    ✓ Batch ordering (multiple items):
+        - Paste mobile numbers
+        - Upload Excel file
+        - Manual item entry
+    ✓ Order confirmation before submission
+    ✓ Order receipt/number generation
+    ✓ Order status tracking in real-time
+    ✓ Mobile number assignment to products
+    ✓ Quantity per mobile number
+    ✓ Order price calculation
+    ✓ GB calculation for data packages
+
+3.5 ORDER HISTORY & TRACKING
+    ✓ View all user orders
+    ✓ Filter orders by:
+        - Status (pending, processing, completed, cancelled)
+        - Date range
+        - Product
+    ✓ Order details view:
+        - Items with status
+        - Mobile numbers
+        - Prices
+        - Timeline
+    ✓ Download order as file
+    ✓ Order search
+    ✓ Bulk order tracking
+    ✓ Order status notifications
+    ✓ Track processing progress
+
+3.6 PAYMENT METHODS
+    ✓ Wallet balance management
+    ✓ Pay via wallet
+    ✓ Paystack payment gateway:
+        - Credit/debit card
+        - Mobile money
+        - Bank transfer
+    ✓ Payment confirmation
+    ✓ Payment receipt
+    ✓ Failed payment retry
+    ✓ Pending payment polling
+
+3.7 WALLET SYSTEM
+    ✓ View wallet balance
+    ✓ View wallet transaction history
+    ✓ Add funds to wallet via Paystack
+    ✓ Withdraw from wallet (for agents)
+    ✓ Wallet top-up options
+    ✓ Minimum balance alerts
+    ✓ Transaction receipt
+    ✓ Wallet statement export
+
+3.8 STOREFRONT CREATION (Agent Feature)
+    ✓ Create personal storefront:
+        - Unique storefront URL/slug
+        - Custom WhatsApp number
+    ✓ Select products to sell
+    ✓ Set custom prices for each product:
+        - Base price (from admin)
+        - Agent's selling price
+        - Auto-calculate markup/commission
+    ✓ View storefront public page
+    ✓ Manage storefront visibility
+    ✓ Storefront statistics:
+        - Views
+        - Orders
+        - Revenue
+    ✓ Add storefront description/branding
+    ✓ Storefront URL sharing
+
+3.9 REFERRAL ORDERS (Through Agent Storefront)
+    ✓ Customer orders through agent storefront
+    ✓ Automatic commission calculation
+    ✓ Agent receives payment notifications
+    ✓ Track referral orders separately
+    ✓ View commission per order
+    ✓ Commission status (pending, paid)
+    ✓ Automatic order creation for processing
+    ✓ Payment method selection (wallet, mobile money)
+
+3.10 AGENT WALLET & EARNINGS
+    ✓ View storefront wallet balance
+    ✓ Track earnings from referral orders
+    ✓ Commission breakdown:
+        - Weekly commission summary
+        - Per-order commission tracking
+    ✓ Wallet transactions history
+    ✓ Minimum payout threshold
+
+3.11 WITHDRAWAL SYSTEM (Agent)
+    ✓ Submit withdrawal request
+    ✓ Specify amount to withdraw
+    ✓ Provide mobile money number
+    ✓ Receive withdrawal status updates
+    ✓ View pending withdrawals
+    ✓ View withdrawal history
+    ✓ Withdrawal status tracking (pending, approved, rejected)
+    ✓ Admin notes visibility
+    ✓ Payout confirmation via SMS
+
+3.12 REFERRAL CODES & SIGNUP
+    ✓ Use referral code on signup
+    ✓ Referral code validation
+    ✓ Track referral source
+    ✓ View referral benefits (if any)
+
+3.13 CHAT WITH ADMIN
+    ✓ Real-time chat with admin
+    ✓ Start new chat conversation
+    ✓ Send/receive messages (encrypted)
+    ✓ Chat history
+    ✓ Message read status
+    ✓ Reply to specific messages
+    ✓ Forward messages
+    ✓ Delete messages
+    ✓ Chat notifications
+    ✓ Typing indicators
+
+3.14 COMPLAINT SUBMISSION
+    ✓ Submit complaint about order
+    ✓ Complaint details:
+        - Order ID/item ID
+        - Mobile number
+        - WhatsApp number
+        - Issue description
+    ✓ Attach proof image (optional)
+    ✓ Complaint status tracking
+    ✓ Admin response/notes visibility
+    ✓ View complaint history
+    ✓ Refund tracking
+
+3.15 PROFILE MANAGEMENT
+    ✓ View profile information
+    ✓ Edit personal details (name, email, phone)
+    ✓ Change password
+    ✓ View profile picture/avatar
+    ✓ Edit profile picture
+    ✓ Privacy settings
+    ✓ Delete account request
+
+3.16 USER API KEYS (For Developers/Partners)
+    ✓ Create API key
+    ✓ View all API keys
+    ✓ API key name/label
+    ✓ Deactivate API key
+    ✓ Regenerate API key
+    ✓ View API key usage statistics
+    ✓ Set webhook URL
+    ✓ Enable/disable webhooks
+    ✓ View webhook logs
+    ✓ API documentation/integration guide
+
+3.17 LOAN MANAGEMENT (If Applicable)
+    ✓ View loan balance
+    ✓ Loan status
+    ✓ Loan details (amount, term, interest)
+    ✓ Payment plan
+    ✓ Outstanding balance
+    ✓ Admin-assigned loans only (user cannot request)
+
+3.18 TRANSACTION HISTORY
+    ✓ View all transactions
+    ✓ Filter by type (credit, debit, order, payment, refund)
+    ✓ Transaction date range filter
+    ✓ Transaction details
+    ✓ Previous balance tracking
+    ✓ Export transaction history
+
+3.19 NOTIFICATIONS
+    ✓ Order status change notifications
+    ✓ Payment confirmation notifications
+    ✓ Commission payout notifications
+    ✓ Withdrawal approval/rejection notifications
+    ✓ Announcement notifications
+    ✓ Admin message notifications
+    ✓ In-app notifications
+    ✓ Push notifications (if mobile app)
+    ✓ Email notifications
+    ✓ SMS notifications
+
+3.20 SHOP BROWSING (Customer)
+    ✓ Browse shop products
+    ✓ Product details and pricing
+    ✓ Add to cart
+    ✓ Chat with admin
+    ✓ Product reviews (if implemented)
+    ✓ Stock availability
+
+==================================================================================
+                     4. PRODUCT MANAGEMENT
+==================================================================================
+
+4.1 PRODUCT CREATION
+    ✓ Add new product with fields:
+        - Name (required)
+        - Description (optional)
+        - Base price (required)
+        - Promo price (optional)
+        - Stock quantity
+        - Product image/icon
+    ✓ Product categories/networks:
+        - MTN
+        - AIRTEL TIGO
+        - TELECEL
+        - DATA_PACKAGE
+        - TOP_UP
+        - OTHER
+    ✓ Show in shop toggle
+    ✓ Show for agents toggle
+    ✓ Activate/deactivate product
+
+4.2 PRODUCT EDITING
+    ✓ Edit product details
+    ✓ Update price
+    ✓ Update stock
+    ✓ Toggle promo price on/off
+    ✓ Change visibility settings
+    ✓ Update product image
+    ✓ Edit description
+
+4.3 PRODUCT INVENTORY
+    ✓ Stock management (add/subtract)
+    ✓ Stock level alerts
+    ✓ Stock history
+    ✓ Bulk stock update
+    ✓ Low stock warnings
+    ✓ Shop stock closed flag
+
+4.4 ROLE-BASED PRICING
+    ✓ Set different prices per role:
+        - USER
+        - PREMIUM
+        - NORMAL
+        - SUPER
+        - OTHER
+    ✓ Price resolution priority:
+        1. Role price (highest priority)
+        2. Promo price
+        3. Base price (default)
+    ✓ View all prices for product
+    ✓ Update role prices
+    ✓ Role price history
+
+4.5 AGENT STOREFRONT PRICING
+    ✓ Agent sets custom price per product
+    ✓ Custom price can be higher (markup allowed)
+    ✓ Commission automatically calculated
+    ✓ Agent price validation
+    ✓ Minimum markup settings
+    ✓ Maximum price settings
+
+==================================================================================
+                     5. ORDER MANAGEMENT SYSTEM
+==================================================================================
+
+5.1 ORDER TYPES
+    ✓ Single product order
+    ✓ Bulk order from cart
+    ✓ Batch order (uploaded file/pasted data)
+    ✓ Referral order (through agent storefront)
+    ✓ API-generated order
+
+5.2 ORDER CREATION
+    ✓ Order number generation (unique reference)
+    ✓ Order timestamp
+    ✓ User information capture
+    ✓ Mobile number tracking
+    ✓ Product details storage
+    ✓ Price at purchase time storage
+    ✓ GB calculation for data products
+    ✓ Order item creation
+
+5.3 ORDER PROCESSING STATUSES
+    ✓ Pending - awaiting processing
+    ✓ Processing - being processed
+    ✓ Completed - successfully delivered
+    ✓ Cancelled - user cancelled
+    ✓ Failed - failed delivery attempt
+    ✓ Refunded - refund issued
+    ✓ Status tracking with timestamps
+
+5.4 ORDER BATCH MANAGEMENT
+    ✓ Batch order upload
+    ✓ File format support:
+        - Excel (.xlsx)
+        - CSV
+        - Text (pasted)
+    ✓ Batch filename storage
+    ✓ Total items in batch
+    ✓ Total price calculation
+    ✓ Total GB calculation
+    ✓ Network detection (MTN, AIRTEL, TELECEL)
+    ✓ Batch status tracking
+    ✓ Batch history
+
+5.5 EXTERNAL ORDER INTEGRATION (Skanka5)
+    ✓ External API order submission
+    ✓ Skanka5 reference tracking
+    ✓ Skanka5 order code tracking
+    ✓ Skanka5 status polling/updates
+    ✓ Status sync from external API
+    ✓ Webhook handling for external updates
+
+5.6 ORDER ITEM MANAGEMENT
+    ✓ Individual item status updates
+    ✓ Item mobile number
+    ✓ Item product details
+    ✓ Item status history
+    ✓ Batch item updates
+    ✓ Item price snapshot
+    ✓ Item description snapshot
+
+5.7 ORDER TRACKING
+    ✓ Real-time status updates
+    ✓ Order tracker page (customer view)
+    ✓ Total orders count
+    ✓ Completed orders count
+    ✓ Pending items count
+    ✓ Failed items tracking
+    ✓ Historical tracking data
+
+5.8 ORDER CANCELLATION
+    ✓ Cancel entire order
+    ✓ Cancel individual items
+    ✓ Cancellation reason tracking
+    ✓ Automatic refund on cancellation
+    ✓ Cancellation restrictions (can't cancel completed)
+
+5.9 ORDER REFUNDS
+    ✓ Full order refund
+    ✓ Partial refund per item
+    ✓ Refund via complaint system
+    ✓ Refund status tracking
+    ✓ Refund amount to wallet
+    ✓ Refund history per user
+
+==================================================================================
+                     6. PAYMENT INTEGRATION
+==================================================================================
+
+6.1 PAYSTACK PAYMENT GATEWAY
+    ✓ Paystack API key configuration
+    ✓ Payment initialization
+    ✓ Payment redirect to Paystack
+    ✓ Payment callback handling
+    ✓ Payment verification
+    ✓ Reference number tracking
+    ✓ Payment status updates
+    ✓ Multiple payment methods support:
+        - Credit/Debit Card
+        - Mobile Money
+        - Bank Transfer
+    ✓ Payment receipt generation
+
+6.2 WALLET PAYMENT METHOD
+    ✓ Wallet balance checking
+    ✓ Sufficient balance validation
+    ✓ Balance deduction
+    ✓ Wallet transaction recording
+    ✓ Insufficient balance rejection
+    ✓ Instant order processing
+
+6.4 PAYMENT TRANSACTION TRACKING
+    ✓ Transaction ID
+    ✓ Mobile number
+    ✓ Amount
+    ✓ Currency (GHS)
+    ✓ Payment channel (Paystack, Wallet)
+    ✓ Status tracking
+    ✓ Product/order linking
+    ✓ Timestamp
+
+6.5 PAYMENT FAILURES
+    ✓ Failed payment logging
+    ✓ Retry mechanism
+    ✓ User notification
+    ✓ Error message display
+    ✓ Unpaid order tracking
+    ✓ Payment expiration handling
+
+6.6 UNPAID ORDER MANAGEMENT
+    ✓ Track unpaid orders
+    ✓ Expiration date tracking
+    ✓ Payment attempts counting
+    ✓ Order recovery emails
+    ✓ Payment link regeneration
+    ✓ Status tracking (PENDING, FAILED, UNPAID, PAID)
+
+==================================================================================
+                 7. STOREFRONT & REFERRAL SYSTEM
+==================================================================================
+
+7.1 AGENT STOREFRONT CREATION
+    ✓ Agent signup for storefront
+    ✓ Unique storefront URL/slug creation
+    ✓ Storefront public page
+    ✓ Custom branding (WhatsApp number)
+    ✓ Product selection
+    ✓ Price customization per product
+    ✓ Storefront activation/deactivation
+
+7.2 STOREFRONT PRODUCT MANAGEMENT
+    ✓ Add products to storefront
+    ✓ Remove products from storefront
+    ✓ Set custom price per product
+    ✓ Mark product active/inactive
+    ✓ View product details
+    ✓ Commission breakdown display
+
+7.3 STOREFRONT PUBLIC PAGE
+    ✓ Display agent's products
+    ✓ Product listing with custom prices
+    ✓ Product filtering
+    ✓ Search functionality
+    ✓ Product details on click
+    ✓ Add to cart from storefront
+    ✓ Agent contact (WhatsApp)
+    ✓ Storefront branding
+
+7.4 REFERRAL ORDERS
+    ✓ Customer orders through storefront
+    ✓ Order links to storefront
+    ✓ Commission calculation:
+        - Base price (admin price)
+        - Agent price (custom price)
+        - Commission = agent price - base price
+    ✓ Agent receives notification
+    ✓ Order processing same as normal
+    ✓ Commission tracking
+    ✓ Revenue attribution
+
+7.5 STOREFRONT ANALYTICS
+    ✓ Total storefront views
+    ✓ Total referral orders
+    ✓ Total commission earned
+    ✓ Top selling products
+    ✓ Revenue breakdown
+    ✓ Performance tracking
+    ✓ Charts and statistics
+
+7.6 STOREFRONT PAYMENTS
+    ✓ Customer pays via Paystack
+    ✓ Payment verification
+    ✓ Order creation on payment
+    ✓ Agent notification
+
+==================================================================================
+                  8. COMMISSION & WALLET SYSTEM
+==================================================================================
+
+8.1 COMMISSION CALCULATION
+    ✓ Commission per referral order:
+        - Formula: Custom Price - Base Price
+    ✓ Weekly commission aggregation
+    ✓ Commission per agent per week
+    ✓ Multiple order commission summing
+    ✓ Commission records storage
+
+8.2 COMMISSION PAYOUTS
+    ✓ Weekly payout scheduling
+    ✓ Payout calculation and generation
+    ✓ Commission payout record creation
+    ✓ Payout status tracking (Pending, Paid)
+    ✓ Payment reference assignment
+    ✓ Admin approval for payouts
+    ✓ Payout scheduling
+
+8.3 STOREFRONT WALLET
+    ✓ Separate wallet for storefront earnings
+    ✓ Wallet balance tracking
+    ✓ Commission credit to wallet
+    ✓ Withdrawal deduction
+    ✓ Wallet transaction history
+    ✓ Beginning/ending balance tracking
+
+8.4 WITHDRAWAL REQUESTS
+    ✓ Agent submits withdrawal request
+    ✓ Requested amount
+    ✓ Mobile money number (for receipt)
+    ✓ Admin processing/approval
+    ✓ Admin rejection with notes
+    ✓ Mobile money payout execution
+    ✓ Status notification to agent
+    ✓ Withdrawal history tracking
+
+8.5 ADMIN LOAN BALANCES
+    ✓ Admin assigns loan to user
+    ✓ Loan balance tracking
+    ✓ Loan amount deduction option on orders
+    ✓ Loan status visibility
+    ✓ Loan balance updates
+
+==================================================================================
+                     9. CHAT & MESSAGING
+==================================================================================
+
+9.1 ADMIN-AGENT CHAT
+    ✓ Real-time messaging using Socket.IO
+    ✓ Chat initiation (admin starts with agent)
+    ✓ Message encryption/decryption
+    ✓ Message read status
+    ✓ Typing indicators
+    ✓ Message timestamps
+    ✓ Chat history
+
+9.2 MESSAGE FEATURES
+    ✓ Send text messages
+    ✓ Reply to specific messages
+    ✓ Forward messages
+    ✓ Delete message (personal delete)
+    ✓ Delete for all (notification to both users)
+    ✓ Message attachment support (optional)
+    ✓ Message reactions (optional)
+
+9.3 ENCRYPTION
+    ✓ End-to-end message encryption
+    ✓ AES-256 encryption
+    ✓ Initialization vector (IV) storage
+    ✓ Key derivation from shared secret
+    ✓ Decryption on retrieval
+
+9.4 CHAT INTERFACE
+    ✓ Chat conversation list
+    ✓ Last message preview
+    ✓ Unread message badge
+    ✓ Recent conversations first
+    ✓ Search conversations
+    ✓ Mute conversation (optional)
+    ✓ Mark as read
+
+9.5 SHOP CHAT
+    ✓ Admin-customer chat
+    ✓ Identify customer by phone number
+    ✓ Message customer
+    ✓ Customer responds
+    ✓ Chat history per customer
+    ✓ Encrypted messages
+    ✓ Read status
+    ✓ Response templates
+
+==================================================================================
+                  10. REPORTS & ANALYTICS
+==================================================================================
+
+10.1 SALES REPORTS
+    ✓ Total revenue report
+    ✓ Revenue by date range
+    ✓ Revenue by product
+    ✓ Revenue by user
+    ✓ Revenue by payment method
+    ✓ Daily sales
+    ✓ Weekly sales
+    ✓ Monthly sales
+    ✓ Sales trends
+
+10.2 USER REPORTS
+    ✓ Total active users
+    ✓ New users signup count
+    ✓ User by role breakdown
+    ✓ User growth tracking
+    ✓ Active user percentage
+    ✓ Suspended users count
+    ✓ User activity metrics
+
+10.3 ORDER REPORTS
+    ✓ Total orders count
+    ✓ Orders by status
+    ✓ Orders by date
+    ✓ Average order value
+    ✓ Top selling products
+    ✓ Orders by user
+    ✓ Bulk vs single orders
+
+10.4 COMMISSION REPORTS
+    ✓ Total commission paid
+    ✓ Commission by agent
+    ✓ Weekly commission breakdown
+    ✓ Commission trends
+    ✓ Commission payment status
+    ✓ Top earning agents
+
+10.5 PAYMENT REPORTS
+    ✓ Payment success rate
+    ✓ Payment by method
+    ✓ Failed payments
+    ✓ Refund tracking
+    ✓ Payment trends
+    ✓ Revenue by payment channel
+
+10.6 COMPLAINT REPORTS
+    ✓ Total complaints
+    ✓ Complaints by status
+    ✓ Resolved vs unresolved
+    ✓ Refunds issued
+    ✓ Average resolution time
+    ✓ Complaints by product
+
+10.7 EXPORTS
+    ✓ Export to Excel
+    ✓ Export to CSV
+    ✓ Export with formatting
+    ✓ Date range selection
+    ✓ Custom column selection
+    ✓ Scheduled exports
+
+==================================================================================
+                  11. API & WEBHOOK SYSTEM
+==================================================================================
+
+11.1 EXTERNAL API KEYS
+    ✓ API key generation for partners
+    ✓ API key activation/deactivation
+    ✓ Partner name tracking
+    ✓ Total orders via API tracking
+    ✓ Last used timestamp
+    ✓ API key rotation
+
+11.2 USER API KEYS
+    ✓ User generates personal API key
+    ✓ API key name/label
+    ✓ Multiple keys per user (optional limit)
+    ✓ API key activation/deactivation
+    ✓ Key regeneration
+    ✓ Usage statistics
+    ✓ Last used tracking
+
+11.3 API AUTHENTICATION
+    ✓ API key validation
+    ✓ Rate limiting per key
+    ✓ IP whitelisting (optional)
+    ✓ Usage tracking
+
+11.4 ORDER PLACEMENT VIA API
+    ✓ API endpoint for order creation
+    ✓ Mobile number, product, quantity
+    ✓ Wallet balance validation
+    ✓ Automatic wallet deduction
+    ✓ Order creation and processing
+    ✓ Reference number response
+    ✓ Error handling
+
+11.5 WEBHOOKS
+    ✓ Webhook URL configuration
+    ✓ Webhook event types:
+        - Order created
+        - Order status updated
+        - Payment completed
+        - Commission paid
+        - Complaint resolved
+    ✓ Webhook delivery (POST request)
+    ✓ Retry on failure
+    ✓ Webhook logs
+    ✓ Enable/disable webhooks
+
+11.6 WEBHOOK PAYLOAD
+    ✓ Event type
+    ✓ Timestamp
+    ✓ Resource data
+    ✓ Signature verification (HMAC)
+    ✓ Retry count
+
+==================================================================================
+                  12. SETTINGS & CONFIGURATION
+==================================================================================
+
+12.1 ADMIN SETTINGS
+    ✓ Business information
+    ✓ Email address
+    ✓ Support phone numbers
+    ✓ Logo/images
+    ✓ Website URL
+    ✓ Business hours (optional)
+
+12.2 PAYMENT SETTINGS
+    ✓ Paystack API keys
+    ✓ Payment test mode toggle
+    ✓ Success redirect URL
+    ✓ Failure redirect URL
+
+12.3 NOTIFICATION SETTINGS
+    ✓ Email notifications on/off
+    ✓ SMS notifications on/off
+    ✓ In-app notifications on/off
+    ✓ Notification preferences per event
+    ✓ Email templates
+    ✓ SMS templates
+
+12.4 SECURITY SETTINGS
+    ✓ Password policy
+    ✓ Login attempt limits
+    ✓ Session timeout
+    ✓ CORS configuration
+    ✓ API rate limiting
+    ✓ SSL enforcement
+
+12.5 DATABASE SETTINGS
+    ✓ PostgreSQL configuration
+    ✓ Database migration management
+    ✓ Backup scheduling
+    ✓ Data retention policies
+
+==================================================================================
+                  13. MISCELLANEOUS FEATURES
+==================================================================================
+
+13.1 DATA PACKAGE SYSTEM
+    ✓ Different data bundle sizes
+    ✓ GB per package
+    ✓ Pricing per package
+    ✓ Network-specific packages
+    ✓ Promo packages
+
+13.2 TOP-UP SERVICES
+    ✓ Mobile credit top-up
+    ✓ Network selection
+    ✓ Amount selection
+    ✓ Quick top-up processing
+
+13.3 SMS NOTIFICATIONS
+    ✓ Order status SMS
+    ✓ Payment confirmation SMS
+    ✓ Commission payout SMS
+    ✓ Withdrawal approval SMS
+    ✓ Announcement SMS (optional)
+    ✓ Customizable SMS templates
+
+13.4 FILE UPLOAD SYSTEM
+    ✓ Bulk order file upload
+    ✓ File validation (Excel, CSV)
+    ✓ File storage
+    ✓ File history tracking
+    ✓ File deletion
+
+13.5 REFERRAL CODE SYSTEM
+    ✓ Code generation
+    ✓ Code activation/deactivation
+    ✓ Max uses per code
+    ✓ Expiration dates
+    ✓ User tracking
+    ✓ Usage statistics
+
+13.6 AFA REGISTRATION
+    ✓ Registration form:
+        - Full name, phone, location
+        - Occupation, ID type, ID number
+    ✓ Payment processing
+    ✓ Admin review and approval
+    ✓ Rejection with notes
+    ✓ User account linking
+
+13.7 MTN EXPRESS BUNDLE
+    ✓ Bundle size options
+    ✓ Pricing
+    ✓ Payment via Paystack
+    ✓ Receipt generation
+    ✓ Admin approval
+    ✓ Order tracking
+
+13.8 PASTE SERVICE
+    ✓ Paste text data for bulk orders
+    ✓ Parse phone numbers and products
+    ✓ Validation
+    ✓ Batch creation from paste
+
+13.9 IMAGE PROOF SYSTEM
+    ✓ Upload proof image for complaints
+    ✓ Admin uploads proof image for resolution
+    ✓ Image storage
+    ✓ Image display in complaint details
+    ✓ File size limits
+
+13.10 ROLE PRICING SYSTEM
+    ✓ Per-role product pricing
+    ✓ Multiple roles support:
+        - USER, PREMIUM, NORMAL, SUPER, OTHER
+    ✓ Price resolution hierarchy:
+        1. Role price
+        2. Promo price
+        3. Base price
+    ✓ Price display per user role
+
+==================================================================================
+                        TECHNICAL REQUIREMENTS
+==================================================================================
+
+BACKEND STACK:
+✓ Node.js/Express.js
+✓ PostgreSQL (relational database)
+✓ Prisma ORM (database modeling and migration)
+✓ Socket.IO (real-time messaging)
+✓ JWT (authentication)
+✓ Bcrypt (password hashing)
+✓ Multer (file uploads)
+✓ XLSX (Excel file processing)
+✓ Axios (HTTP requests for external APIs)
+✓ Helmet (security headers)
+✓ CORS (cross-origin handling)
+✓ Compression (response compression)
+✓ dotenv (environment configuration)
+✓ PM2 (process management for production)
+
+FRONTEND STACK:
+✓ React
+✓ Tailwind CSS (styling)
+✓ React Router (navigation)
+✓ Socket.IO Client (real-time updates)
+✓ Axios (API calls)
+✓ State management (Redux/Context API recommended)
+
+EXTERNAL SERVICES:
+✓ Paystack API (payments)
+✓ Skanka5 (data top-up service)
+✓ Email service (SendGrid/Nodemailer)
+✓ SMS service (Twilio/local SMS gateway)
+
+DEPLOYMENT:
+✓ VPS deployment with Nginx reverse proxy
+✓ SSL/HTTPS with Let's Encrypt
+✓ PM2 for process management
+✓ Docker support (optional)
+✓ Vercel/Render for frontend deployment
+
+==================================================================================
+                            END OF SPECIFICATION
+==================================================================================
+
+NOTES FOR CLAUDE IMPLEMENTATION:
+
+1. This is a comprehensive e-commerce platform focused on digital products 
+   (data packages, top-ups) in Ghana with mobile money payment integration.
+
+2. Key differentiators:
+   - Agent/Affiliate system with custom storefronts
+   - Commission and payout management
+   - Multiple account types with role-based pricing
+   - Real-time chat with encryption
+   - External API integration for order processing
+
+3. Database relationships are complex:
+   - Users can be customers, agents, or admins
+   - Products can have multiple pricing tiers (role-based)
+   - Orders track original pricing, not live pricing
+   - Referral orders link to main orders and track commission
+
+4. Security considerations:
+   - JWT token validation on all protected routes
+   - Role-based middleware for admin access
+   - Password hashing and validation
+   - Message encryption for chat
+   - API key validation for external access
+
+5. Production deployment should include:
+   - Database backups
+   - Error logging and monitoring
+   - Caching for frequently accessed data
+   - Rate limiting on API endpoints
+   - Regular security audits
+
+6. Testing requirements:
+   - Unit tests for services
+   - Integration tests for API endpoints
+   - Payment gateway testing (test mode)
+   - Real-time communication testing
+
+==================================================================================

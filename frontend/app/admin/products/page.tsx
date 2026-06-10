@@ -23,6 +23,10 @@ type FormValues = {
   agentPrice: number;
   resellerPrice: number;
   buyingPrice: number;
+  promoPrice?: number;
+  stock?: number;
+  showInShop?: boolean;
+  showForAgents?: boolean;
   networkId: string;
   status: boolean;
 };
@@ -56,13 +60,25 @@ export default function AdminProductsPage() {
           <GlassCard className="p-6">
             <form className="space-y-4" onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}>
               <Input placeholder="Product name" {...form.register('name')} />
-              <Textarea rows={4} placeholder="Description" {...form.register('description')} />
+              <Textarea rows={3} placeholder="Description" {...form.register('description')} />
               <Input placeholder="Data size e.g. 2GB" {...form.register('dataSize')} />
               <div className="grid gap-3 md:grid-cols-2">
                 <Input type="number" step="0.01" placeholder="Selling Price" {...form.register('sellingPrice', { valueAsNumber: true })} />
                 <Input type="number" step="0.01" placeholder="Agent Price" {...form.register('agentPrice', { valueAsNumber: true })} />
                 <Input type="number" step="0.01" placeholder="Reseller Price" {...form.register('resellerPrice', { valueAsNumber: true })} />
                 <Input type="number" step="0.01" placeholder="Buying Price" {...form.register('buyingPrice', { valueAsNumber: true })} />
+                <Input type="number" step="0.01" placeholder="Promo Price (optional)" {...form.register('promoPrice', { valueAsNumber: true })} />
+                <Input type="number" placeholder="Stock Quantity" {...form.register('stock', { valueAsNumber: true })} />
+              </div>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" {...form.register('showInShop')} className="rounded" />
+                  Show in Shop
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" {...form.register('showForAgents')} className="rounded" />
+                  Show for Agents
+                </label>
               </div>
               <Select {...form.register('networkId')}>
                 <option value="">Select Network</option>
@@ -76,13 +92,17 @@ export default function AdminProductsPage() {
 
           <DataTableCard
             title="Catalog"
-            columns={['Product', 'Network', 'Price', 'Buying', 'Action']}
+            columns={['Product', 'Network', 'Price', 'Stock', 'Promo', 'Action']}
             rows={(data?.products ?? []).map((product) => [
               product.name,
               product.network.name,
               formatCurrency(product.sellingPrice),
-              formatCurrency(product.buyingPrice),
-              <button key={`${product.id}-delete`} className="text-sm text-rose-300" onClick={() => deleteMutation.mutate(product.id)}>Delete</button>,
+              product.stock || 0,
+              product.promoPrice ? formatCurrency(product.promoPrice) : '—',
+              <div key={`${product.id}-actions`} className="flex gap-2">
+                <button className="text-sm text-blue-300 hover:text-blue-200">Edit</button>
+                <button className="text-sm text-rose-300 hover:text-rose-200" onClick={() => deleteMutation.mutate(product.id)}>Delete</button>
+              </div>,
             ])}
           />
         </div>
