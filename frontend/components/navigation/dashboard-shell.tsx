@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, CreditCard, Gauge, LayoutGrid, LifeBuoy, LogOut, Package, Search, Settings, ShoppingBag, Store, Wallet, ChevronDown, User } from 'lucide-react';
+import { Bell, CreditCard, Gauge, LayoutGrid, LifeBuoy, LogOut, Package, Search, Settings, ShoppingBag, Store, Wallet, ChevronDown, User, Link2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
@@ -15,6 +15,7 @@ const agentLinks = [
   { href: '/orders', label: 'Orders', icon: Package },
   { href: '/wallet', label: 'Wallet', icon: Wallet },
   { href: '/commissions', label: 'Transactions', icon: Gauge },
+  { href: '/referrals', label: 'Referrals', icon: Link2 },
   { href: '/complaints', label: 'Complaints', icon: LifeBuoy },
   { href: '/storefront', label: 'Storefront', icon: Store },
   { href: '/settings', label: 'Settings', icon: Settings },

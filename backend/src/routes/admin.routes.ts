@@ -558,6 +558,29 @@ adminRouter.get('/orders', async (request, response, next) => {
   }
 });
 
+adminRouter.get('/orders/:id', async (request, response, next) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: request.params.id },
+      include: {
+        product: { include: { network: true } },
+        user: true,
+        refund: true,
+        commission: true,
+        batch: true,
+      },
+    });
+
+    if (!order) {
+      return response.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    return response.json(createSuccessResponse(order));
+  } catch (error) {
+    return next(error);
+  }
+});
+
 adminRouter.put('/orders/:id/status', async (request, response, next) => {
   try {
     const { status } = request.body;
