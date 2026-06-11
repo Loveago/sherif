@@ -24,7 +24,6 @@ interface AdminProductsResponse {
 type FormValues = {
   name: string;
   description: string;
-  dataSize: string;
   sellingPrice: number;
   agentPrice: number;
   resellerPrice: number;
@@ -79,7 +78,6 @@ export default function AdminProductsPage() {
     defaultValues: {
       name: '',
       description: '',
-      dataSize: '',
       sellingPrice: 0,
       agentPrice: 0,
       resellerPrice: 0,
@@ -154,7 +152,6 @@ export default function AdminProductsPage() {
     form.reset({
       name: product.name,
       description: product.description,
-      dataSize: product.dataSize ?? '',
       sellingPrice: product.sellingPrice,
       agentPrice: product.agentPrice ?? 0,
       resellerPrice: product.resellerPrice ?? 0,
@@ -175,7 +172,6 @@ export default function AdminProductsPage() {
     form.reset({
       name: '',
       description: '',
-      dataSize: '',
       sellingPrice: 0,
       agentPrice: 0,
       resellerPrice: 0,
@@ -285,8 +281,8 @@ export default function AdminProductsPage() {
             )}
 
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              {/* Row 1: Bundle + Description + Bundle Size */}
-              <div className="grid gap-4 md:grid-cols-3">
+              {/* Row 1: Bundle + Description */}
+              <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Bundle</label>
                   <Input placeholder="e.g. MTN 1GB" {...form.register('name')} />
@@ -294,10 +290,6 @@ export default function AdminProductsPage() {
                 <div>
                   <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Description</label>
                   <Input placeholder="e.g. 1GB data bundle" {...form.register('description')} />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Bundle Size</label>
-                  <Input placeholder="e.g. 1GB, 500MB" {...form.register('dataSize')} />
                 </div>
               </div>
 
