@@ -27,10 +27,23 @@ import { env } from '../config/env.js';
 
 const upload = multer();
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
-const getStorefrontCheckoutEmail = (phoneNumber: string, slug: string) => {
+const getStorefrontCheckoutEmail = (phoneNumber: string, _slug: string) => {
   const normalizedPhone = phoneNumber.replace(/\D/g, '').slice(-10);
-  const domainSafeSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'store';
-  return `${normalizedPhone || 'customer'}@${domainSafeSlug}.store`;
+  // Use the app's real domain so Paystack accepts the email; fallback to a real public TLD
+  let domain = 'storefront.app';
+  try {
+    if (env.FRONTEND_URL) {
+      const hostname = new URL(env.FRONTEND_URL).hostname;
+      if (hostname && hostname.includes('.') && !hostname.includes('localhost') && !hostname.includes('127.0.0.1')) {
+        domain = hostname;
+      }
+    }
+  } catch {
+    /* ignore invalid FRONTEND_URL */
+  }
+  const email = `customer-${normalizedPhone || 'anonymous'}@${domain}`;
+  console.log('[Storefront Checkout] Generated email for Paystack:', email);
+  return email;
 };
 
 export const agentRouter = Router();
