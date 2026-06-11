@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { Wallet } from 'lucide-react';
+import { useAuthStore } from '@/store/auth-store';
 
-export function WalletBalanceCard({ balance }: { balance: number | undefined }) {
-  const safeBalance = typeof balance === 'number' ? balance : 0;
-  
+export function WalletBalanceCard() {
+  const user = useAuthStore((state) => state.user);
+  const balance = user?.wallet?.availableBalance ?? 0;
+
   return (
     <div
       className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#131c31] to-[#0d1321] p-5 sm:p-6 glow-ambient animate-slide-up"
@@ -24,7 +26,7 @@ export function WalletBalanceCard({ balance }: { balance: number | undefined }) 
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium text-gray-400">Wallet Balance</p>
           <h2 className="mt-1 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-            GHS {safeBalance.toFixed(2)}
+            GHS {balance.toFixed(2)}
           </h2>
           <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-400">
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
