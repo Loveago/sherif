@@ -1,12 +1,20 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Wallet } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 
 export function WalletBalanceCard() {
+  const [mounted, setMounted] = useState(false);
   const user = useAuthStore((state) => state.user);
-  const balance = user?.wallet?.availableBalance ?? 0;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const rawBalance = user?.wallet?.availableBalance;
+  const balance = mounted ? Number(rawBalance ?? 0) : 0;
 
   return (
     <div
