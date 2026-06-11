@@ -35,7 +35,12 @@ export default function BuyDataPage() {
   });
 
   const bundleOptions = useMemo(
-    () => products.filter((product) => product.network.code === selectedNetwork),
+    () =>
+      products.filter(
+        (product) =>
+          product.network.code.toLowerCase() === selectedNetwork.toLowerCase() ||
+          product.network.name.toLowerCase() === selectedNetwork.toLowerCase(),
+      ),
     [products, selectedNetwork],
   );
 
