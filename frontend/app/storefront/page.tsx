@@ -14,13 +14,14 @@ import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import type { Storefront, Order, Withdrawal, Product } from '@/lib/types';
-import { Store, Eye, BarChart3, Users, TrendingUp, Copy, Check, Wallet, ArrowUpRight, Package, Clock, AlertCircle, Plus, Minus, Trash2 } from 'lucide-react';
+import { Store, Eye, BarChart3, Users, TrendingUp, Copy, Check, Wallet, ArrowUpRight, Package, Clock, AlertCircle, Plus, Trash2, ChevronDown } from 'lucide-react';
 
 export default function StorefrontPage() {
   const queryClient = useQueryClient();
   const [copiedSlug, setCopiedSlug] = useState(false);
   const [activeTab, setActiveTab] = useState<'settings' | 'products' | 'orders' | 'wallet' | 'withdrawals'>('settings');
   const [editPrices, setEditPrices] = useState<Record<string, string>>({});
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const { data: storefront } = useQuery({ queryKey: ['storefront'], queryFn: () => apiRequest<Storefront>('/storefront/me') });
   const { data: orders } = useQuery({ queryKey: ['storefront-orders'], queryFn: () => apiRequest<Order[]>('/storefront/orders') });
@@ -237,14 +238,27 @@ export default function StorefrontPage() {
                         const activeCount = netProducts.filter((p) => p.isOnStorefront).length;
                         return (
                           <GlassCard key={networkName} className="p-5">
-                            <div className="flex items-center justify-between mb-4">
-                              <h4 className="text-base font-semibold text-white">{networkName}</h4>
+                            <button
+                              className="flex w-full items-center justify-between mb-4"
+                              onClick={() =>
+                                setCollapsed((prev) => ({ ...prev, [networkName]: !prev[networkName] }))
+                              }
+                            >
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-base font-semibold text-white">{networkName}</h4>
+                                <ChevronDown
+                                  className={`h-4 w-4 text-gray-500 transition-transform ${
+                                    collapsed[networkName] ? '-rotate-90' : 'rotate-0'
+                                  }`}
+                                />
+                              </div>
                               <span className="text-xs text-gray-500">
                                 {activeCount} of {netProducts.length} added
                               </span>
-                            </div>
-                            <div className="space-y-3">
-                              {netProducts.map((product) => {
+                            </button>
+                            {!collapsed[networkName] && (
+                              <div className="space-y-3">
+                                {netProducts.map((product) => {
                                 const isActive = product.isOnStorefront;
                                 const editPrice = editPrices[product.id] ?? String(product.customPrice ?? product.sellingPrice);
                                 const customPrice = parseFloat(editPrice);
@@ -253,13 +267,14 @@ export default function StorefrontPage() {
                                 return (
                                   <div
                                     key={product.id}
-                                    className={`flex flex-col gap-3 rounded-xl border p-4 transition-all sm:flex-row sm:items-center sm:justify-between ${
+                                    className={`flex flex-col gap-3 rounded-xl border p-4 transition-all ${
                                       isActive
                                         ? 'border-violet-500/30 bg-violet-600/5'
                                         : 'border-gray-800 bg-gray-900/30'
                                     }`}
                                   >
-                                    <div className="flex-1 min-w-0">
+                                    {/* Product info */}
+                                    <div className="min-w-0">
                                       <p className="text-sm font-medium text-white">
                                         {product.name} {product.description}
                                       </p>
@@ -268,8 +283,9 @@ export default function StorefrontPage() {
                                       </p>
                                     </div>
 
+                                    {/* Price input + action row */}
                                     <div className="flex items-center gap-3">
-                                      <div className="flex flex-col gap-1">
+                                      <div className="flex flex-col gap-1 flex-1">
                                         <label className="text-[10px] uppercase tracking-wider text-gray-500">Your Price</label>
                                         <div className="flex items-center gap-2">
                                           <span className="text-xs text-gray-400">GHS</span>
@@ -298,17 +314,17 @@ export default function StorefrontPage() {
                                         <Button
                                           size="sm"
                                           variant="secondary"
-                                          className="gap-1 bg-rose-600 hover:bg-rose-700 text-white border-0"
+                                          className="gap-1 bg-rose-600 hover:bg-rose-700 text-white border-0 self-end"
                                           disabled={removeProductMutation.isPending}
                                           onClick={() => removeProductMutation.mutate(product.id)}
                                         >
                                           <Trash2 className="h-3.5 w-3.5" />
-                                          Remove
+                                          <span className="hidden sm:inline">Remove</span>
                                         </Button>
                                       ) : (
                                         <Button
                                           size="sm"
-                                          className="gap-1 bg-violet-600 hover:bg-violet-500"
+                                          className="gap-1 bg-violet-600 hover:bg-violet-500 self-end"
                                           disabled={addProductMutation.isPending || !customPrice || customPrice <= 0}
                                           onClick={() =>
                                             addProductMutation.mutate({
@@ -318,14 +334,15 @@ export default function StorefrontPage() {
                                           }
                                         >
                                           <Plus className="h-3.5 w-3.5" />
-                                          Add
+                                          <span className="hidden sm:inline">Add</span>
                                         </Button>
                                       )}
                                     </div>
                                   </div>
                                 );
                               })}
-                            </div>
+                              </div>
+                            )}
                           </GlassCard>
                         );
                       })}
