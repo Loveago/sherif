@@ -86,7 +86,7 @@ export default function PublicStorefrontPage() {
                   <p className="text-xs text-slate-500">Selling Price</p>
                   <p className="mt-1 text-2xl font-semibold text-white">{formatCurrency(product.sellingPrice)}</p>
                 </div>
-                <div className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.22em] text-slate-300">{product.dataSize}</div>
+                <div className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.22em] text-slate-300">{product.name} {product.description}</div>
               </div>
             </GlassCard>
           ))}

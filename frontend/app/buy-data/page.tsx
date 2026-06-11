@@ -145,8 +145,7 @@ export default function BuyDataPage() {
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-white">{product.dataSize}</span>
-                      <span className="text-xs text-gray-500">{product.name}</span>
+                      <span className="text-sm font-medium text-white">{product.name} {product.description}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-400">{formatCurrency(product.sellingPrice)}</span>
@@ -171,7 +170,7 @@ export default function BuyDataPage() {
                 <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-400">Bundle</span>
-                    <span className="text-sm font-medium text-white">{selectedProduct.dataSize} - {selectedProduct.name}</span>
+                    <span className="text-sm font-medium text-white">{selectedProduct.name} {selectedProduct.description}</span>
                   </div>
                   <div className="mt-2 flex items-center justify-between">
                     <span className="text-sm text-gray-400">Price</span>

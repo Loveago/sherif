@@ -87,7 +87,7 @@ export function QuickPurchaseCard() {
             <option value="">Select Bundle</option>
             {bundleOptions.map((option) => (
               <option key={option.id} value={option.id} className="bg-slate-950">
-                {option.name} — GHS {Number(option.sellingPrice).toFixed(2)}
+                {option.name} {option.description} — GHS {Number(option.sellingPrice).toFixed(2)}
               </option>
             ))}
           </Select>
