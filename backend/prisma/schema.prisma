@@ -32,6 +32,12 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum OrderSource {
+  BUY_NOW
+  BULK
+  STOREFRONT
+}
+
 enum BatchStatus {
   PENDING
   RUNNING
@@ -234,6 +240,7 @@ model Order {
   phoneNumber        String
   amount             Decimal      @db.Decimal(12, 2)
   status             OrderStatus  @default(PENDING)
+  source             OrderSource  @default(BUY_NOW)
   providerReference  String?
   receiptNumber      String       @unique
   notes              String?

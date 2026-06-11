@@ -40,25 +40,31 @@ export const processFulfillmentJob = async (orderId: string) => {
     });
 
     if (nextStatus === OrderStatus.SUCCESSFUL) {
-      const commissionAmount = Number((order.amount.toNumber() - order.product.buyingPrice.toNumber()).toFixed(2));
+      const isStorefrontOrder = order.source === 'STOREFRONT';
 
-      await tx.commission.create({
-        data: {
-          userId: order.userId,
-          orderId: order.id,
-          amount: toDecimal(Math.max(commissionAmount, 0)),
-          source: 'Order Commission',
-        },
-      });
+      if (isStorefrontOrder) {
+        const commissionAmount = Number(
+          (order.product.agentPrice.toNumber() - order.product.buyingPrice.toNumber()).toFixed(2),
+        );
 
-      await createWalletTransaction(
-        wallet.id,
-        Math.max(commissionAmount, 0),
-        WalletTransactionType.CREDIT,
-        WalletTransactionCategory.COMMISSION,
-        `Commission for ${order.product.name}`,
-        tx,
-      );
+        await tx.commission.create({
+          data: {
+            userId: order.userId,
+            orderId: order.id,
+            amount: toDecimal(Math.max(commissionAmount, 0)),
+            source: 'Storefront Commission',
+          },
+        });
+
+        await createWalletTransaction(
+          wallet.id,
+          Math.max(commissionAmount, 0),
+          WalletTransactionType.CREDIT,
+          WalletTransactionCategory.COMMISSION,
+          `Commission for ${order.product.name}`,
+          tx,
+        );
+      }
     }
 
     if (nextStatus === OrderStatus.FAILED) {
