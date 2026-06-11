@@ -297,8 +297,8 @@ export default function StorefrontPage() {
                                       {isActive ? (
                                         <Button
                                           size="sm"
-                                          variant="destructive"
-                                          className="gap-1"
+                                          variant="secondary"
+                                          className="gap-1 bg-rose-600 hover:bg-rose-700 text-white border-0"
                                           disabled={removeProductMutation.isPending}
                                           onClick={() => removeProductMutation.mutate(product.id)}
                                         >
