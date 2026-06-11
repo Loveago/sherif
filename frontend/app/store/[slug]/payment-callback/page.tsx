@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { CheckCircle2, Loader2, ShieldCheck, XCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/api';
 
@@ -80,14 +80,10 @@ function StorefrontPaymentCallbackContent() {
             </div>
 
             <div className="mt-5">
-              <Button variant="secondary" className="w-full" onClick={() => router.push('/login')}>
-                Agent Dashboard
+              <Button variant="secondary" className="w-full" onClick={() => router.push(`/store/${slug}`)}>
+                Back to Store
               </Button>
             </div>
-
-            <p className="mt-4 inline-flex w-full items-center justify-center gap-2 text-xs text-slate-500">
-              <ShieldCheck className="h-4 w-4" /> Sent to admin for processing through normal order flow
-            </p>
           </div>
         )}
 
