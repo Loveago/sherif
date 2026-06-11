@@ -27,6 +27,7 @@ adminRouter.get('/settings/public', async (_request, response, next) => {
         momoNumber: map.momoNumber || '',
         momoName: map.momoName || '',
         momoEnabled: map.momoEnabled === 'true',
+        whatsappNumber: map.whatsappNumber || '',
       }),
     );
   } catch (error) {
@@ -485,6 +486,7 @@ adminRouter.get('/settings', async (_request, response, next) => {
           momoName: map.momoName || '',
           momoEnabled: map.momoEnabled === 'true',
         },
+        whatsappNumber: map.whatsappNumber || '',
       }),
     );
   } catch (error) {

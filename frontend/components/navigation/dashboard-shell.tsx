@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 import { useCartStore } from '@/store/cart-store';
+import { WhatsAppBubble } from '@/components/whatsapp-bubble';
 
 interface NavLink {
   href: string;
@@ -369,6 +370,8 @@ export function DashboardShell({
         >
           {children}
         </motion.main>
+
+        {mode === 'agent' && <WhatsAppBubble />}
       </div>
     </div>
   );

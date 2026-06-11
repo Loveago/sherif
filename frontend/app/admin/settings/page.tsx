@@ -9,7 +9,7 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/lib/api';
-import { Smartphone, CheckCircle } from 'lucide-react';
+import { Smartphone, CheckCircle, MessageCircle } from 'lucide-react';
 
 type AdminSettings = {
   platformFees: { withdrawalFee: number; serviceFee: number };
@@ -18,6 +18,7 @@ type AdminSettings = {
   branding: { appName: string; theme: string };
   providerStrategy: { mode: string; activeProviderReference: string };
   momoSettings: { momoNumber: string; momoName: string; momoEnabled: boolean };
+  whatsappNumber: string;
 };
 
 export default function AdminSettingsPage() {
@@ -39,6 +40,15 @@ export default function AdminSettingsPage() {
     },
   });
 
+  const whatsappForm = useForm({
+    defaultValues: {
+      whatsappNumber: data?.whatsappNumber ?? '',
+    },
+    values: {
+      whatsappNumber: data?.whatsappNumber ?? '',
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: (values: Record<string, string>) =>
       apiRequest('/admin/settings', { method: 'PUT', body: JSON.stringify(values) }),
@@ -55,6 +65,12 @@ export default function AdminSettingsPage() {
       momoNumber: values.momoNumber,
       momoName: values.momoName,
       momoEnabled: String(values.momoEnabled),
+    });
+  });
+
+  const onSaveWhatsApp = whatsappForm.handleSubmit((values) => {
+    updateMutation.mutate({
+      whatsappNumber: values.whatsappNumber,
     });
   });
 
@@ -97,6 +113,39 @@ export default function AdminSettingsPage() {
                       <CheckCircle className="h-4 w-4" /> Saved
                     </span>
                   ) : 'Save MoMo Details'}
+                </Button>
+              </div>
+            </div>
+          </GlassCard>
+
+          {/* WhatsApp Settings */}
+          <GlassCard className="p-6 md:col-span-2 xl:col-span-3">
+            <div className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-emerald-400" />
+              <p className="text-sm font-semibold text-white">WhatsApp Support</p>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              This number is shown as a floating chat bubble on the agent dashboard. Agents can click it to open WhatsApp and chat with you.
+            </p>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400">WhatsApp Number</label>
+                <Input
+                  placeholder="e.g. 0244123456"
+                  {...whatsappForm.register('whatsappNumber')}
+                />
+              </div>
+              <div className="flex items-end">
+                <Button
+                  onClick={onSaveWhatsApp}
+                  disabled={updateMutation.isPending}
+                  className="w-full"
+                >
+                  {updateMutation.isPending ? 'Saving...' : saved ? (
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle className="h-4 w-4" /> Saved
+                    </span>
+                  ) : 'Save WhatsApp Number'}
                 </Button>
               </div>
             </div>
