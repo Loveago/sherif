@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
 
 const navLinks = [
@@ -43,8 +42,11 @@ export function LandingHeader() {
           <Link href="/login" className="hidden text-sm font-medium text-gray-400 transition-colors hover:text-white sm:block">
             Sign In
           </Link>
-          <Link href="/register">
-            <Button size="sm" className="shadow-lg shadow-violet-600/30">Get Started</Button>
+          <Link
+            href="/register"
+            className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-violet-600 to-violet-700 px-3 py-2 text-xs font-semibold tracking-wide text-white shadow-lg shadow-violet-600/30 transition-all duration-200 hover:from-violet-700 hover:to-violet-800 hover:shadow-xl hover:shadow-violet-600/40 active:scale-95"
+          >
+            Get Started
           </Link>
           <button
             className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-800 hover:text-white md:hidden"

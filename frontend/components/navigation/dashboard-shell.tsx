@@ -319,11 +319,12 @@ export function DashboardShell({
               </div>
             </div>
             <div className="flex items-center gap-3 shrink-0">
-              <Link href="/notifications">
-                <button className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-gray-700 bg-gray-900 text-gray-400 hover:text-white transition-colors">
-                  <Bell className="h-4 w-4" />
-                  <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0b1120] bg-violet-500" />
-                </button>
+              <Link
+                href="/notifications"
+                className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-gray-700 bg-gray-900 text-gray-400 transition-colors hover:text-white"
+              >
+                <Bell className="h-4 w-4" />
+                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0b1120] bg-violet-500" />
               </Link>
               <div className="relative">
                 <button

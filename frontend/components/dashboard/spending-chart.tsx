@@ -34,7 +34,7 @@ export function SpendingChart({
           <BarChart3 className="h-4 w-4 text-violet-400" />
           <h3 className="text-sm font-bold text-white">Spending Overview</h3>
         </div>
-        <select className="rounded-lg border border-gray-700/60 bg-gray-900/80 px-2.5 py-1 text-[11px] text-gray-300 outline-none">
+        <select defaultValue="This Month" className="rounded-lg border border-gray-700/60 bg-gray-900/80 px-2.5 py-1 text-[11px] text-gray-300 outline-none">
           <option>This Month</option>
           <option>Last Month</option>
           <option>This Year</option>

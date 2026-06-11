@@ -21,7 +21,7 @@ export function LineChartCard({
           <p className="text-sm text-gray-400">{title}</p>
           <h3 className="mt-1 text-2xl font-bold text-white">{value}</h3>
         </div>
-        <select className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-1.5 text-xs text-gray-300 outline-none">
+        <select defaultValue="This Month" className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-1.5 text-xs text-gray-300 outline-none">
           <option>This Month</option>
           <option>Last Month</option>
           <option>This Year</option>

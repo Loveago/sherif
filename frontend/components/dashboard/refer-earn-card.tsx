@@ -22,11 +22,12 @@ export function ReferEarnCard() {
             Invite your friends and earn exciting rewards!
           </p>
         </div>
-        <Link href="/referrals">
-          <button className="flex shrink-0 items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-violet-600/25 transition-all hover:bg-violet-500 active:scale-95">
-            Invite Now
-            <ArrowRight className="h-3.5 w-3.5" />
-          </button>
+        <Link
+          href="/referrals"
+          className="flex shrink-0 items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-violet-600/25 transition-all hover:bg-violet-500 active:scale-95"
+        >
+          Invite Now
+          <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </div>
     </div>
