@@ -40,7 +40,7 @@ export const processFulfillmentJob = async (orderId: string) => {
     });
 
     if (nextStatus === OrderStatus.SUCCESSFUL) {
-      const isStorefrontOrder = order.source === 'STOREFRONT';
+      const isStorefrontOrder = order.source === 'STOREFRONT' || order.receiptNumber.startsWith('STORE-');
 
       if (isStorefrontOrder) {
         // Commission = what customer paid (custom price) - base selling price

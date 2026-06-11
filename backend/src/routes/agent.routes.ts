@@ -157,6 +157,7 @@ agentRouter.post('/store/:slug/paystack/initialize', validate(initializeStorefro
         amount: storefrontProduct.customPrice,
         receiptNumber: orderReference,
         status: 'PENDING',
+        source: 'STOREFRONT',
       },
     });
 
@@ -1265,6 +1266,26 @@ agentRouter.get('/storefront/me', async (request, response, next) => {
   try {
     const storefront = await prisma.storefront.findUnique({ where: { userId: request.auth!.userId } });
     return response.json(createSuccessResponse(storefront));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/storefront/orders', async (request, response, next) => {
+  try {
+    const orders = await prisma.order.findMany({
+      where: {
+        userId: request.auth!.userId,
+        source: 'STOREFRONT',
+      },
+      include: {
+        product: { include: { network: true } },
+        commission: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return response.json(createSuccessResponse(orders));
   } catch (error) {
     return next(error);
   }
