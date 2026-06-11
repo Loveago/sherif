@@ -10,17 +10,17 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import { TrendingUp, Users, DollarSign, CheckCircle2, Clock } from 'lucide-react';
+import { TrendingUp, DollarSign, CheckCircle2, Clock } from 'lucide-react';
 
 interface Commission {
   id: string;
   userId: string;
   orderId: string;
-  amount: { toNumber: () => number };
+  amount: number | string;
   status: string;
   createdAt: string;
-  user: { firstName: string; lastName: string; email: string };
-  order: { receiptNumber: string };
+  user?: { firstName?: string; lastName?: string; email?: string };
+  order?: { receiptNumber?: string };
 }
 
 interface CommissionStats {
@@ -143,15 +143,15 @@ export default function AdminCommissionsPage() {
               >
                 <div className="flex-1">
                   <p className="font-medium text-white">
-                    {commission.user.firstName} {commission.user.lastName}
+                    {commission.user?.firstName ?? ''} {commission.user?.lastName ?? ''}
                   </p>
-                  <p className="text-sm text-gray-500">{commission.user.email}</p>
-                  <p className="text-xs text-gray-600 mt-1">Order: {commission.order.receiptNumber}</p>
+                  <p className="text-sm text-gray-500">{commission.user?.email ?? ''}</p>
+                  <p className="text-xs text-gray-600 mt-1">Order: {commission.order?.receiptNumber ?? '—'}</p>
                 </div>
 
                 <div className="text-right">
                   <p className="text-lg font-semibold text-violet-400">
-                    GHS {formatCurrency(commission.amount.toNumber())}
+                    GHS {formatCurrency(Number(commission.amount))}
                   </p>
                   <Badge
                     variant={commission.status === 'PENDING' ? 'warning' : 'success'}
