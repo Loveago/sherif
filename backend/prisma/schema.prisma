@@ -225,10 +225,11 @@ model Product {
   showInShop     Boolean   @default(true)
   showForAgents  Boolean   @default(true)
   status         Boolean   @default(true)
-  networkId      String
-  network        Network   @relation(fields: [networkId], references: [id])
-  orders         Order[]
-  rolePrices     RolePrice[]
+  networkId          String
+  network            Network   @relation(fields: [networkId], references: [id])
+  orders             Order[]
+  rolePrices         RolePrice[]
+  storefrontProducts StorefrontProduct[]
 }
 
 model Order {
@@ -291,6 +292,22 @@ model Storefront {
   sales              Int       @default(0)
   conversionRate     Decimal   @db.Decimal(5, 2)
   user               User      @relation(fields: [userId], references: [id])
+  products           StorefrontProduct[]
+}
+
+model StorefrontProduct {
+  id           String     @id @default(cuid())
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  storefrontId String
+  productId    String
+  customPrice  Decimal    @db.Decimal(12, 2)
+  isActive     Boolean    @default(true)
+
+  storefront   Storefront @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([storefrontId, productId])
 }
 
 model Commission {

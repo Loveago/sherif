@@ -14,12 +14,13 @@ import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import type { Storefront, Order, Withdrawal, Product } from '@/lib/types';
-import { Store, Eye, BarChart3, Users, TrendingUp, Copy, Check, Wallet, ArrowUpRight, Package, Clock, AlertCircle } from 'lucide-react';
+import { Store, Eye, BarChart3, Users, TrendingUp, Copy, Check, Wallet, ArrowUpRight, Package, Clock, AlertCircle, Plus, Minus, Trash2 } from 'lucide-react';
 
 export default function StorefrontPage() {
   const queryClient = useQueryClient();
   const [copiedSlug, setCopiedSlug] = useState(false);
   const [activeTab, setActiveTab] = useState<'settings' | 'products' | 'orders' | 'wallet' | 'withdrawals'>('settings');
+  const [editPrices, setEditPrices] = useState<Record<string, string>>({});
 
   const { data: storefront } = useQuery({ queryKey: ['storefront'], queryFn: () => apiRequest<Storefront>('/storefront/me') });
   const { data: orders } = useQuery({ queryKey: ['storefront-orders'], queryFn: () => apiRequest<Order[]>('/storefront/orders') });
@@ -40,6 +41,18 @@ export default function StorefrontPage() {
       queryClient.invalidateQueries({ queryKey: ['withdrawals'] });
       alert('Withdrawal request submitted successfully');
     },
+  });
+
+  const addProductMutation = useMutation({
+    mutationFn: ({ productId, customPrice }: { productId: string; customPrice: number }) =>
+      apiRequest('/storefront/products', { method: 'POST', body: JSON.stringify({ productId, customPrice }) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['storefront-products'] }),
+  });
+
+  const removeProductMutation = useMutation({
+    mutationFn: (productId: string) =>
+      apiRequest(`/storefront/products/${productId}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['storefront-products'] }),
   });
 
   const copySlug = () => {
@@ -182,42 +195,151 @@ export default function StorefrontPage() {
 
           {/* Products Tab */}
           {activeTab === 'products' && (
-            <GlassCard className="p-6">
-              <h3 className="text-lg font-semibold text-white mb-6">Storefront Products</h3>
-              <p className="text-sm text-gray-400 mb-4">Add admin-created products to your storefront with custom markup.</p>
-              {products && Array.isArray(products) && products.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-800">
-                        <th className="px-4 py-3 text-left text-gray-400">Product</th>
-                        <th className="px-4 py-3 text-left text-gray-400">Admin Price</th>
-                        <th className="px-4 py-3 text-left text-gray-400">Your Price</th>
-                        <th className="px-4 py-3 text-left text-gray-400">Markup</th>
-                        <th className="px-4 py-3 text-left text-gray-400">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {products.map((product: any) => (
-                        <tr key={product.id} className="border-b border-gray-800/50 hover:bg-gray-900/30">
-                          <td className="px-4 py-3 text-white">{product.name}</td>
-                          <td className="px-4 py-3 text-gray-400">{formatCurrency(product.sellingPrice)}</td>
-                          <td className="px-4 py-3 text-white">{formatCurrency(product.agentPrice || product.sellingPrice)}</td>
-                          <td className="px-4 py-3 text-violet-400">+GHS 0.00</td>
-                          <td className="px-4 py-3"><Button size="sm" variant="secondary">Edit</Button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Add Products to Storefront</h3>
+                  <p className="text-sm text-gray-400 mt-1">Set your own price for each product. Only products you add will appear on your storefront.</p>
                 </div>
+                {products && (
+                  <span className="rounded-full bg-violet-600/20 px-3 py-1 text-xs font-medium text-violet-400">
+                    {products.filter((p) => p.isOnStorefront).length} Active
+                  </span>
+                )}
+              </div>
+
+              {products && Array.isArray(products) && products.length > 0 ? (
+                (() => {
+                  const networkOrder = ['MTN', 'Telecel', 'AirtelTigo'];
+                  const grouped = products.reduce<Record<string, Product[]>>((acc, product) => {
+                    const netName = product.network.name;
+                    if (!acc[netName]) acc[netName] = [];
+                    acc[netName].push(product);
+                    return acc;
+                  }, {});
+
+                  // Sort networks: MTN first, then Telecel, then AirtelTigo
+                  const sortedNetworks = Object.keys(grouped).sort((a, b) => {
+                    const aIdx = networkOrder.findIndex((n) => a.toLowerCase().includes(n.toLowerCase()));
+                    const bIdx = networkOrder.findIndex((n) => b.toLowerCase().includes(n.toLowerCase()));
+                    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+                    if (aIdx !== -1) return -1;
+                    if (bIdx !== -1) return 1;
+                    return a.localeCompare(b);
+                  });
+
+                  return (
+                    <>
+                      {sortedNetworks.map((networkName) => {
+                        const netProducts = grouped[networkName].sort(
+                          (a, b) => a.sellingPrice - b.sellingPrice
+                        );
+                        const activeCount = netProducts.filter((p) => p.isOnStorefront).length;
+                        return (
+                          <GlassCard key={networkName} className="p-5">
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-base font-semibold text-white">{networkName}</h4>
+                              <span className="text-xs text-gray-500">
+                                {activeCount} of {netProducts.length} added
+                              </span>
+                            </div>
+                            <div className="space-y-3">
+                              {netProducts.map((product) => {
+                                const isActive = product.isOnStorefront;
+                                const editPrice = editPrices[product.id] ?? String(product.customPrice ?? product.sellingPrice);
+                                const customPrice = parseFloat(editPrice);
+                                const markup = isNaN(customPrice) ? 0 : customPrice - product.sellingPrice;
+
+                                return (
+                                  <div
+                                    key={product.id}
+                                    className={`flex flex-col gap-3 rounded-xl border p-4 transition-all sm:flex-row sm:items-center sm:justify-between ${
+                                      isActive
+                                        ? 'border-violet-500/30 bg-violet-600/5'
+                                        : 'border-gray-800 bg-gray-900/30'
+                                    }`}
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium text-white">
+                                        {product.name} {product.description}
+                                      </p>
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        Base: GHS {formatCurrency(product.sellingPrice)}
+                                      </p>
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                      <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] uppercase tracking-wider text-gray-500">Your Price</label>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs text-gray-400">GHS</span>
+                                          <Input
+                                            type="number"
+                                            step="0.01"
+                                            className="w-24 bg-gray-900"
+                                            value={editPrice}
+                                            disabled={isActive && addProductMutation.isPending}
+                                            onChange={(e) =>
+                                              setEditPrices((prev) => ({
+                                                ...prev,
+                                                [product.id]: e.target.value,
+                                              }))
+                                            }
+                                          />
+                                        </div>
+                                        {markup > 0 && !isNaN(markup) && (
+                                          <span className="text-[10px] text-emerald-400">
+                                            +GHS {formatCurrency(markup)} profit
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {isActive ? (
+                                        <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          className="gap-1"
+                                          disabled={removeProductMutation.isPending}
+                                          onClick={() => removeProductMutation.mutate(product.id)}
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                          Remove
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          size="sm"
+                                          className="gap-1 bg-violet-600 hover:bg-violet-500"
+                                          disabled={addProductMutation.isPending || !customPrice || customPrice <= 0}
+                                          onClick={() =>
+                                            addProductMutation.mutate({
+                                              productId: product.id,
+                                              customPrice,
+                                            })
+                                          }
+                                        >
+                                          <Plus className="h-3.5 w-3.5" />
+                                          Add
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </GlassCard>
+                        );
+                      })}
+                    </>
+                  );
+                })()
               ) : (
-                <div className="rounded-xl border border-gray-800 bg-gray-900/30 p-8 text-center">
+                <GlassCard className="p-8 text-center">
                   <Package className="mx-auto h-12 w-12 text-gray-600 mb-3" />
                   <p className="text-gray-400">No products available yet</p>
                   <p className="text-sm text-gray-500 mt-1">Admin will add products for you to sell</p>
-                </div>
+                </GlassCard>
               )}
-            </GlassCard>
+            </div>
           )}
 
           {/* Orders Tab */}

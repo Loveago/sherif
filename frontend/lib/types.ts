@@ -64,6 +64,9 @@ export type Product = {
   networkId: string;
   network: Network;
   rolePrices?: RolePrice[];
+  isOnStorefront?: boolean;
+  customPrice?: number | null;
+  storefrontProductId?: string | null;
 };
 
 export type Order = {

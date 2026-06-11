@@ -58,11 +58,17 @@ export const agentRouter = Router();
        },
      });
 
-     const products = await prisma.product.findMany({
-       where: { status: true, deletedAt: null },
-       include: { network: true },
-       orderBy: [{ network: { name: 'asc' } }, { sellingPrice: 'asc' }],
+     const storefrontProducts = await prisma.storefrontProduct.findMany({
+       where: { storefrontId: storefront.id, isActive: true },
+       include: { product: { include: { network: true } } },
+       orderBy: [{ product: { network: { name: 'asc' } } }, { product: { sellingPrice: 'asc' } }],
      });
+
+     const products = storefrontProducts.map((sp) => ({
+       ...sp.product,
+       sellingPrice: sp.customPrice.toNumber(),
+       storefrontProductId: sp.id,
+     }));
 
      return response.json(createSuccessResponse({ storefront, products }));
    } catch (error) {
@@ -1028,6 +1034,145 @@ agentRouter.put('/storefront/me', validate(updateStorefrontSchema), async (reque
     });
 
     return response.json(createSuccessResponse(storefront, 'Storefront updated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Get all available products with agent's storefront status
+agentRouter.get('/storefront/products', async (request, response, next) => {
+  try {
+    const storefront = await prisma.storefront.findUnique({
+      where: { userId: request.auth!.userId },
+    });
+
+    const allProducts = await prisma.product.findMany({
+      where: { status: true, deletedAt: null, showForAgents: true },
+      include: { network: true },
+      orderBy: [{ network: { name: 'asc' } }, { sellingPrice: 'asc' }],
+    });
+
+    const myProducts = storefront
+      ? await prisma.storefrontProduct.findMany({
+          where: { storefrontId: storefront.id },
+        })
+      : [];
+
+    const myProductMap = new Map(myProducts.map((p) => [p.productId, p]));
+
+    const products = allProducts.map((product) => {
+      const sp = myProductMap.get(product.id);
+      return {
+        ...product,
+        isOnStorefront: !!sp && sp.isActive,
+        customPrice: sp ? sp.customPrice.toNumber() : null,
+        storefrontProductId: sp?.id ?? null,
+      };
+    });
+
+    return response.json(createSuccessResponse(products));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Add product to storefront
+agentRouter.post('/storefront/products', async (request, response, next) => {
+  try {
+    const { productId, customPrice } = request.body;
+    const storefront = await prisma.storefront.findUnique({
+      where: { userId: request.auth!.userId },
+    });
+
+    if (!storefront) {
+      return response.status(400).json({ success: false, message: 'Storefront not found' });
+    }
+
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) {
+      return response.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const existing = await prisma.storefrontProduct.findUnique({
+      where: { storefrontId_productId: { storefrontId: storefront.id, productId } },
+    });
+
+    if (existing) {
+      const updated = await prisma.storefrontProduct.update({
+        where: { id: existing.id },
+        data: { customPrice: new Prisma.Decimal(customPrice), isActive: true },
+        include: { product: { include: { network: true } } },
+      });
+      return response.json(createSuccessResponse(updated, 'Product updated'));
+    }
+
+    const created = await prisma.storefrontProduct.create({
+      data: {
+        storefrontId: storefront.id,
+        productId,
+        customPrice: new Prisma.Decimal(customPrice),
+        isActive: true,
+      },
+      include: { product: { include: { network: true } } },
+    });
+
+    return response.status(201).json(createSuccessResponse(created, 'Product added to storefront'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Update storefront product price
+agentRouter.put('/storefront/products/:productId', async (request, response, next) => {
+  try {
+    const { customPrice } = request.body;
+    const storefront = await prisma.storefront.findUnique({
+      where: { userId: request.auth!.userId },
+    });
+
+    if (!storefront) {
+      return response.status(400).json({ success: false, message: 'Storefront not found' });
+    }
+
+    const updated = await prisma.storefrontProduct.update({
+      where: {
+        storefrontId_productId: {
+          storefrontId: storefront.id,
+          productId: request.params.productId,
+        },
+      },
+      data: { customPrice: new Prisma.Decimal(customPrice) },
+      include: { product: { include: { network: true } } },
+    });
+
+    return response.json(createSuccessResponse(updated, 'Price updated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Remove product from storefront
+agentRouter.delete('/storefront/products/:productId', async (request, response, next) => {
+  try {
+    const storefront = await prisma.storefront.findUnique({
+      where: { userId: request.auth!.userId },
+    });
+
+    if (!storefront) {
+      return response.status(400).json({ success: false, message: 'Storefront not found' });
+    }
+
+    await prisma.storefrontProduct.update({
+      where: {
+        storefrontId_productId: {
+          storefrontId: storefront.id,
+          productId: request.params.productId,
+        },
+      },
+      data: { isActive: false },
+    });
+
+    return response.json(createSuccessResponse(null, 'Product removed from storefront'));
   } catch (error) {
     return next(error);
   }

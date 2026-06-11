@@ -43,8 +43,9 @@ export const processFulfillmentJob = async (orderId: string) => {
       const isStorefrontOrder = order.source === 'STOREFRONT';
 
       if (isStorefrontOrder) {
+        // Commission = what customer paid (custom price) - base selling price
         const commissionAmount = Number(
-          (order.product.agentPrice.toNumber() - order.product.buyingPrice.toNumber()).toFixed(2),
+          (order.amount.toNumber() - order.product.sellingPrice.toNumber()).toFixed(2),
         );
 
         await tx.commission.create({
