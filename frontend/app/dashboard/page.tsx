@@ -51,7 +51,7 @@ export default function DashboardPage() {
       <DashboardShell title="Dashboard" description="">
         <div className="mx-auto max-w-xl lg:max-w-none space-y-4">
           {/* Wallet Balance */}
-          <WalletBalanceCard balance={metrics.walletBalance ?? 0} />
+          <WalletBalanceCard balance={data.wallet?.availableBalance ?? metrics.walletBalance ?? 0} />
 
           {/* Overview Section Header */}
           <div className="flex items-center justify-between pt-1">
