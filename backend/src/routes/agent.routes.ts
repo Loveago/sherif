@@ -1358,6 +1358,13 @@ agentRouter.post('/storefront/products', async (request, response, next) => {
       return response.status(404).json({ success: false, message: 'Product not found' });
     }
 
+    if (Number(customPrice) < product.sellingPrice.toNumber()) {
+      return response.status(400).json({
+        success: false,
+        message: `Custom price cannot be lower than the base price of ${product.sellingPrice.toNumber()} GHS`,
+      });
+    }
+
     const existing = await prisma.storefrontProduct.findUnique({
       where: { storefrontId_productId: { storefrontId: storefront.id, productId } },
     });
@@ -1397,6 +1404,18 @@ agentRouter.put('/storefront/products/:productId', async (request, response, nex
 
     if (!storefront) {
       return response.status(400).json({ success: false, message: 'Storefront not found' });
+    }
+
+    const product = await prisma.product.findUnique({ where: { id: request.params.productId } });
+    if (!product) {
+      return response.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    if (Number(customPrice) < product.sellingPrice.toNumber()) {
+      return response.status(400).json({
+        success: false,
+        message: `Custom price cannot be lower than the base price of ${product.sellingPrice.toNumber()} GHS`,
+      });
     }
 
     const updated = await prisma.storefrontProduct.update({
