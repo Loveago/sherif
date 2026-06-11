@@ -15,9 +15,8 @@ const safeNumber = z.preprocess(
 
 export const createProductSchema = z.object({
   body: z.object({
-    name: z.string().min(1),
-    description: z.string().min(1),
-    dataSize: z.string().optional().default(''),
+    name: z.string().min(1).describe('Network name (e.g., MTN, TELECEL, AirtelTigo)'),
+    description: z.string().min(1).describe('Bundle size (e.g., 1GB, 500MB)'),
     sellingPrice: safeNumber.refine((v) => v > 0, { message: 'Selling price must be greater than 0' }),
     agentPrice: safeNumber.optional().default(0),
     resellerPrice: safeNumber.optional().default(0),

@@ -281,15 +281,15 @@ export default function AdminProductsPage() {
             )}
 
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              {/* Row 1: Bundle + Description */}
+              {/* Row 1: Network Name + Bundle Size */}
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Bundle</label>
-                  <Input placeholder="e.g. MTN 1GB" {...form.register('name')} />
+                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Network Name</label>
+                  <Input placeholder="e.g. MTN, TELECEL, AirtelTigo" {...form.register('name')} />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Description</label>
-                  <Input placeholder="e.g. 1GB data bundle" {...form.register('description')} />
+                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Bundle Size</label>
+                  <Input placeholder="e.g. 1GB, 2GB, 5GB" {...form.register('description')} />
                 </div>
               </div>
 
@@ -528,8 +528,8 @@ export default function AdminProductsPage() {
               <thead>
                 <tr className="border-b border-gray-700/50 text-xs text-gray-400 uppercase tracking-wider">
                   <th className="px-4 py-3 w-12">ID</th>
-                  <th className="px-4 py-3">Product</th>
-                  <th className="px-4 py-3">Description</th>
+                  <th className="px-4 py-3">Network</th>
+                  <th className="px-4 py-3">Bundle Size</th>
                   <th className="px-4 py-3">Price</th>
                   <th className="px-4 py-3 text-amber-400">Promo</th>
                   <th className="px-4 py-3 text-center">Shop</th>
@@ -560,7 +560,7 @@ export default function AdminProductsPage() {
                           <span className="font-medium text-white">{product.name}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-300">{product.description}</td>
+                      <td className="px-4 py-3 text-violet-400 font-medium">{product.description}</td>
                       <td className="px-4 py-3">
                         <span className="font-semibold text-white">
                           GHS {formatCurrency(product.sellingPrice)}

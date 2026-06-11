@@ -9,7 +9,8 @@
     "start": "node dist/src/server.js",
     "lint": "tsc --noEmit",
     "db:push": "prisma db push",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "db:migrate-bundles": "tsx prisma/migrate-bundles.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.9.0",

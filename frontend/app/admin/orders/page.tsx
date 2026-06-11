@@ -22,7 +22,7 @@ interface Order {
   phoneNumber: string;
   createdAt: string;
   user: { firstName: string; lastName: string };
-  product: { name: string; network: { name: string } };
+  product: { name: string; description: string; dataSize: string; network: { name: string } };
 }
 
 export default function AdminOrdersPage() {
@@ -396,11 +396,12 @@ export default function AdminOrdersPage() {
                         {order.phoneNumber}
                       </td>
                       <td className="px-4 py-3 text-gray-300">
-                        {order.product.network.name}
+                        <span className="font-medium text-white">{order.product.description}</span>
+                        <span className="text-xs text-gray-500 ml-1">({order.product.network.name})</span>
                       </td>
                       {fullTable && (
                         <td className="px-4 py-3 text-violet-400 font-medium">
-                          {order.product.name.replace(/[^0-9]/g, '') || '3'} GB
+                          {order.product.description}
                         </td>
                       )}
                       <td className="px-4 py-3">{getStatusBadge(order.status)}</td>
@@ -547,8 +548,9 @@ export default function AdminOrdersPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-white">
-                        {selectedOrder.product.name} ({selectedOrder.product.network.name})
+                        {selectedOrder.product.description} ({selectedOrder.product.network.name})
                       </p>
+                      <p className="text-xs text-gray-500">Bundle: {selectedOrder.product.name}</p>
                       <p className="text-xs text-gray-500">Phone: {selectedOrder.phoneNumber}</p>
                     </div>
                     <p className="text-sm font-medium text-white">GHS {formatCurrency(selectedOrder.amount)}</p>
