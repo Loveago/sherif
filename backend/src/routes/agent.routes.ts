@@ -118,7 +118,7 @@ agentRouter.post('/store/:slug/paystack/initialize', validate(initializeStorefro
 
     const orderReference = generateOrderReference('STOREFRONT');
     const callbackUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/store/${storefront.slug}/payment-callback`;
-    const customerEmail = request.body.customerEmail ?? getStorefrontCheckoutEmail(request.body.phoneNumber, slug);
+    const customerEmail = getStorefrontCheckoutEmail(request.body.phoneNumber, slug);
 
     const paystackResponse = await initializePaystackPayment(
       customerEmail,
@@ -142,7 +142,6 @@ agentRouter.post('/store/:slug/paystack/initialize', validate(initializeStorefro
         phoneNumber: request.body.phoneNumber,
         amount: storefrontProduct.customPrice,
         receiptNumber: orderReference,
-        providerReference: orderReference,
         status: 'PENDING',
       },
     });
@@ -183,7 +182,7 @@ agentRouter.get('/store/:slug/paystack/verify', validate(verifyStorefrontCheckou
       return response.status(404).json({ success: false, message: 'Order record not found' });
     }
 
-    if (order.status !== 'PENDING') {
+    if (order.status !== 'PENDING' || order.providerReference) {
       return response.json(
         createSuccessResponse(
           {
@@ -214,7 +213,6 @@ agentRouter.get('/store/:slug/paystack/verify', validate(verifyStorefrontCheckou
       where: { id: order.id },
       data: {
         providerReference: reference,
-        status: 'PROCESSING',
       },
     });
 
@@ -250,7 +248,7 @@ agentRouter.get('/store/:slug/paystack/verify', validate(verifyStorefrontCheckou
           phoneNumber: updatedOrder.phoneNumber,
           amount: updatedOrder.amount,
         },
-        'Storefront order validated and sent for processing',
+        'Storefront order validated and queued in pending flow',
       ),
     );
   } catch (error) {

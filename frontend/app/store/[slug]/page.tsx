@@ -45,7 +45,6 @@ export default function PublicStorefrontPage() {
   const [selectedNetwork, setSelectedNetwork] = useState('ALL');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
   const [trackingId, setTrackingId] = useState('');
 
   const { data, isLoading } = useQuery({
@@ -76,7 +75,7 @@ export default function PublicStorefrontPage() {
   }, [data?.products, selectedNetwork]);
 
   const checkoutMutation = useMutation({
-    mutationFn: (payload: { productId: string; phoneNumber: string; customerEmail?: string }) =>
+    mutationFn: (payload: { productId: string; phoneNumber: string }) =>
       apiRequest<InitializeStorefrontPaymentResponse>(`/store/${slug}/paystack/initialize`, {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -203,7 +202,6 @@ export default function PublicStorefrontPage() {
                     onClick={() => {
                       setSelectedProduct(product);
                       setPhoneNumber('');
-                      setCustomerEmail('');
                     }}
                   >
                     Purchase Now
@@ -264,16 +262,6 @@ export default function PublicStorefrontPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="mb-1 block text-xs text-slate-400">Email (optional)</label>
-                  <input
-                    value={customerEmail}
-                    onChange={(event) => setCustomerEmail(event.target.value)}
-                    placeholder="you@example.com"
-                    className="w-full rounded-xl border border-white/15 bg-slate-900/70 px-3 py-2.5 text-white outline-none focus:border-cyan-400"
-                  />
-                </div>
-
                 {checkoutMutation.isError && (
                   <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
                     Unable to start payment. Please check your details and try again.
@@ -287,7 +275,6 @@ export default function PublicStorefrontPage() {
                     checkoutMutation.mutate({
                       productId: selectedProduct.id,
                       phoneNumber: phoneNumber.trim(),
-                      customerEmail: customerEmail.trim() || undefined,
                     })
                   }
                 >

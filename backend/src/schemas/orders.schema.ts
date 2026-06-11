@@ -13,7 +13,6 @@ export const initializeStorefrontCheckoutSchema = z.object({
   body: z.object({
     productId: z.string().min(1),
     phoneNumber: z.string().min(10).max(20),
-    customerEmail: z.string().email().optional(),
   }),
   query: z.object({}).optional().default({}),
   params: z.object({ slug: z.string().min(1) }),

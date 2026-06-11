@@ -12,9 +12,9 @@ const orderPrefixBySource: Record<OrderSourceType, 'DASH' | 'BULK' | 'STORE'> = 
 
 export const generateOrderReference = (source: OrderSourceType) => {
   const now = new Date();
-  const month = monthAbbreviations[now.getUTCMonth()];
-  const day = String(now.getUTCDate()).padStart(2, '0');
-  const year = String(now.getUTCFullYear()).slice(-2);
+  const month = monthAbbreviations[now.getMonth()];
+  const day = String(now.getDate()).padStart(2, '0');
+  const year = String(now.getFullYear()).slice(-2);
   const suffix = String(randomInt(100000, 1000000));
 
   return `${orderPrefixBySource[source]}-${month}${day}${year}-${suffix}`;
