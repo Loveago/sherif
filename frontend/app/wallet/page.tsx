@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { AuthGuard } from '@/components/auth/auth-guard';
 import { DashboardShell } from '@/components/navigation/dashboard-shell';
 import { GlassCard } from '@/components/ui/glass-card';
@@ -13,18 +14,25 @@ import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/api';
 import type { Wallet, Withdrawal } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
-import { Wallet as WalletIcon, ArrowUpRight, ArrowDownLeft, CreditCard, Smartphone } from 'lucide-react';
+import { Wallet as WalletIcon, ArrowUpRight, ArrowDownLeft, CreditCard, Smartphone, MessageCircle, Copy, CheckCircle } from 'lucide-react';
 
 type FundFormValues = { amount: number; method: 'PAYSTACK' | 'MTN_MOMO' };
 type WithdrawFormValues = { amount: number; method: 'MTN Mobile Money' | 'Bank Transfer'; accountName: string; accountNumber: string; bankName?: string };
+type PublicSettings = { momoNumber: string; momoName: string; momoEnabled: boolean };
 
 export default function WalletPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'fund' | 'withdraw'>('fund');
+  const [copied, setCopied] = useState(false);
+  const [momoClaimed, setMomoClaimed] = useState(false);
+
   const { data: wallet } = useQuery({ queryKey: ['wallet'], queryFn: () => apiRequest<Wallet>('/wallet') });
   const { data: withdrawals = [] } = useQuery({ queryKey: ['withdrawals'], queryFn: () => apiRequest<Withdrawal[]>('/withdrawals') });
+  const { data: publicSettings } = useQuery({ queryKey: ['public-settings'], queryFn: () => apiRequest<PublicSettings>('/admin/settings/public') });
+
   const fundForm = useForm<FundFormValues>({ defaultValues: { amount: 100, method: 'PAYSTACK' } });
   const withdrawForm = useForm<WithdrawFormValues>({ defaultValues: { amount: 50, method: 'MTN Mobile Money', accountName: '', accountNumber: '', bankName: '' } });
+  const selectedMethod = fundForm.watch('method');
 
   const [fundError, setFundError] = useState<string | null>(null);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
@@ -37,14 +45,15 @@ export default function WalletPage() {
           method: 'POST',
           body: JSON.stringify({ amount: values.amount, method: 'PAYSTACK' }),
         });
-        
+
         if (response?.authorization_url) {
           window.location.href = response.authorization_url;
           return response;
         }
         throw new Error('Failed to initialize payment');
       }
-      
+
+      // MoMo: create pending payment
       return apiRequest('/wallet/fund', { method: 'POST', body: JSON.stringify(values) });
     },
     onSuccess: () => {
@@ -66,6 +75,12 @@ export default function WalletPage() {
       setWithdrawError(error?.message || 'Withdrawal failed. Please try again.');
     },
   });
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <AuthGuard>
@@ -106,27 +121,120 @@ export default function WalletPage() {
 
             {/* Fund Form */}
             {activeTab === 'fund' && (
-              <form className="mt-4 space-y-3" onSubmit={fundForm.handleSubmit((values) => fundMutation.mutate(values))}>
-                <div>
-                  <label className="mb-1.5 block text-xs text-gray-400">Amount (GHS)</label>
-                  <Input type="number" step="0.01" {...fundForm.register('amount', { valueAsNumber: true })} />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs text-gray-400">Payment Method</label>
-                  <Select {...fundForm.register('method')}>
-                    <option value="PAYSTACK" className="bg-gray-900">Paystack</option>
-                    <option value="MTN_MOMO" className="bg-gray-900">MTN Mobile Money</option>
-                  </Select>
-                </div>
-                {fundError && (
-                  <p className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
-                    {fundError}
-                  </p>
+              <>
+                {/* Paystack form */}
+                {selectedMethod === 'PAYSTACK' && (
+                  <form className="mt-4 space-y-3" onSubmit={fundForm.handleSubmit((values) => fundMutation.mutate(values))}>
+                    <div>
+                      <label className="mb-1.5 block text-xs text-gray-400">Amount (GHS)</label>
+                      <Input type="number" step="0.01" {...fundForm.register('amount', { valueAsNumber: true })} />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs text-gray-400">Payment Method</label>
+                      <Select {...fundForm.register('method')}>
+                        <option value="PAYSTACK" className="bg-gray-900">Paystack</option>
+                        <option value="MTN_MOMO" className="bg-gray-900">MTN Mobile Money</option>
+                      </Select>
+                    </div>
+                    {fundError && (
+                      <p className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
+                        {fundError}
+                      </p>
+                    )}
+                    <Button type="submit" className="w-full" disabled={fundMutation.isPending}>
+                      {fundMutation.isPending ? 'Funding...' : 'Fund Wallet'}
+                    </Button>
+                  </form>
                 )}
-                <Button type="submit" className="w-full" disabled={fundMutation.isPending}>
-                  {fundMutation.isPending ? 'Funding...' : 'Fund Wallet'}
-                </Button>
-              </form>
+
+                {/* MoMo Manual Instructions */}
+                {selectedMethod === 'MTN_MOMO' && (
+                  <div className="mt-4 space-y-3">
+                    <div>
+                      <label className="mb-1.5 block text-xs text-gray-400">Amount (GHS)</label>
+                      <Input type="number" step="0.01" {...fundForm.register('amount', { valueAsNumber: true })} />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs text-gray-400">Payment Method</label>
+                      <Select {...fundForm.register('method')}>
+                        <option value="PAYSTACK" className="bg-gray-900">Paystack</option>
+                        <option value="MTN_MOMO" className="bg-gray-900">MTN Mobile Money</option>
+                      </Select>
+                    </div>
+
+                    {momoClaimed ? (
+                      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-center">
+                        <CheckCircle className="mx-auto h-8 w-8 text-emerald-400" />
+                        <h3 className="mt-2 text-sm font-bold text-white">Request Submitted!</h3>
+                        <p className="mt-1 text-xs text-gray-400">
+                          Your funding request has been recorded. Please send the money to the MoMo number below and then chat the admin to claim it.
+                        </p>
+                        <Link href="/chat" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-violet-500">
+                          <MessageCircle className="h-4 w-4" />
+                          Chat Admin to Claim
+                        </Link>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="rounded-2xl border border-violet-500/20 bg-violet-600/10 p-4 space-y-3">
+                          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                            <Smartphone className="h-4 w-4 text-violet-400" />
+                            Manual MoMo Transfer
+                          </h3>
+                          <p className="text-xs text-gray-400 leading-relaxed">
+                            1. Send <span className="text-white font-semibold">GHS {fundForm.watch('amount')}</span> to the admin MoMo number below.
+                            <br />
+                            2. After sending, click <strong>"I've Sent the Money"</strong> below.
+                            <br />
+                            3. Then <strong>chat the admin</strong> to claim your deposit.
+                          </p>
+
+                          {publicSettings?.momoNumber ? (
+                            <div className="rounded-xl border border-gray-700 bg-gray-900/60 p-3">
+                              <p className="text-[10px] uppercase tracking-wider text-gray-500">MoMo Number</p>
+                              <div className="mt-1 flex items-center justify-between">
+                                <p className="text-lg font-bold text-white">{publicSettings.momoNumber}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopy(publicSettings.momoNumber)}
+                                  className="flex items-center gap-1 rounded-lg bg-gray-800 px-2 py-1 text-[10px] text-gray-300 transition-colors hover:bg-gray-700"
+                                >
+                                  {copied ? <CheckCircle className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                                  {copied ? 'Copied' : 'Copy'}
+                                </button>
+                              </div>
+                              {publicSettings.momoName && (
+                                <p className="mt-0.5 text-xs text-gray-400">Name: <span className="text-white">{publicSettings.momoName}</span></p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-amber-400">MoMo details not set yet. Please contact admin.</p>
+                          )}
+                        </div>
+
+                        {fundError && (
+                          <p className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
+                            {fundError}
+                          </p>
+                        )}
+
+                        <Button
+                          type="button"
+                          className="w-full"
+                          disabled={fundMutation.isPending || !publicSettings?.momoNumber}
+                          onClick={fundForm.handleSubmit((values) => {
+                            fundMutation.mutate(values, {
+                              onSuccess: () => setMomoClaimed(true),
+                            });
+                          })}
+                        >
+                          {fundMutation.isPending ? 'Submitting...' : "I've Sent the Money"}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
             )}
 
             {/* Withdraw Form */}

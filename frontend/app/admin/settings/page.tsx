@@ -1,10 +1,15 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AuthGuard } from '@/components/auth/auth-guard';
 import { DashboardShell } from '@/components/navigation/dashboard-shell';
 import { GlassCard } from '@/components/ui/glass-card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/lib/api';
+import { Smartphone, CheckCircle } from 'lucide-react';
 
 type AdminSettings = {
   platformFees: { withdrawalFee: number; serviceFee: number };
@@ -12,15 +17,91 @@ type AdminSettings = {
   paymentSettings: { paystackEnabled: boolean; momoEnabled: boolean };
   branding: { appName: string; theme: string };
   providerStrategy: { mode: string; activeProviderReference: string };
+  momoSettings: { momoNumber: string; momoName: string; momoEnabled: boolean };
 };
 
 export default function AdminSettingsPage() {
+  const queryClient = useQueryClient();
+  const [saved, setSaved] = useState(false);
+
   const { data } = useQuery({ queryKey: ['admin-settings'], queryFn: () => apiRequest<AdminSettings>('/admin/settings') });
+
+  const momoForm = useForm({
+    defaultValues: {
+      momoNumber: data?.momoSettings?.momoNumber ?? '',
+      momoName: data?.momoSettings?.momoName ?? '',
+      momoEnabled: data?.momoSettings?.momoEnabled ?? true,
+    },
+    values: {
+      momoNumber: data?.momoSettings?.momoNumber ?? '',
+      momoName: data?.momoSettings?.momoName ?? '',
+      momoEnabled: data?.momoSettings?.momoEnabled ?? true,
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (values: Record<string, string>) =>
+      apiRequest('/admin/settings', { method: 'PUT', body: JSON.stringify(values) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['public-settings'] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    },
+  });
+
+  const onSaveMoMo = momoForm.handleSubmit((values) => {
+    updateMutation.mutate({
+      momoNumber: values.momoNumber,
+      momoName: values.momoName,
+      momoEnabled: String(values.momoEnabled),
+    });
+  });
 
   return (
     <AuthGuard requiredRole="ADMIN">
-      <DashboardShell mode="admin" title="System Settings" description="Review configured fees, commission logic, payment toggles and provider failover strategy.">
+      <DashboardShell mode="admin" title="System Settings" description="Configure fees, MoMo details, payment toggles and provider strategy.">
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {/* MoMo Settings */}
+          <GlassCard className="p-6 md:col-span-2 xl:col-span-3">
+            <div className="flex items-center gap-2">
+              <Smartphone className="h-5 w-5 text-violet-400" />
+              <p className="text-sm font-semibold text-white">MoMo Wallet Settings</p>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              These details are shown to agents when they choose MTN Mobile Money to fund their wallet.
+            </p>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400">MoMo Number</label>
+                <Input
+                  placeholder="e.g. 0244123456"
+                  {...momoForm.register('momoNumber')}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400">Account Name</label>
+                <Input
+                  placeholder="e.g. John Doe"
+                  {...momoForm.register('momoName')}
+                />
+              </div>
+              <div className="flex items-end">
+                <Button
+                  onClick={onSaveMoMo}
+                  disabled={updateMutation.isPending}
+                  className="w-full"
+                >
+                  {updateMutation.isPending ? 'Saving...' : saved ? (
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle className="h-4 w-4" /> Saved
+                    </span>
+                  ) : 'Save MoMo Details'}
+                </Button>
+              </div>
+            </div>
+          </GlassCard>
+
           <GlassCard className="p-6">
             <p className="text-sm text-slate-400">Platform Fees</p>
             <div className="mt-4 space-y-3 text-sm text-slate-300">

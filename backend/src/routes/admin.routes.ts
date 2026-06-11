@@ -3,7 +3,7 @@ import { Prisma, UserRole, OrderStatus, WalletTransactionCategory, WalletTransac
 import { prisma } from '../lib/prisma.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { announcementSchema, createProductSchema, creditWalletSchema } from '../schemas/admin.schema.js';
+import { announcementSchema, createProductSchema, creditWalletSchema, updateSettingsSchema } from '../schemas/admin.schema.js';
 import { createSuccessResponse } from '../utils/response.js';
 import { generateReference } from '../utils/refs.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
@@ -14,6 +14,25 @@ import { exportToCSV, exportToExcel } from '../services/export.service.js';
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
 
 export const adminRouter = Router();
+
+// Public settings endpoint (no auth) — used by wallet page for MoMo number
+adminRouter.get('/settings/public', async (_request, response, next) => {
+  try {
+    const settings = await prisma.adminSettings.findMany();
+    const map: Record<string, string> = {};
+    settings.forEach((s) => { map[s.key] = s.value; });
+
+    return response.json(
+      createSuccessResponse({
+        momoNumber: map.momoNumber || '',
+        momoName: map.momoName || '',
+        momoEnabled: map.momoEnabled === 'true',
+      }),
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
 
 adminRouter.use(requireAuth, requireRole(UserRole.ADMIN));
 
@@ -437,28 +456,57 @@ adminRouter.get('/payments', async (_request, response, next) => {
 
 adminRouter.get('/settings', async (_request, response, next) => {
   try {
+    const dbSettings = await prisma.adminSettings.findMany();
+    const map: Record<string, string> = {};
+    dbSettings.forEach((s) => { map[s.key] = s.value; });
+
     return response.json(
       createSuccessResponse({
-        platformFees: { withdrawalFee: 2.5, serviceFee: 0 },
+        platformFees: { withdrawalFee: Number(map.withdrawalFee ?? 2.5), serviceFee: Number(map.serviceFee ?? 0) },
         commissionRules: [
-          { type: 'fixed', value: 0.5 },
-          { type: 'percentage', value: 5 },
-          { type: 'tier', value: 'Silver / Gold / Platinum' },
+          { type: 'fixed', value: Number(map.commissionFixed ?? 0.5) },
+          { type: 'percentage', value: Number(map.commissionPercentage ?? 5) },
+          { type: 'tier', value: map.commissionTier ?? 'Silver / Gold / Platinum' },
         ],
         paymentSettings: {
-          paystackEnabled: true,
-          momoEnabled: true,
+          paystackEnabled: map.paystackEnabled !== 'false',
+          momoEnabled: map.momoEnabled !== 'false',
         },
         branding: {
-          appName: 'DATAHUB Ghana',
-          theme: 'dark-premium',
+          appName: map.appName ?? 'DATAHUB Ghana',
+          theme: map.theme ?? 'dark-premium',
         },
         providerStrategy: {
-          mode: 'priority-failover',
-          activeProviderReference: generateReference('CFG'),
+          mode: map.providerMode ?? 'priority-failover',
+          activeProviderReference: map.activeProviderReference || generateReference('CFG'),
+        },
+        momoSettings: {
+          momoNumber: map.momoNumber || '',
+          momoName: map.momoName || '',
+          momoEnabled: map.momoEnabled === 'true',
         },
       }),
     );
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.put('/settings', validate(updateSettingsSchema), async (request, response, next) => {
+  try {
+    const updates = request.body;
+
+    await prisma.$transaction(
+      Object.entries(updates).map(([key, value]) =>
+        prisma.adminSettings.upsert({
+          where: { key },
+          update: { value: String(value) },
+          create: { key, value: String(value) },
+        })
+      )
+    );
+
+    return response.json(createSuccessResponse({ updated: Object.keys(updates) }, 'Settings updated'));
   } catch (error) {
     return next(error);
   }

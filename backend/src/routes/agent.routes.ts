@@ -409,6 +409,32 @@ agentRouter.get('/orders', async (request, response, next) => {
 
 agentRouter.post('/wallet/fund', validate(fundWalletSchema), async (request, response, next) => {
   try {
+    // MTN MoMo is manual — create PENDING payment, do not credit wallet
+    if (request.body.method === 'MTN_MOMO') {
+      const payment = await prisma.payment.create({
+        data: {
+          userId: request.auth!.userId,
+          amount: toDecimal(request.body.amount),
+          method: 'MTN_MOMO',
+          status: 'PENDING',
+          reference: generateReference('PAY'),
+          providerRef: generateReference('MOMO'),
+        },
+      });
+
+      await createNotification(
+        request.auth!.userId,
+        'Wallet funding initiated',
+        `Your MoMo wallet funding of GHS ${request.body.amount.toFixed(2)} is pending. Please send the money to the admin MoMo number and chat admin to claim.`,
+        'WALLET',
+      );
+
+      return response.json(
+        createSuccessResponse({ payment }, 'Wallet funding request created. Please complete the manual transfer.')
+      );
+    }
+
+    // Paystack flow remains unchanged for now
     const wallet = await getWalletByUserId(request.auth!.userId);
 
     const payment = await prisma.payment.create({
@@ -418,7 +444,7 @@ agentRouter.post('/wallet/fund', validate(fundWalletSchema), async (request, res
         method: request.body.method,
         status: 'SUCCESSFUL',
         reference: generateReference('PAY'),
-        providerRef: request.body.method === 'PAYSTACK' ? generateReference('PST') : generateReference('MOMO'),
+        providerRef: generateReference('PST'),
       },
     });
 

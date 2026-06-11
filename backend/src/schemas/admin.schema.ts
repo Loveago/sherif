@@ -55,3 +55,9 @@ export const announcementSchema = z.object({
   query: z.object({}).optional().default({}),
   params: z.object({}).optional().default({}),
 });
+
+export const updateSettingsSchema = z.object({
+  body: z.record(z.string()),
+  query: z.object({}).optional().default({}),
+  params: z.object({}).optional().default({}),
+});
