@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import {
   DollarSign, Users, Clock, TrendingUp,
   ArrowUpRight, ArrowDownRight,
@@ -22,11 +21,8 @@ const iconMap = {
 
 export function AdminOverviewStats({ stats }: { stats: AdminStat[] }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, delay: 0.1 }}
-      className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+    <div
+      className="grid grid-cols-2 gap-3 lg:grid-cols-4 animate-slide-up animate-slide-up-delay-1"
     >
       {stats.map((stat, idx) => {
         const { Icon, orbClass, textClass } = iconMap[stat.icon];
@@ -55,6 +51,6 @@ export function AdminOverviewStats({ stats }: { stats: AdminStat[] }) {
           </div>
         );
       })}
-    </motion.div>
+    </div>
   );
 }

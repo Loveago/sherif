@@ -41,29 +41,29 @@ export default function AdminPage() {
             {/* Stats */}
             <AdminOverviewStats
               stats={[
-                { label: 'Platform Revenue', value: formatCurrency(data.metrics.revenue), change: 'Live', icon: 'revenue' },
-                { label: 'Active Users', value: String(data.metrics.activeUsers), change: '+12% active', icon: 'users' },
-                { label: 'Pending Withdrawals', value: String(data.metrics.pendingWithdrawals), change: 'Needs review', icon: 'pending' },
-                { label: 'Success Rate', value: `${data.metrics.successRate}%`, change: '+2.1%', icon: 'success' },
+                { label: 'Platform Revenue', value: formatCurrency(data.metrics?.revenue ?? 0), change: 'Live', icon: 'revenue' },
+                { label: 'Active Users', value: String(data.metrics?.activeUsers ?? 0), change: '+12% active', icon: 'users' },
+                { label: 'Pending Withdrawals', value: String(data.metrics?.pendingWithdrawals ?? 0), change: 'Needs review', icon: 'pending' },
+                { label: 'Success Rate', value: `${data.metrics?.successRate ?? 0}%`, change: '+2.1%', icon: 'success' },
               ]}
             />
 
             {/* Revenue Chart */}
-            <SpendingChart data={data.charts.revenueTrends} dataKey="value" />
+            <SpendingChart data={data.charts?.revenueTrends ?? []} dataKey="value" />
 
             {/* Order Trend */}
-            <SpendingChart data={data.charts.orderTrends} dataKey="value" />
+            <SpendingChart data={data.charts?.orderTrends ?? []} dataKey="value" />
 
             {/* Network + Recent Orders — Desktop */}
             <div className="hidden lg:grid lg:grid-cols-2 lg:gap-4">
               <DataTableCard
                 title="Recent Orders"
                 columns={['Bundle', 'Phone', 'Status', 'Amount']}
-                rows={data.recentOrders.map((order) => [
-                  order.product.name,
-                  order.phoneNumber,
+                rows={(data.recentOrders ?? []).map((order) => [
+                  order.product?.name ?? 'Data Bundle',
+                  order.phoneNumber ?? '-',
                   <Badge key={`${order.id}-status`} value={order.status} />,
-                  formatCurrency(order.amount),
+                  formatCurrency(order.amount ?? 0),
                 ])}
               />
             </div>

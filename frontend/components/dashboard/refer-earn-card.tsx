@@ -1,16 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { Gift, ArrowRight, Sparkles } from 'lucide-react';
 
 export function ReferEarnCard() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.35 }}
-      className="relative overflow-hidden rounded-2xl border border-gray-800/60 bg-gradient-to-br from-[#111827] to-[#0d1321] p-5"
+    <div
+      className="relative overflow-hidden rounded-2xl border border-gray-800/60 bg-gradient-to-br from-[#111827] to-[#0d1321] p-5 animate-slide-up animate-slide-up-delay-4"
     >
       <div className="absolute -left-6 -bottom-6 h-28 w-28 rounded-full bg-violet-600/10 blur-[40px]" />
       <div className="relative flex items-center gap-4">
@@ -33,6 +29,6 @@ export function ReferEarnCard() {
           </button>
         </Link>
       </div>
-    </motion.div>
+    </div>
   );
 }

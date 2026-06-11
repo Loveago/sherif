@@ -34,19 +34,24 @@ export default function DashboardPage() {
     );
   }
 
+  const metrics = data.metrics ?? {};
   const stats = [
-    { label: 'Total Orders', value: String(data.metrics.totalOrders), change: '+18.5%', icon: 'orders' as const },
-    { label: 'Successful Orders', value: String(data.metrics.successfulOrders), change: '+16.2%', icon: 'success' as const },
-    { label: 'Pending Orders', value: String(data.metrics.pendingOrders), change: '-4.3%', icon: 'pending' as const },
-    { label: 'Failed Orders', value: String(data.metrics.failedOrders), change: '-2.1%', icon: 'failed' as const },
+    { label: 'Total Orders', value: String(metrics.totalOrders ?? 0), change: '+18.5%', icon: 'orders' as const },
+    { label: 'Successful Orders', value: String(metrics.successfulOrders ?? 0), change: '+16.2%', icon: 'success' as const },
+    { label: 'Pending Orders', value: String(metrics.pendingOrders ?? 0), change: '-4.3%', icon: 'pending' as const },
+    { label: 'Failed Orders', value: String(metrics.failedOrders ?? 0), change: '-2.1%', icon: 'failed' as const },
   ];
+
+  const revenueSeries = data.revenueSeries ?? [];
+  const orders = data.orders ?? [];
+  const networkUsage = data.networkUsage ?? [];
 
   return (
     <AuthGuard>
       <DashboardShell title="Dashboard" description="">
         <div className="mx-auto max-w-xl lg:max-w-none space-y-4">
           {/* Wallet Balance */}
-          <WalletBalanceCard balance={data.metrics.walletBalance ?? 0} />
+          <WalletBalanceCard balance={metrics.walletBalance ?? 0} />
 
           {/* Overview Section Header */}
           <div className="flex items-center justify-between pt-1">
@@ -65,10 +70,10 @@ export default function DashboardPage() {
           <OverviewStats stats={stats} />
 
           {/* Total Spending */}
-          <SpendingCard value={formatCurrency(data.metrics.totalSpending)} change="+22.4%" />
+          <SpendingCard value={formatCurrency(metrics.totalSpending ?? 0)} change="+22.4%" />
 
           {/* Spending Chart */}
-          <SpendingChart data={data.revenueSeries} dataKey="revenue" />
+          <SpendingChart data={revenueSeries} dataKey="revenue" />
 
           {/* Refer & Earn */}
           <ReferEarnCard />
@@ -77,12 +82,12 @@ export default function DashboardPage() {
           <div className="hidden lg:grid lg:grid-cols-[1fr_0.8fr_0.5fr] lg:gap-4">
             <TransactionList
               title="Recent Transactions"
-              orders={data.orders}
+              orders={orders}
               onViewAll={() => router.push('/orders')}
             />
             <DonutChartCard
               title="Top Networks"
-              data={data.networkUsage.map((entry) => ({
+              data={networkUsage.map((entry) => ({
                 label: entry.networkCode,
                 count: entry.orders,
               }))}

@@ -1,16 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { Wallet, ArrowRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Wallet } from 'lucide-react';
 
 export function WalletBalanceCard({ balance }: { balance: number }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#131c31] to-[#0d1321] p-5 sm:p-6 glow-ambient"
+    <div
+      className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#131c31] to-[#0d1321] p-5 sm:p-6 glow-ambient animate-slide-up"
     >
       {/* Ambient background glow */}
       <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-violet-600/15 blur-[60px]" />
@@ -45,6 +41,6 @@ export function WalletBalanceCard({ balance }: { balance: number }) {
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

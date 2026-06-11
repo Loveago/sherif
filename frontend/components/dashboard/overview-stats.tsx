@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import {
   ShoppingBag, CheckCircle2, Clock, XCircle,
   TrendingUp, TrendingDown,
@@ -22,11 +21,8 @@ const iconMap = {
 
 export function OverviewStats({ stats }: { stats: StatItem[] }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, delay: 0.15 }}
-      className="grid grid-cols-2 gap-3"
+    <div
+      className="grid grid-cols-2 gap-3 animate-slide-up animate-slide-up-delay-1"
     >
       {stats.map((stat, idx) => {
         const { Icon, orbClass, textClass } = iconMap[stat.icon];
@@ -57,6 +53,6 @@ export function OverviewStats({ stats }: { stats: StatItem[] }) {
           </div>
         );
       })}
-    </motion.div>
+    </div>
   );
 }
