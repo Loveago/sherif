@@ -22,7 +22,7 @@ const iconMap = {
 export function AdminOverviewStats({ stats }: { stats: AdminStat[] }) {
   return (
     <div
-      className="grid grid-cols-2 gap-3 lg:grid-cols-4 animate-slide-up animate-slide-up-delay-1"
+      className="grid grid-cols-2 gap-3 lg:grid-cols-4"
     >
       {stats.map((stat, idx) => {
         const { Icon, orbClass, textClass } = iconMap[stat.icon];

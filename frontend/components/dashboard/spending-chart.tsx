@@ -28,7 +28,7 @@ export function SpendingChart({
   const chartData = data?.length ? data : [{ label: '-', [dataKey]: 0 }];
 
   return (
-    <div className="rounded-2xl border border-gray-800/60 bg-[#111827]/60 p-5 animate-slide-up animate-slide-up-delay-3">
+    <div className="rounded-2xl border border-gray-800/60 bg-[#111827]/60 p-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-violet-400" />

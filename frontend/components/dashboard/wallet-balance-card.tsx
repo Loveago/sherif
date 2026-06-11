@@ -6,7 +6,7 @@ import { Wallet } from 'lucide-react';
 export function WalletBalanceCard({ balance }: { balance: number }) {
   return (
     <div
-      className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#131c31] to-[#0d1321] p-5 sm:p-6 glow-ambient animate-slide-up"
+      className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#131c31] to-[#0d1321] p-5 sm:p-6 glow-ambient"
     >
       {/* Ambient background glow */}
       <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-violet-600/15 blur-[60px]" />

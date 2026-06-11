@@ -22,7 +22,7 @@ const iconMap = {
 export function OverviewStats({ stats }: { stats: StatItem[] }) {
   return (
     <div
-      className="grid grid-cols-2 gap-3 animate-slide-up animate-slide-up-delay-1"
+      className="grid grid-cols-2 gap-3"
     >
       {stats.map((stat, idx) => {
         const { Icon, orbClass, textClass } = iconMap[stat.icon];
@@ -33,7 +33,6 @@ export function OverviewStats({ stats }: { stats: StatItem[] }) {
           <div
             key={stat.label}
             className="stat-card rounded-2xl border border-gray-800/60 bg-[#111827]/80 p-3.5 sm:p-4"
-            style={{ animationDelay: `${idx * 0.1}s` }}
           >
             <div className="flex items-center gap-2.5">
               <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${orbClass}`}>

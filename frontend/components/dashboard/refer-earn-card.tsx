@@ -6,7 +6,7 @@ import { Gift, ArrowRight, Sparkles } from 'lucide-react';
 export function ReferEarnCard() {
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border border-gray-800/60 bg-gradient-to-br from-[#111827] to-[#0d1321] p-5 animate-slide-up animate-slide-up-delay-4"
+      className="relative overflow-hidden rounded-2xl border border-gray-800/60 bg-gradient-to-br from-[#111827] to-[#0d1321] p-5"
     >
       <div className="absolute -left-6 -bottom-6 h-28 w-28 rounded-full bg-violet-600/10 blur-[40px]" />
       <div className="relative flex items-center gap-4">
