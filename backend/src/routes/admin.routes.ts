@@ -106,10 +106,11 @@ adminRouter.get('/products', async (_request, response, next) => {
 
 adminRouter.post('/products', validate(createProductSchema), async (request, response, next) => {
   try {
-    const { rolePrices, promoPrice, showInShop, showForAgents, status, id, ...productData } = request.body;
+    const { rolePrices, promoPrice, showInShop, showForAgents, status, ...productData } = request.body;
     const product = await prisma.product.create({
       data: {
         ...productData,
+        dataSize: '',
         slug: `${productData.name}-${Date.now()}`.toLowerCase().replace(/\s+/g, '-'),
         sellingPrice: toDecimal(productData.sellingPrice),
         agentPrice: toDecimal(productData.agentPrice),
@@ -148,6 +149,7 @@ adminRouter.put('/products/:id', validate(createProductSchema), async (request, 
       where: { id: String(request.params.id) },
       data: {
         ...productData,
+        dataSize: '',
         sellingPrice: toDecimal(productData.sellingPrice),
         agentPrice: toDecimal(productData.agentPrice),
         resellerPrice: toDecimal(productData.resellerPrice),

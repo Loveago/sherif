@@ -328,22 +328,6 @@ export default function AdminProductsPage() {
                 </div>
               </div>
 
-              {/* Row 3: Pricing Tiers */}
-              <div className="grid gap-4 md:grid-cols-4">
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Buying Price (GHS)</label>
-                  <Input type="number" step="0.01" placeholder="Cost price" {...form.register('buyingPrice', { valueAsNumber: true })} />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Agent Price (GHS)</label>
-                  <Input type="number" step="0.01" placeholder="Agent price" {...form.register('agentPrice', { valueAsNumber: true })} />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">Reseller Price (GHS)</label>
-                  <Input type="number" step="0.01" placeholder="Reseller price" {...form.register('resellerPrice', { valueAsNumber: true })} />
-                </div>
-              </div>
-
               {/* Per-Account-Type Pricing */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
