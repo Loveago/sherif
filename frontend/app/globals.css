@@ -207,3 +207,76 @@ textarea {
     radial-gradient(ellipse at 80% 70%, rgba(56, 189, 248, 0.06) 0%, transparent 50%),
     radial-gradient(ellipse at 50% 50%, rgba(217, 70, 239, 0.04) 0%, transparent 60%);
 }
+
+/* Dashboard ambient glow */
+.glow-ambient {
+  box-shadow: 0 0 80px -20px rgba(124, 58, 237, 0.25), 0 0 40px -10px rgba(124, 58, 237, 0.15);
+}
+
+.glow-card {
+  box-shadow: 0 0 60px -15px rgba(124, 58, 237, 0.15), 0 8px 32px -8px rgba(0, 0, 0, 0.4);
+}
+
+.glow-spending {
+  box-shadow: 0 0 50px -15px rgba(124, 58, 237, 0.2), 0 4px 24px -6px rgba(0, 0, 0, 0.3);
+}
+
+/* Shimmer / shine animation */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+/* Slide up fade in */
+@keyframes slide-up-fade {
+  0% { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slide-up-fade 0.5s ease-out forwards;
+}
+
+.animate-slide-up-delay-1 { animation-delay: 0.1s; opacity: 0; }
+.animate-slide-up-delay-2 { animation-delay: 0.2s; opacity: 0; }
+.animate-slide-up-delay-3 { animation-delay: 0.3s; opacity: 0; }
+.animate-slide-up-delay-4 { animation-delay: 0.4s; opacity: 0; }
+
+/* Stat card hover lift */
+.stat-card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 30px -8px rgba(124, 58, 237, 0.2);
+}
+
+/* Gradient border glow */
+.gradient-border {
+  position: relative;
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.4), rgba(56, 189, 248, 0.15), rgba(124, 58, 237, 0.1));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Icon orb backgrounds */
+.icon-orb-violet { background: linear-gradient(135deg, rgba(124, 58, 237, 0.25), rgba(124, 58, 237, 0.08)); }
+.icon-orb-emerald { background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(16, 185, 129, 0.08)); }
+.icon-orb-amber { background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(245, 158, 11, 0.08)); }
+.icon-orb-rose { background: linear-gradient(135deg, rgba(244, 63, 94, 0.25), rgba(244, 63, 94, 0.08)); }
+.icon-orb-sky { background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(56, 189, 248, 0.08)); }
