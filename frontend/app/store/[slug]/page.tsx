@@ -4,8 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import Link from 'next/link';
-import { ArrowLeft, CheckCircle2, Mail, Phone, Search, Shield, Sparkles, Wifi, X } from 'lucide-react';
+import { CheckCircle2, Mail, MessageCircle, Phone, Search, Shield, Sparkles, Wifi, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/api';
 import type { Product, Storefront } from '@/lib/types';
@@ -102,10 +101,7 @@ export default function PublicStorefrontPage() {
         <header className="rounded-3xl border border-white/10 bg-slate-950/70 p-6 backdrop-blur-xl">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white">
-                <ArrowLeft className="h-4 w-4" /> Back to home
-              </Link>
-              <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs uppercase tracking-[0.22em] text-cyan-200">
+              <p className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs uppercase tracking-[0.22em] text-cyan-200">
                 <Sparkles className="h-3.5 w-3.5" /> {data.storefront.displayName}
               </p>
               <h1 className="mt-4 text-3xl font-bold text-white md:text-5xl">{data.storefront.tagline}</h1>
@@ -138,20 +134,6 @@ export default function PublicStorefrontPage() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
-              <p className="text-xs text-slate-400">Visits</p>
-              <p className="mt-1 text-2xl font-bold text-white">{data.storefront.visits}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
-              <p className="text-xs text-slate-400">Sales</p>
-              <p className="mt-1 text-2xl font-bold text-white">{data.storefront.sales}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
-              <p className="text-xs text-slate-400">Conversion</p>
-              <p className="mt-1 text-2xl font-bold text-white">{data.storefront.conversionRate}%</p>
-            </div>
-          </div>
         </header>
 
         <section className="mt-8 rounded-3xl border border-white/10 bg-slate-950/70 p-5 backdrop-blur-xl">
@@ -264,7 +246,7 @@ export default function PublicStorefrontPage() {
 
                 {checkoutMutation.isError && (
                   <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-                    Unable to start payment. Please check your details and try again.
+                    {checkoutMutation.error instanceof Error ? checkoutMutation.error.message : 'Unable to start payment. Please check your details and try again.'}
                   </p>
                 )}
 
@@ -295,6 +277,18 @@ export default function PublicStorefrontPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {data.storefront.whatsappUrl && (
+        <a
+          href={data.storefront.whatsappUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 transition hover:scale-110 hover:bg-emerald-400"
+          aria-label="Chat on WhatsApp"
+        >
+          <MessageCircle className="h-7 w-7" />
+        </a>
+      )}
     </div>
   );
 }

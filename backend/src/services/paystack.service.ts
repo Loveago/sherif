@@ -58,9 +58,10 @@ export async function initializePaystackPayment(
     );
 
     return response.data;
-  } catch (error) {
-    console.error('Paystack initialization error:', error);
-    throw new Error('Failed to initialize Paystack payment');
+  } catch (error: any) {
+    console.error('Paystack initialization error:', error?.response?.data || error?.message || error);
+    const paystackMessage = error?.response?.data?.message;
+    throw new Error(paystackMessage ? `Paystack: ${paystackMessage}` : 'Failed to initialize Paystack payment');
   }
 }
 

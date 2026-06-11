@@ -29,7 +29,8 @@ const upload = multer();
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
 const getStorefrontCheckoutEmail = (phoneNumber: string, slug: string) => {
   const normalizedPhone = phoneNumber.replace(/\D/g, '').slice(-10);
-  return `${normalizedPhone || 'customer'}@${slug}.store.local`;
+  const domainSafeSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'store';
+  return `${normalizedPhone || 'customer'}@${domainSafeSlug}.store.local`;
 };
 
 export const agentRouter = Router();

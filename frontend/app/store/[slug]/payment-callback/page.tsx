@@ -79,11 +79,8 @@ function StorefrontPaymentCallbackContent() {
               </p>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <Button className="bg-cyan-500 text-slate-950 hover:bg-cyan-400" onClick={() => router.push(`/store/${slug}`)}>
-                Back to Store
-              </Button>
-              <Button variant="secondary" onClick={() => router.push('/login')}>
+            <div className="mt-5">
+              <Button variant="secondary" className="w-full" onClick={() => router.push('/login')}>
                 Agent Dashboard
               </Button>
             </div>
@@ -101,9 +98,7 @@ function StorefrontPaymentCallbackContent() {
             </div>
             <h1 className="text-2xl font-bold text-white">Verification Failed</h1>
             <p className="mt-2 text-sm text-slate-300">{message}</p>
-            <Button className="mt-5" variant="secondary" onClick={() => router.push(`/store/${slug}`)}>
-              Return to Store
-            </Button>
+            <p className="mt-5 text-xs text-slate-500">Please retry from the storefront or contact support.</p>
           </div>
         )}
       </div>
