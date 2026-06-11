@@ -8,6 +8,7 @@ import { createSuccessResponse } from '../utils/response.js';
 import { generateReference } from '../utils/refs.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
 import { createNotification } from '../services/notification.service.js';
+import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
 import { exportToCSV, exportToExcel } from '../services/export.service.js';
 
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
@@ -642,21 +643,6 @@ adminRouter.get('/orders/:id', async (request, response, next) => {
   }
 });
 
-adminRouter.put('/orders/:id/status', async (request, response, next) => {
-  try {
-    const { status } = request.body;
-    const order = await prisma.order.update({
-      where: { id: request.params.id },
-      data: { status },
-      include: { product: { include: { network: true } }, user: true },
-    });
-
-    return response.json(createSuccessResponse(order, 'Order status updated'));
-  } catch (error) {
-    return next(error);
-  }
-});
-
 adminRouter.get('/commissions', async (request, response, next) => {
   try {
     const { userId, startDate, endDate } = request.query;
@@ -1159,13 +1145,17 @@ adminRouter.put('/orders/:id/status', async (request, response, next) => {
       return response.status(400).json({ success: false, message: 'Status is required' });
     }
 
+    const nextStatus = status as OrderStatus;
+
     const order = await prisma.order.update({
       where: { id: request.params.id },
-      data: { status: status as OrderStatus },
-      include: {
-        product: { include: { network: true } },
-      },
+      data: { status: nextStatus },
+      include: { product: { include: { network: true } }, user: true },
     });
+
+    if (nextStatus === OrderStatus.SUCCESSFUL) {
+      await maybeCreditStorefrontCommission(order.id);
+    }
 
     await createNotification(
       order.userId,

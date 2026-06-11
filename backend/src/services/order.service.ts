@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { Prisma, OrderStatus } from "@prisma/client";
 import { generateOrderReference } from "../utils/order-reference.js";
+import { maybeCreditStorefrontCommission } from "./commission.service.js";
 
 export class OrderService {
   async createOrder(data: {
@@ -104,7 +105,7 @@ export class OrderService {
   }
 
   async updateOrderStatus(orderId: string, status: OrderStatus) {
-    return prisma.order.update({
+    const order = await prisma.order.update({
       where: { id: orderId },
       data: { status },
       include: {
@@ -114,6 +115,12 @@ export class OrderService {
         user: true,
       },
     });
+
+    if (status === OrderStatus.SUCCESSFUL) {
+      await maybeCreditStorefrontCommission(orderId);
+    }
+
+    return order;
   }
 
   async cancelOrder(orderId: string) {

@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { fulfillOrderWithProvider } from '../services/provider.service.js';
 import { createNotification } from '../services/notification.service.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
+import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
 
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
 
@@ -38,35 +39,6 @@ export const processFulfillmentJob = async (orderId: string) => {
         providerReference: result.providerReference,
       },
     });
-
-    if (nextStatus === OrderStatus.SUCCESSFUL) {
-      const isStorefrontOrder = order.source === 'STOREFRONT' || order.receiptNumber.startsWith('STORE-');
-
-      if (isStorefrontOrder) {
-        // Commission = what customer paid (custom price) - base selling price
-        const commissionAmount = Number(
-          (order.amount.toNumber() - order.product.sellingPrice.toNumber()).toFixed(2),
-        );
-
-        await tx.commission.create({
-          data: {
-            userId: order.userId,
-            orderId: order.id,
-            amount: toDecimal(Math.max(commissionAmount, 0)),
-            source: 'Storefront Commission',
-          },
-        });
-
-        await createWalletTransaction(
-          wallet.id,
-          Math.max(commissionAmount, 0),
-          WalletTransactionType.CREDIT,
-          WalletTransactionCategory.COMMISSION,
-          `Commission for ${order.product.name}`,
-          tx,
-        );
-      }
-    }
 
     if (nextStatus === OrderStatus.FAILED) {
       await createWalletTransaction(
@@ -107,6 +79,10 @@ export const processFulfillmentJob = async (orderId: string) => {
       });
     }
   });
+
+  if (nextStatus === OrderStatus.SUCCESSFUL) {
+    await maybeCreditStorefrontCommission(orderId);
+  }
 
   await createNotification(
     order.userId,
