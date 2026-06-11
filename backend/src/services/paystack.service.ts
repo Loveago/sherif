@@ -21,6 +21,7 @@ export interface PaystackVerifyResponse {
     reference: string;
     amount: number;
     status: string;
+    metadata?: Record<string, unknown>;
     customer: {
       id: number;
       email: string;

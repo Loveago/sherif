@@ -6,13 +6,19 @@ import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { createSuccessResponse } from '../utils/response.js';
 import { fundWalletSchema, withdrawSchema } from '../schemas/wallet.schema.js';
-import { createOrderSchema, refundRequestSchema } from '../schemas/orders.schema.js';
+import {
+  createOrderSchema,
+  initializeStorefrontCheckoutSchema,
+  refundRequestSchema,
+  verifyStorefrontCheckoutSchema,
+} from '../schemas/orders.schema.js';
 import { createComplaintSchema } from '../schemas/complaints.schema.js';
 import { updateStorefrontSchema } from '../schemas/storefront.schema.js';
 import { updateProfileSchema, changePasswordSchema } from '../schemas/auth.schema.js';
 import bcrypt from 'bcryptjs';
 import { createWalletTransaction, getWalletByUserId } from '../services/wallet.service.js';
 import { generateReference } from '../utils/refs.js';
+import { generateOrderReference } from '../utils/order-reference.js';
 import { createNotification } from '../services/notification.service.js';
 import { emitWebhookEvent } from '../services/webhook.service.js';
 import { parseBulkFile } from '../utils/uploads.js';
@@ -21,6 +27,10 @@ import { env } from '../config/env.js';
 
 const upload = multer();
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
+const getStorefrontCheckoutEmail = (phoneNumber: string, slug: string) => {
+  const normalizedPhone = phoneNumber.replace(/\D/g, '').slice(-10);
+  return `${normalizedPhone || 'customer'}@${slug}.store.local`;
+};
 
 export const agentRouter = Router();
 
@@ -75,6 +85,228 @@ export const agentRouter = Router();
      return next(error);
    }
  });
+
+agentRouter.post('/store/:slug/paystack/initialize', validate(initializeStorefrontCheckoutSchema), async (request, response, next) => {
+  try {
+    const slug = String(request.params.slug);
+    const storefront = await prisma.storefront.findUnique({
+      where: { slug },
+    });
+
+    if (!storefront) {
+      return response.status(404).json({ success: false, message: 'Storefront not found' });
+    }
+
+    const storefrontProduct = await prisma.storefrontProduct.findFirst({
+      where: {
+        storefrontId: storefront.id,
+        productId: request.body.productId,
+        isActive: true,
+      },
+      include: {
+        product: {
+          include: {
+            network: true,
+          },
+        },
+      },
+    });
+
+    if (!storefrontProduct || !storefrontProduct.product.status || storefrontProduct.product.deletedAt) {
+      return response.status(404).json({ success: false, message: 'Storefront product not found' });
+    }
+
+    const orderReference = generateOrderReference('STOREFRONT');
+    const callbackUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/store/${storefront.slug}/payment-callback`;
+    const customerEmail = request.body.customerEmail ?? getStorefrontCheckoutEmail(request.body.phoneNumber, slug);
+
+    const paystackResponse = await initializePaystackPayment(
+      customerEmail,
+      storefrontProduct.customPrice.toNumber(),
+      orderReference,
+      callbackUrl,
+      {
+        source: 'STOREFRONT',
+        orderId: orderReference,
+        storefrontId: storefront.id,
+        productId: storefrontProduct.product.id,
+        phoneNumber: request.body.phoneNumber,
+        slug: storefront.slug,
+      },
+    );
+
+    await prisma.order.create({
+      data: {
+        userId: storefront.userId,
+        productId: storefrontProduct.product.id,
+        phoneNumber: request.body.phoneNumber,
+        amount: storefrontProduct.customPrice,
+        receiptNumber: orderReference,
+        providerReference: orderReference,
+        status: 'PENDING',
+      },
+    });
+
+    return response.json(
+      createSuccessResponse({
+        ...paystackResponse.data,
+        orderId: orderReference,
+        amount: storefrontProduct.customPrice.toNumber(),
+      }),
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/store/:slug/paystack/verify', validate(verifyStorefrontCheckoutSchema), async (request, response, next) => {
+  try {
+    const slug = String(request.params.slug);
+    const reference = String(request.query.reference);
+
+    const storefront = await prisma.storefront.findUnique({
+      where: { slug },
+    });
+
+    if (!storefront) {
+      return response.status(404).json({ success: false, message: 'Storefront not found' });
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        receiptNumber: reference,
+        userId: storefront.userId,
+      },
+    });
+
+    if (!order) {
+      return response.status(404).json({ success: false, message: 'Order record not found' });
+    }
+
+    if (order.status !== 'PENDING') {
+      return response.json(
+        createSuccessResponse(
+          {
+            orderId: order.receiptNumber,
+            status: order.status,
+            phoneNumber: order.phoneNumber,
+          },
+          'Order already validated',
+        ),
+      );
+    }
+
+    const paystackResponse = await verifyPaystackPayment(reference);
+    if (!paystackResponse.status || paystackResponse.data.status !== 'success') {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { status: 'FAILED' },
+      });
+      return response.status(400).json({ success: false, message: 'Payment verification failed' });
+    }
+
+    const metadataSlug = paystackResponse.data.metadata?.slug;
+    if (typeof metadataSlug === 'string' && metadataSlug !== slug) {
+      return response.status(400).json({ success: false, message: 'Payment does not belong to this storefront' });
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        providerReference: reference,
+        status: 'PROCESSING',
+      },
+    });
+
+    const nextSalesCount = storefront.sales + 1;
+    const conversionRate = storefront.visits > 0 ? Number(((nextSalesCount / storefront.visits) * 100).toFixed(2)) : 0;
+
+    await prisma.storefront.update({
+      where: { id: storefront.id },
+      data: {
+        sales: { increment: 1 },
+        conversionRate: toDecimal(conversionRate),
+      },
+    });
+
+    await createNotification(
+      updatedOrder.userId,
+      'Storefront order paid',
+      `Order ${updatedOrder.receiptNumber} for ${updatedOrder.phoneNumber} is pending admin processing.`,
+      'ORDER',
+    );
+
+    await emitWebhookEvent('order.created', {
+      orderId: updatedOrder.id,
+      userId: updatedOrder.userId,
+      source: 'STOREFRONT',
+    });
+
+    return response.json(
+      createSuccessResponse(
+        {
+          orderId: updatedOrder.receiptNumber,
+          status: updatedOrder.status,
+          phoneNumber: updatedOrder.phoneNumber,
+          amount: updatedOrder.amount,
+        },
+        'Storefront order validated and sent for processing',
+      ),
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/store/:slug/orders/:orderId', async (request, response, next) => {
+  try {
+    const slug = String(request.params.slug);
+    const storefront = await prisma.storefront.findUnique({
+      where: { slug },
+    });
+
+    if (!storefront) {
+      return response.status(404).json({ success: false, message: 'Storefront not found' });
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        receiptNumber: request.params.orderId,
+        userId: storefront.userId,
+      },
+    });
+
+    if (!order) {
+      return response.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    const product = await prisma.product.findUnique({
+      where: { id: order.productId },
+      include: { network: true },
+    });
+
+    if (!product) {
+      return response.status(404).json({ success: false, message: 'Order product not found' });
+    }
+
+    return response.json(
+      createSuccessResponse({
+        orderId: order.receiptNumber,
+        status: order.status,
+        phoneNumber: order.phoneNumber,
+        createdAt: order.createdAt,
+        amount: order.amount,
+        product: {
+          name: product.name,
+          dataSize: product.dataSize,
+          network: product.network.name,
+        },
+      }),
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
 
 agentRouter.use(requireAuth);
 
@@ -401,7 +633,7 @@ agentRouter.post('/orders', validate(createOrderSchema), async (request, respons
           phoneNumber: request.body.phoneNumber,
           amount: product.sellingPrice,
           source: 'BUY_NOW',
-          receiptNumber: generateReference('ORD'),
+          receiptNumber: generateOrderReference('BUY_NOW'),
           status: 'PENDING',
         },
         include: {
@@ -587,7 +819,7 @@ agentRouter.post('/bulk-orders/process', async (request, response, next) => {
             phoneNumber: record.phoneNumber,
             amount: toDecimal(record.amount),
             source: 'BULK',
-            receiptNumber: generateReference('ORD'),
+            receiptNumber: generateOrderReference('BULK'),
             batchId: createdBatch.id,
             status: 'PENDING',
           },

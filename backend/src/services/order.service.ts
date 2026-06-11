@@ -1,6 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { Prisma, OrderStatus } from "@prisma/client";
-import { nanoid } from "nanoid";
+import { generateOrderReference } from "../utils/order-reference.js";
 
 export class OrderService {
   async createOrder(data: {
@@ -10,7 +10,7 @@ export class OrderService {
     amount: number;
     batchId?: string;
   }) {
-    const receiptNumber = `ORD-${nanoid(10).toUpperCase()}`;
+    const receiptNumber = generateOrderReference('BUY_NOW');
 
     return prisma.order.create({
       data: {
