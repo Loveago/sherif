@@ -30,7 +30,7 @@ const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
 const getStorefrontCheckoutEmail = (phoneNumber: string, slug: string) => {
   const normalizedPhone = phoneNumber.replace(/\D/g, '').slice(-10);
   const domainSafeSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'store';
-  return `${normalizedPhone || 'customer'}@${domainSafeSlug}.store.local`;
+  return `${normalizedPhone || 'customer'}@${domainSafeSlug}.store`;
 };
 
 export const agentRouter = Router();
