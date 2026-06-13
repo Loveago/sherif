@@ -958,8 +958,23 @@ agentRouter.post('/bulk-orders/paste-preview', validate(pastePreviewSchema), asy
       .map((l: string) => l.trim())
       .filter((l: string) => l.length > 0);
 
+    // Look up network flexibly by id, code, or name
+    const network = await prisma.network.findFirst({
+      where: {
+        OR: [
+          { id: networkId },
+          { code: { equals: networkId, mode: 'insensitive' } },
+          { name: { equals: networkId, mode: 'insensitive' } },
+        ],
+      },
+    });
+
+    if (!network) {
+      return response.status(404).json({ success: false, message: 'Network not found' });
+    }
+
     const products = await prisma.product.findMany({
-      where: { networkId, status: true, deletedAt: null },
+      where: { networkId: network.id, status: true, deletedAt: null },
     });
 
     const records = lines.map((line: string) => {
@@ -967,13 +982,29 @@ agentRouter.post('/bulk-orders/paste-preview', validate(pastePreviewSchema), asy
       const phoneNumber = parts[0] || '';
       const sizeInput = parts[1] || '';
       const normalizedSize = normalizeDataSize(sizeInput);
-      const product = products.find((p) => normalizeDataSize(p.dataSize) === normalizedSize);
+
+      // Try exact dataSize match first
+      let product = products.find((p) => normalizeDataSize(p.dataSize) === normalizedSize);
+
+      // Fallback: match by description or name containing the size digits
+      if (!product) {
+        const digitsOnly = normalizedSize.replace(/\D/g, '');
+        product = products.find(
+          (p) =>
+            normalizeDataSize(p.description).includes(normalizedSize) ||
+            p.description.toUpperCase().includes(normalizedSize) ||
+            p.name.toUpperCase().includes(digitsOnly + 'GB') ||
+            p.name.toUpperCase().includes(digitsOnly + 'MB'),
+        );
+      }
+
+      const price = product ? (product.agentPrice ? product.agentPrice.toNumber() : product.sellingPrice.toNumber()) : null;
 
       return {
         phoneNumber,
         dataSize: normalizedSize,
         valid: Boolean(product) && phoneNumber.length >= 10,
-        amount: product ? product.sellingPrice.toNumber() : null,
+        amount: price,
         productId: product?.id || null,
         productName: product?.name || null,
       };
