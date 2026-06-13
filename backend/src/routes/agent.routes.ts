@@ -941,11 +941,11 @@ agentRouter.post('/bulk-orders/process', async (request, response, next) => {
 });
 
 function normalizeDataSize(input: string): string {
-  const trimmed = input.trim().toUpperCase();
+  const cleaned = input.trim().toUpperCase().replace(/\s/g, '');
   // "1" -> "1GB", "1gb" -> "1GB", "1GB" -> "1GB", "1 GB" -> "1GB"
-  const digits = trimmed.replace(/\D/g, '');
-  const hasGb = trimmed.includes('GB');
-  const hasMb = trimmed.includes('MB');
+  const digits = cleaned.replace(/\D/g, '');
+  const hasGb = cleaned.includes('GB');
+  const hasMb = cleaned.includes('MB');
   if (hasMb) return `${digits}MB`;
   return `${digits}GB`;
 }
@@ -967,7 +967,7 @@ agentRouter.post('/bulk-orders/paste-preview', validate(pastePreviewSchema), asy
       const phoneNumber = parts[0] || '';
       const sizeInput = parts[1] || '';
       const normalizedSize = normalizeDataSize(sizeInput);
-      const product = products.find((p) => p.dataSize.toUpperCase() === normalizedSize);
+      const product = products.find((p) => normalizeDataSize(p.dataSize) === normalizedSize);
 
       return {
         phoneNumber,
