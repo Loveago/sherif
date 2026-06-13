@@ -8,13 +8,14 @@ export interface CartItem {
   quantity: number;
   price: number;
   addedAt: string;
+  phoneNumber?: string;
 }
 
 interface CartStore {
   items: CartItem[];
-  addItem: (product: Product, quantity: number, price: number) => void;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  addItem: (product: Product, quantity: number, price: number, phoneNumber?: string) => void;
+  removeItem: (productId: string, phoneNumber?: string) => void;
+  updateQuantity: (productId: string, quantity: number, phoneNumber?: string) => void;
   clearCart: () => void;
   getTotal: () => number;
   getItemCount: () => number;
@@ -25,14 +26,16 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
 
-      addItem: (product, quantity, price) => {
+      addItem: (product, quantity, price, phoneNumber) => {
         set((state) => {
-          const existingItem = state.items.find((item) => item.productId === product.id);
+          const existingItem = state.items.find(
+            (item) => item.productId === product.id && item.phoneNumber === phoneNumber
+          );
 
           if (existingItem) {
             return {
               items: state.items.map((item) =>
-                item.productId === product.id
+                item.productId === product.id && item.phoneNumber === phoneNumber
                   ? { ...item, quantity: item.quantity + quantity }
                   : item
               ),
@@ -48,27 +51,32 @@ export const useCartStore = create<CartStore>()(
                 quantity,
                 price,
                 addedAt: new Date().toISOString(),
+                phoneNumber,
               },
             ],
           };
         });
       },
 
-      removeItem: (productId) => {
+      removeItem: (productId, phoneNumber) => {
         set((state) => ({
-          items: state.items.filter((item) => item.productId !== productId),
+          items: state.items.filter(
+            (item) => !(item.productId === productId && item.phoneNumber === phoneNumber)
+          ),
         }));
       },
 
-      updateQuantity: (productId, quantity) => {
+      updateQuantity: (productId, quantity, phoneNumber) => {
         if (quantity <= 0) {
-          get().removeItem(productId);
+          get().removeItem(productId, phoneNumber);
           return;
         }
 
         set((state) => ({
           items: state.items.map((item) =>
-            item.productId === productId ? { ...item, quantity } : item
+            item.productId === productId && item.phoneNumber === phoneNumber
+              ? { ...item, quantity }
+              : item
           ),
         }));
       },

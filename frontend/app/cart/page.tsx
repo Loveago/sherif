@@ -19,11 +19,12 @@ export default function CartPage() {
 
   const checkoutMutation = useMutation({
     mutationFn: async () => {
-      const orders = items.map((item) => ({
-        productId: item.productId,
-        phoneNumber: '', // Will be set per item
-        quantity: item.quantity,
-      }));
+      const orders = items.flatMap((item) =>
+        Array.from({ length: item.quantity }).map(() => ({
+          productId: item.productId,
+          phoneNumber: item.phoneNumber || '',
+        }))
+      );
 
       return apiRequest('/orders/batch', {
         method: 'POST',
@@ -64,14 +65,17 @@ export default function CartPage() {
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-4">
             {items.map((item) => (
-              <GlassCard key={item.productId} className="p-6">
+              <GlassCard key={`${item.productId}-${item.phoneNumber || 'none'}`} className="p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-lg font-semibold text-white">{item.product.name}</h3>
                       <Badge value={item.product.network.code} />
                     </div>
-                    <p className="text-sm text-gray-400 mb-3">{item.product.description}</p>
+                    <p className="text-sm text-gray-400 mb-1">{item.product.description}</p>
+                    {item.phoneNumber && (
+                      <p className="text-xs text-gray-500 mb-3">Recipient: <span className="text-white">{item.phoneNumber}</span></p>
+                    )}
                     <div className="flex items-center gap-4">
                       <div>
                         <p className="text-xs text-gray-500">Unit Price</p>
@@ -91,7 +95,7 @@ export default function CartPage() {
                   {/* Quantity Controls */}
                   <div className="flex flex-col items-end gap-4">
                     <button
-                      onClick={() => removeItem(item.productId)}
+                      onClick={() => removeItem(item.productId, item.phoneNumber)}
                       className="text-gray-400 hover:text-red-400 transition"
                     >
                       <Trash2 className="h-5 w-5" />
@@ -99,7 +103,7 @@ export default function CartPage() {
 
                     <div className="flex items-center gap-2 bg-gray-900/50 rounded-lg p-1">
                       <button
-                        onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                        onClick={() => updateQuantity(item.productId, item.quantity - 1, item.phoneNumber)}
                         className="p-1 hover:bg-gray-800 rounded transition"
                       >
                         <Minus className="h-4 w-4 text-gray-400" />
@@ -109,12 +113,12 @@ export default function CartPage() {
                         value={item.quantity}
                         onChange={(e) => {
                           const val = parseInt(e.target.value) || 1;
-                          updateQuantity(item.productId, Math.max(1, val));
+                          updateQuantity(item.productId, Math.max(1, val), item.phoneNumber);
                         }}
                         className="w-12 text-center bg-transparent text-white outline-none"
                       />
                       <button
-                        onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                        onClick={() => updateQuantity(item.productId, item.quantity + 1, item.phoneNumber)}
                         className="p-1 hover:bg-gray-800 rounded transition"
                       >
                         <Plus className="h-4 w-4 text-gray-400" />

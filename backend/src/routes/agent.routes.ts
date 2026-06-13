@@ -11,6 +11,8 @@ import {
   initializeStorefrontCheckoutSchema,
   refundRequestSchema,
   verifyStorefrontCheckoutSchema,
+  batchOrderSchema,
+  pastePreviewSchema,
 } from '../schemas/orders.schema.js';
 import { createComplaintSchema } from '../schemas/complaints.schema.js';
 import { updateStorefrontSchema } from '../schemas/storefront.schema.js';
@@ -695,6 +697,69 @@ agentRouter.post('/orders', validate(createOrderSchema), async (request, respons
   }
 });
 
+agentRouter.post('/orders/batch', validate(batchOrderSchema), async (request, response, next) => {
+  try {
+    const { orders } = request.body as { orders: Array<{ productId: string; phoneNumber: string }> };
+    const productIds: string[] = [...new Set(orders.map((o) => o.productId))];
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds }, status: true, deletedAt: null },
+    });
+    const productMap = new Map(products.map((p) => [p.id, p]));
+
+    const invalid = orders.filter((o) => !productMap.has(o.productId));
+    if (invalid.length > 0) {
+      return response.status(400).json({ success: false, message: 'Some products were not found or inactive' });
+    }
+
+    const totalAmount = orders.reduce((sum: number, o) => sum + (productMap.get(o.productId)!.sellingPrice.toNumber()), 0);
+    const wallet = await getWalletByUserId(request.auth!.userId);
+
+    const createdOrders = await prisma.$transaction(async (tx) => {
+      await createWalletTransaction(
+        wallet.id,
+        totalAmount,
+        WalletTransactionType.DEBIT,
+        WalletTransactionCategory.PURCHASE,
+        `Batch purchase of ${orders.length} orders`,
+        tx,
+      );
+
+      const results = [];
+      for (const o of orders) {
+        const product = productMap.get(o.productId)!;
+        const order = await tx.order.create({
+          data: {
+            userId: request.auth!.userId,
+            productId: product.id,
+            phoneNumber: o.phoneNumber,
+            amount: product.sellingPrice,
+            source: 'BUY_NOW',
+            receiptNumber: generateOrderReference('BUY_NOW'),
+            status: 'PENDING',
+          },
+          include: {
+            product: { include: { network: true } },
+          },
+        });
+        results.push(order);
+      }
+      return results;
+    });
+
+    await createNotification(
+      request.auth!.userId,
+      'Batch order created',
+      `${createdOrders.length} orders have been placed and are pending admin review.`,
+      'ORDER',
+    );
+    await emitWebhookEvent('order.batch_created', { count: createdOrders.length, userId: request.auth!.userId });
+
+    return response.status(201).json(createSuccessResponse(createdOrders, 'Batch orders created successfully'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
 agentRouter.post('/orders/:id/cancel', async (request, response, next) => {
   try {
     const order = await prisma.order.findFirst({
@@ -870,6 +935,69 @@ agentRouter.post('/bulk-orders/process', async (request, response, next) => {
     });
 
     return response.status(201).json(createSuccessResponse(batch, 'Bulk order batch created'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+function normalizeDataSize(input: string): string {
+  const trimmed = input.trim().toUpperCase();
+  // "1" -> "1GB", "1gb" -> "1GB", "1GB" -> "1GB", "1 GB" -> "1GB"
+  const digits = trimmed.replace(/\D/g, '');
+  const hasGb = trimmed.includes('GB');
+  const hasMb = trimmed.includes('MB');
+  if (hasMb) return `${digits}MB`;
+  return `${digits}GB`;
+}
+
+agentRouter.post('/bulk-orders/paste-preview', validate(pastePreviewSchema), async (request, response, next) => {
+  try {
+    const { networkId, rawText } = request.body as { networkId: string; rawText: string };
+    const lines = rawText
+      .split(/\n/)
+      .map((l: string) => l.trim())
+      .filter((l: string) => l.length > 0);
+
+    const products = await prisma.product.findMany({
+      where: { networkId, status: true, deletedAt: null },
+    });
+
+    const records = lines.map((line: string) => {
+      const parts = line.split(/\s+/);
+      const phoneNumber = parts[0] || '';
+      const sizeInput = parts[1] || '';
+      const normalizedSize = normalizeDataSize(sizeInput);
+      const product = products.find((p) => p.dataSize.toUpperCase() === normalizedSize);
+
+      return {
+        phoneNumber,
+        dataSize: normalizedSize,
+        valid: Boolean(product) && phoneNumber.length >= 10,
+        amount: product ? product.sellingPrice.toNumber() : null,
+        productId: product?.id || null,
+        productName: product?.name || null,
+      };
+    });
+
+    const totalAmount = records.reduce((sum: number, r) => sum + (r.amount ?? 0), 0);
+
+    return response.json(
+      createSuccessResponse({
+        records,
+        totalAmount,
+        totalRecords: records.length,
+        validCount: records.filter((r) => r.valid).length,
+      }),
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/networks', async (_request, response, next) => {
+  try {
+    const networks = await prisma.network.findMany({ orderBy: { name: 'asc' } });
+    return response.json(createSuccessResponse(networks));
   } catch (error) {
     return next(error);
   }

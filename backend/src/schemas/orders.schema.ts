@@ -32,3 +32,25 @@ export const refundRequestSchema = z.object({
   query: z.object({}).optional().default({}),
   params: z.object({}).optional().default({}),
 });
+
+export const batchOrderSchema = z.object({
+  body: z.object({
+    orders: z.array(
+      z.object({
+        productId: z.string().min(1),
+        phoneNumber: z.string().min(10).max(20),
+      })
+    ).min(1),
+  }),
+  query: z.object({}).optional().default({}),
+  params: z.object({}).optional().default({}),
+});
+
+export const pastePreviewSchema = z.object({
+  body: z.object({
+    networkId: z.string().min(1),
+    rawText: z.string().min(1),
+  }),
+  query: z.object({}).optional().default({}),
+  params: z.object({}).optional().default({}),
+});
