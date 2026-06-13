@@ -15,10 +15,45 @@ import { formatCurrency } from '@/lib/utils';
 import { Check, ChevronRight, ShoppingCart } from 'lucide-react';
 
 const networks = [
-  { code: 'MTN', name: 'MTN', color: 'bg-yellow-500', textColor: 'text-yellow-400', borderColor: 'border-yellow-500/50' },
-  { code: 'Telecel', name: 'Telecel', color: 'bg-rose-500', textColor: 'text-rose-400', borderColor: 'border-rose-500/50' },
-  { code: 'AirtelTigo', name: 'AirtelTigo', color: 'bg-sky-500', textColor: 'text-sky-400', borderColor: 'border-sky-500/50' },
+  { code: 'MTN', name: 'MTN', borderColor: 'border-yellow-500/50' },
+  { code: 'Telecel', name: 'Telecel', borderColor: 'border-rose-500/50' },
+  { code: 'AirtelTigo', name: 'AirtelTigo', borderColor: 'border-sky-500/50' },
 ];
+
+function NetworkLogo({ code }: { code: string }) {
+  if (code === 'MTN') {
+    return (
+      <svg viewBox="0 0 56 56" className="h-14 w-14">
+        <rect width="56" height="56" rx="14" fill="#FFC107"/>
+        <text x="28" y="34" textAnchor="middle" fontSize="16" fontWeight="900" fill="#1a1a1a" fontFamily="system-ui, sans-serif">MTN</text>
+      </svg>
+    );
+  }
+  if (code === 'Telecel') {
+    return (
+      <svg viewBox="0 0 56 56" className="h-14 w-14">
+        <circle cx="28" cy="28" r="28" fill="#E91E63"/>
+        <text x="28" y="34" textAnchor="middle" fontSize="18" fontWeight="900" fill="white" fontFamily="system-ui, sans-serif">Te</text>
+      </svg>
+    );
+  }
+  if (code === 'AirtelTigo') {
+    return (
+      <svg viewBox="0 0 56 56" className="h-14 w-14">
+        <defs>
+          <linearGradient id="atGrad" x1="0" y1="0" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#00BFFF"/>
+            <stop offset="100%" stopColor="#007ACC"/>
+          </linearGradient>
+        </defs>
+        <circle cx="28" cy="28" r="28" fill="url(#atGrad)"/>
+        <path d="M16 28 Q28 16 40 28" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round"/>
+        <text x="28" y="38" textAnchor="middle" fontSize="12" fontWeight="900" fill="white" fontFamily="system-ui, sans-serif">AT</text>
+      </svg>
+    );
+  }
+  return null;
+}
 
 export default function BuyDataPage() {
   const queryClient = useQueryClient();
@@ -117,9 +152,7 @@ export default function BuyDataPage() {
                         : 'border-gray-800 bg-gray-900/50 hover:border-gray-700'
                     }`}
                   >
-                    <div className={`flex h-14 w-14 items-center justify-center rounded-full ${network.color}`}>
-                      <span className="text-lg font-bold text-white">{network.name.slice(0, 2)}</span>
-                    </div>
+                    <NetworkLogo code={network.code} />
                     <span className="text-sm font-medium text-white">{network.name}</span>
                   </button>
                 ))}

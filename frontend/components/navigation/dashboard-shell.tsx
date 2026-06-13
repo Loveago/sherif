@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Bell, CreditCard, Gauge, LayoutGrid, LifeBuoy, LogOut,
-  Package, Search, Settings, ShoppingBag, Store, Wallet,
+  Package, Search, Settings, ShoppingBag, ShoppingCart, Store, Wallet,
   ChevronDown, User, Link2, AlertCircle, FileText,
   Menu, X,
 } from 'lucide-react';
@@ -320,6 +320,17 @@ export function DashboardShell({
               </div>
             </div>
             <div className="flex items-center gap-3 shrink-0">
+              <Link
+                href="/cart"
+                className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-gray-700 bg-gray-900 text-gray-400 transition-colors hover:text-white"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                {cartItems > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border-2 border-[#0b1120] bg-violet-500 px-1 text-[9px] font-bold text-white">
+                    {cartItems}
+                  </span>
+                )}
+              </Link>
               <Link
                 href="/notifications"
                 className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-gray-700 bg-gray-900 text-gray-400 transition-colors hover:text-white"
