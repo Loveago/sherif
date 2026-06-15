@@ -35,6 +35,18 @@ adminRouter.get('/settings/public', async (_request, response, next) => {
   }
 });
 
+// Public AFA registration fee endpoint (no auth)
+adminRouter.get('/settings/afa-fee', async (_request, response, next) => {
+  try {
+    const feeSetting = await prisma.adminSettings.findUnique({ where: { key: 'afaRegistrationFee' } });
+    const fee = feeSetting ? Number(feeSetting.value) : 20;
+
+    return response.json(createSuccessResponse({ fee }));
+  } catch (error) {
+    return next(error);
+  }
+});
+
 adminRouter.use(requireAuth, requireRole(UserRole.ADMIN));
 
 adminRouter.get('/dashboard', async (_request, response, next) => {
@@ -487,6 +499,7 @@ adminRouter.get('/settings', async (_request, response, next) => {
           momoEnabled: map.momoEnabled === 'true',
         },
         whatsappNumber: map.whatsappNumber || '',
+        afaRegistrationFee: Number(map.afaRegistrationFee ?? 20),
       }),
     );
   } catch (error) {
@@ -1215,6 +1228,71 @@ adminRouter.put('/orders/:id/status', async (request, response, next) => {
     );
 
     return response.json(createSuccessResponse(order, 'Order status updated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.get('/afa-registrations', async (_request, response, next) => {
+  try {
+    const registrations = await prisma.aFARegistration.findMany({
+      where: { paymentStatus: 'SUCCESSFUL' },
+      include: { user: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const total = registrations.length;
+    const pending = registrations.filter((r) => r.status === 'PENDING').length;
+    const approved = registrations.filter((r) => r.status === 'APPROVED').length;
+    const rejected = registrations.filter((r) => r.status === 'REJECTED').length;
+
+    return response.json(
+      createSuccessResponse({ registrations, stats: { total, pending, approved, rejected } }),
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/afa-registrations/:id/approve', async (request, response, next) => {
+  try {
+    const registration = await prisma.aFARegistration.update({
+      where: { id: request.params.id },
+      data: { status: 'APPROVED' },
+      include: { user: true },
+    });
+
+    await createNotification(
+      registration.userId,
+      'AFA Registration Approved',
+      'Your AFA registration has been approved.',
+      'REGISTRATION',
+    );
+
+    return response.json(createSuccessResponse(registration, 'AFA registration approved'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/afa-registrations/:id/reject', async (request, response, next) => {
+  try {
+    const { notes } = request.body;
+
+    const registration = await prisma.aFARegistration.update({
+      where: { id: request.params.id },
+      data: { status: 'REJECTED', notes: notes || undefined },
+      include: { user: true },
+    });
+
+    await createNotification(
+      registration.userId,
+      'AFA Registration Rejected',
+      'Your AFA registration has been rejected. Please contact support for more information.',
+      'REGISTRATION',
+    );
+
+    return response.json(createSuccessResponse(registration, 'AFA registration rejected'));
   } catch (error) {
     return next(error);
   }

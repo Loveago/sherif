@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/api';
-import { CheckCircle2, Clock, XCircle, FileText } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, FileText, CreditCard } from 'lucide-react';
 
 interface AFARegistration {
   id: string;
@@ -24,6 +24,8 @@ interface AFARegistration {
   notes: string;
   createdAt: string;
   approvedAt: string | null;
+  paymentStatus: string;
+  amountPaid: number;
 }
 
 export default function AFARegistrationPage() {
@@ -39,6 +41,11 @@ export default function AFARegistrationPage() {
     notes: '',
   });
 
+  const { data: feeData } = useQuery({
+    queryKey: ['afa-fee'],
+    queryFn: () => apiRequest<{ fee: number }>('/admin/settings/afa-fee'),
+  });
+
   const { data: registrations = [] } = useQuery({
     queryKey: ['afa-registrations'],
     queryFn: () => apiRequest<AFARegistration[]>('/afa-registrations'),
@@ -46,24 +53,20 @@ export default function AFARegistrationPage() {
 
   const submitMutation = useMutation({
     mutationFn: (data: typeof formData) =>
-      apiRequest('/afa-registrations', { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['afa-registrations'] });
-      setFormData({
-        fullName: '',
-        phone: '',
-        location: '',
-        occupation: '',
-        idType: '',
-        idNumber: '',
-        notes: '',
-      });
-      setShowForm(false);
+      apiRequest<{ authorization_url: string; reference: string }>('/afa-registrations/paystack/initialize', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (data) => {
+      if (data.authorization_url) {
+        window.location.href = data.authorization_url;
+      }
     },
   });
 
   const pendingCount = registrations.filter((r) => r.status === 'PENDING').length;
   const approvedCount = registrations.filter((r) => r.status === 'APPROVED').length;
+  const fee = feeData?.fee ?? 20;
 
   const statusIcons: Record<string, React.ReactNode> = {
     PENDING: <Clock className="h-5 w-5 text-amber-400" />,
@@ -190,6 +193,15 @@ export default function AFARegistrationPage() {
                 />
               </div>
 
+              <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CreditCard className="h-4 w-4 text-violet-400" />
+                  <p className="text-sm font-medium text-violet-300">Registration Fee</p>
+                </div>
+                <p className="text-2xl font-bold text-white">GHS {fee.toFixed(2)}</p>
+                <p className="text-xs text-gray-400 mt-1">Payable via Paystack before submission</p>
+              </div>
+
               <div className="flex gap-3">
                 <Button
                   onClick={() => {
@@ -200,7 +212,7 @@ export default function AFARegistrationPage() {
                   disabled={submitMutation.isPending || !formData.fullName || !formData.phone || !formData.location}
                   className="flex-1"
                 >
-                  {submitMutation.isPending ? 'Submitting...' : 'Submit Registration'}
+                  {submitMutation.isPending ? 'Processing...' : `Pay GHS ${fee.toFixed(2)} & Submit`}
                 </Button>
                 <Button
                   variant="secondary"
@@ -241,7 +253,21 @@ export default function AFARegistrationPage() {
                       >
                         {registration.status}
                       </Badge>
+                      <Badge
+                        variant={
+                          registration.paymentStatus === 'SUCCESSFUL'
+                            ? 'success'
+                            : registration.paymentStatus === 'FAILED'
+                              ? 'danger'
+                              : 'warning'
+                        }
+                      >
+                        {registration.paymentStatus === 'SUCCESSFUL' ? 'Paid' : registration.paymentStatus === 'FAILED' ? 'Payment Failed' : 'Unpaid'}
+                      </Badge>
                     </div>
+                    {registration.amountPaid > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">Amount Paid: GHS {registration.amountPaid}</p>
+                    )}
                     <div className="grid gap-2 md:grid-cols-2 text-sm text-gray-400">
                       <p>Phone: {registration.phone}</p>
                       <p>Location: {registration.location}</p>

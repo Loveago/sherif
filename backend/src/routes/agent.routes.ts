@@ -1332,6 +1332,152 @@ agentRouter.post('/afa-registrations', async (request, response, next) => {
   }
 });
 
+agentRouter.post('/afa-registrations/paystack/initialize', async (request, response, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: request.auth!.userId } });
+    if (!user) {
+      return response.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const { fullName, phone, location, occupation, idType, idNumber, notes } = request.body;
+    if (!fullName || !phone || !location) {
+      return response.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    const feeSetting = await prisma.adminSettings.findUnique({ where: { key: 'afaRegistrationFee' } });
+    const fee = feeSetting ? Number(feeSetting.value) : 20;
+
+    const reference = generateReference('PST');
+    const callbackUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/afa-registration/payment-callback`;
+
+    const paystackResponse = await initializePaystackPayment(
+      user.email,
+      fee,
+      reference,
+      callbackUrl,
+      {
+        userId: user.id,
+        type: 'AFA_REGISTRATION',
+        amount: fee,
+        fullName,
+        phone,
+        location,
+        occupation,
+        idType,
+        idNumber,
+        notes,
+      }
+    );
+
+    const registration = await prisma.aFARegistration.create({
+      data: {
+        userId: user.id,
+        fullName,
+        phone,
+        location,
+        occupation,
+        idType,
+        idNumber,
+        notes,
+        paymentStatus: 'PENDING',
+        paymentReference: reference,
+        amountPaid: toDecimal(fee),
+      },
+    });
+
+    await prisma.payment.create({
+      data: {
+        userId: user.id,
+        amount: toDecimal(fee),
+        method: 'PAYSTACK',
+        status: 'PENDING',
+        reference: generateReference('PAY'),
+        providerRef: reference,
+      },
+    });
+
+    return response.json(
+      createSuccessResponse({
+        ...paystackResponse.data,
+        registrationId: registration.id,
+        amount: fee,
+      }),
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/afa-registrations/paystack/verify', async (request, response, next) => {
+  try {
+    const { reference } = request.query;
+    if (!reference || typeof reference !== 'string') {
+      return response.status(400).json({ success: false, message: 'Reference is required' });
+    }
+
+    const registration = await prisma.aFARegistration.findUnique({
+      where: { paymentReference: reference },
+    });
+
+    if (!registration) {
+      return response.status(404).json({ success: false, message: 'Registration not found' });
+    }
+
+    if (registration.paymentStatus === 'SUCCESSFUL') {
+      return response.json(createSuccessResponse({ status: 'SUCCESSFUL', registration }));
+    }
+
+    const payment = await prisma.payment.findFirst({
+      where: { providerRef: reference },
+    });
+
+    const paystackResponse = await verifyPaystackPayment(reference);
+
+    if (!paystackResponse.status || paystackResponse.data.status !== 'success') {
+      await prisma.aFARegistration.update({
+        where: { id: registration.id },
+        data: { paymentStatus: 'FAILED' },
+      });
+
+      if (payment) {
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: { status: 'FAILED' },
+        });
+      }
+
+      return response.status(400).json({ success: false, message: 'Payment verification failed' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.aFARegistration.update({
+        where: { id: registration.id },
+        data: { paymentStatus: 'SUCCESSFUL' },
+      });
+
+      if (payment) {
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: 'SUCCESSFUL' },
+        });
+      }
+    });
+
+    await createNotification(
+      registration.userId,
+      'AFA Registration Submitted',
+      `Your AFA registration payment of GHS ${registration.amountPaid?.toFixed(2)} was successful and is now under review.`,
+      'REGISTRATION',
+    );
+
+    return response.json(
+      createSuccessResponse({ status: 'SUCCESSFUL', registration }, 'Payment verified and registration submitted'),
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
+
 agentRouter.get('/withdrawals', async (request, response, next) => {
   try {
     const withdrawals = await prisma.withdrawal.findMany({

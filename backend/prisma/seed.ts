@@ -496,6 +496,17 @@ async function main() {
       availableBalance: money(runningBalance),
     },
   });
+
+  await prisma.adminSettings.createMany({
+    data: [
+      { key: 'afaRegistrationFee', value: '20' },
+      { key: 'momoNumber', value: '0240000000' },
+      { key: 'momoName', value: 'DATAHUB Ghana' },
+      { key: 'momoEnabled', value: 'true' },
+      { key: 'whatsappNumber', value: '0240000000' },
+    ],
+    skipDuplicates: true,
+  });
 }
 
 main()

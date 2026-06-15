@@ -9,7 +9,7 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/lib/api';
-import { Smartphone, CheckCircle, MessageCircle } from 'lucide-react';
+import { Smartphone, CheckCircle, MessageCircle, CreditCard } from 'lucide-react';
 
 type AdminSettings = {
   platformFees: { withdrawalFee: number; serviceFee: number };
@@ -19,6 +19,7 @@ type AdminSettings = {
   providerStrategy: { mode: string; activeProviderReference: string };
   momoSettings: { momoNumber: string; momoName: string; momoEnabled: boolean };
   whatsappNumber: string;
+  afaRegistrationFee: number;
 };
 
 export default function AdminSettingsPage() {
@@ -49,6 +50,15 @@ export default function AdminSettingsPage() {
     },
   });
 
+  const afaFeeForm = useForm({
+    defaultValues: {
+      afaRegistrationFee: data?.afaRegistrationFee ?? 20,
+    },
+    values: {
+      afaRegistrationFee: data?.afaRegistrationFee ?? 20,
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: (values: Record<string, string>) =>
       apiRequest('/admin/settings', { method: 'PUT', body: JSON.stringify(values) }),
@@ -71,6 +81,12 @@ export default function AdminSettingsPage() {
   const onSaveWhatsApp = whatsappForm.handleSubmit((values) => {
     updateMutation.mutate({
       whatsappNumber: values.whatsappNumber,
+    });
+  });
+
+  const onSaveAfaFee = afaFeeForm.handleSubmit((values) => {
+    updateMutation.mutate({
+      afaRegistrationFee: String(values.afaRegistrationFee),
     });
   });
 
@@ -146,6 +162,41 @@ export default function AdminSettingsPage() {
                       <CheckCircle className="h-4 w-4" /> Saved
                     </span>
                   ) : 'Save WhatsApp Number'}
+                </Button>
+              </div>
+            </div>
+          </GlassCard>
+
+          {/* AFA Registration Fee Settings */}
+          <GlassCard className="p-6 md:col-span-2 xl:col-span-3">
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-violet-400" />
+              <p className="text-sm font-semibold text-white">AFA Registration Fee</p>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              This is the amount users must pay via Paystack before their AFA registration is submitted for review.
+            </p>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400">Fee Amount (GHS)</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 20"
+                  {...afaFeeForm.register('afaRegistrationFee', { valueAsNumber: true })}
+                />
+              </div>
+              <div className="flex items-end">
+                <Button
+                  onClick={onSaveAfaFee}
+                  disabled={updateMutation.isPending}
+                  className="w-full"
+                >
+                  {updateMutation.isPending ? 'Saving...' : saved ? (
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle className="h-4 w-4" /> Saved
+                    </span>
+                  ) : 'Save AFA Fee'}
                 </Button>
               </div>
             </div>

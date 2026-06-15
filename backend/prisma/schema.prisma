@@ -564,19 +564,22 @@ model ReferralCode {
 }
 
 model AFARegistration {
-  id              String                @id @default(cuid())
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  userId          String
-  fullName        String
-  phone           String
-  location        String
-  occupation      String
-  idType          String
-  idNumber        String
-  status          AFARegistrationStatus @default(PENDING)
-  notes           String?
-  user            User                  @relation(fields: [userId], references: [id])
+  id                String                @id @default(cuid())
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  userId            String
+  fullName          String
+  phone             String
+  location          String
+  occupation        String
+  idType            String
+  idNumber          String
+  status            AFARegistrationStatus @default(PENDING)
+  notes             String?
+  paymentStatus     PaymentStatus         @default(PENDING)
+  paymentReference  String?               @unique
+  amountPaid        Decimal?              @db.Decimal(12, 2)
+  user              User                  @relation(fields: [userId], references: [id])
 }
 
 model MTNExpressBundle {

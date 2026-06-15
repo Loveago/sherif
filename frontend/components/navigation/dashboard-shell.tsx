@@ -7,7 +7,7 @@ import {
   Bell, CreditCard, Gauge, LayoutGrid, LifeBuoy, LogOut,
   Package, Search, Settings, ShoppingBag, ShoppingCart, Store, Wallet,
   ChevronDown, User, Link2, AlertCircle, FileText,
-  Menu, X,
+  Menu, X, ClipboardList,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -46,6 +46,7 @@ const adminLinks: NavLink[] = [
   { href: '/admin/orders', label: 'Orders', icon: Package },
   { href: '/admin/user-management', label: 'User Management', icon: LayoutGrid },
   { href: '/admin/commissions', label: 'Commissions', icon: CreditCard },
+  { href: '/admin/afa-registrations', label: 'AFA Registrations', icon: ClipboardList },
   { href: '/admin/reports', label: 'Reports', icon: Gauge },
   { href: '/admin/audit-logs', label: 'Audit Logs', icon: Bell },
   { href: '/admin/operations', label: 'Operations', icon: Bell },
