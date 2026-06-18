@@ -197,14 +197,15 @@ model WalletTransaction {
 }
 
 model Network {
-  id          String    @id @default(cuid())
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  name        String    @unique
-  code        String    @unique
-  color       String
-  logoUrl     String?
-  products    Product[]
+  id              String    @id @default(cuid())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  name            String    @unique
+  code            String    @unique
+  color           String
+  logoUrl         String?
+  shankNetworkId  Int?
+  products        Product[]
 }
 
 model Product {
@@ -243,6 +244,7 @@ model Order {
   status             OrderStatus  @default(PENDING)
   source             OrderSource  @default(BUY_NOW)
   providerReference  String?
+  externalReference  String?
   receiptNumber      String       @unique
   notes              String?
   batchId            String?

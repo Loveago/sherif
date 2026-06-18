@@ -37,6 +37,7 @@ export const processFulfillmentJob = async (orderId: string) => {
       data: {
         status: nextStatus,
         providerReference: result.providerReference,
+        ...(result.externalReference && { externalReference: result.externalReference }),
       },
     });
 

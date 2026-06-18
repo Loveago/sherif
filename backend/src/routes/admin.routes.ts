@@ -10,6 +10,8 @@ import { createWalletTransaction } from '../services/wallet.service.js';
 import { createNotification } from '../services/notification.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
 import { exportToCSV, exportToExcel } from '../services/export.service.js';
+import { shankClient } from '../services/shank.service.js';
+import { pollOrderStatuses } from '../workers/shank-status.worker.js';
 
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
 
@@ -1293,6 +1295,68 @@ adminRouter.post('/afa-registrations/:id/reject', async (request, response, next
     );
 
     return response.json(createSuccessResponse(registration, 'AFA registration rejected'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.get('/shank/networks', async (_request, response, next) => {
+  try {
+    if (!shankClient.isConfigured()) {
+      return response.status(400).json({ success: false, message: 'SHANK_API_KEY not configured' });
+    }
+    const networks = await shankClient.fetchNetworks();
+    return response.json(createSuccessResponse(networks));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: shankClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.get('/shank/data-packages', async (_request, response, next) => {
+  try {
+    if (!shankClient.isConfigured()) {
+      return response.status(400).json({ success: false, message: 'SHANK_API_KEY not configured' });
+    }
+    const packages = await shankClient.fetchDataPackages();
+    return response.json(createSuccessResponse(packages));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: shankClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.post('/shank/sync-networks', async (_request, response, next) => {
+  try {
+    if (!shankClient.isConfigured()) {
+      return response.status(400).json({ success: false, message: 'SHANK_API_KEY not configured' });
+    }
+    const shankNetworks = await shankClient.fetchNetworks();
+    const localNetworks = await prisma.network.findMany();
+
+    let updated = 0;
+    for (const local of localNetworks) {
+      const match = shankNetworks.find(
+        (sn) => sn.name.toUpperCase().includes(local.code.toUpperCase()) ||
+                 local.code.toUpperCase().includes(sn.name.toUpperCase().split('-')[0].trim()),
+      );
+      if (match) {
+        await prisma.network.update({
+          where: { id: local.id },
+          data: { shankNetworkId: match.id },
+        });
+        updated++;
+      }
+    }
+
+    return response.json(createSuccessResponse({ shankNetworks, updated }, `Synced ${updated} network mappings`));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: shankClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.post('/shank/poll-now', async (_request, response, next) => {
+  try {
+    const result = await pollOrderStatuses();
+    return response.json(createSuccessResponse(result, `Checked ${result.checked} orders, updated ${result.updated}`));
   } catch (error) {
     return next(error);
   }
