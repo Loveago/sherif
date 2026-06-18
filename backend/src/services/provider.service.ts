@@ -10,6 +10,25 @@ const resolveDataSize = (dataSize: string, description: string, name: string): s
   return normalizeDataSize(description || name);
 };
 
+const getShankNetworkCandidates = (networkCode: string, configuredId?: number | null): number[] => {
+  const fallbackMap: Record<string, number[]> = {
+    MTN: [3, 5, 6, 7],
+    TELECEL: [2],
+    AIRTELTIGO: [1, 4],
+  };
+
+  const defaults = fallbackMap[networkCode.toUpperCase()] || [];
+  if (configuredId) {
+    return [configuredId, ...defaults.filter((id) => id !== configuredId)];
+  }
+  return defaults;
+};
+
+const isScopeError = (message: string): boolean => {
+  const lower = message.toLowerCase();
+  return lower.includes('network not in api key scopes') || lower.includes('not in scope');
+};
+
 export const fulfillOrderWithProvider = async (orderId: string) => {
   const provider = await prisma.provider.findFirst({
     where: { status: 'ACTIVE' },
@@ -67,75 +86,92 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
   }
 
   const network = order.product.network;
-  const shankNetworkId = network.shankNetworkId ?? mapNetworkCodeToShankId(network.code);
+  const networkCandidates = getShankNetworkCandidates(network.code, network.shankNetworkId);
 
-  if (!shankNetworkId) {
+  if (networkCandidates.length === 0) {
     throw new Error(`No Shank network ID mapping for network "${network.code}"`);
   }
 
   const volumeMb = dataSizeToVolumeMb(resolvedDataSize);
 
-  try {
-    const idempotencyKey = `datahub-${order.receiptNumber}`;
-    const shankResponse = await shankClient.submitOrder(
-      shankNetworkId,
-      order.phoneNumber,
-      volumeMb,
-      idempotencyKey,
-    );
+  for (const [index, shankNetworkId] of networkCandidates.entries()) {
+    const isLast = index === networkCandidates.length - 1;
+    const idempotencyKey = `datahub-${order.receiptNumber}-${shankNetworkId}`;
 
-    const orderItem = shankResponse.orders[0];
-    const externalReference = shankResponse.reference;
-    const providerReference = orderItem?.order_code || generateReference('PRV');
+    try {
+      const shankResponse = await shankClient.submitOrder(
+        shankNetworkId,
+        order.phoneNumber,
+        volumeMb,
+        idempotencyKey,
+      );
 
-    const status = shankResponse.success && orderItem?.status === 'accepted'
-      ? 'SUCCESSFUL'
-      : 'FAILED';
+      const orderItem = shankResponse.orders[0];
+      const externalReference = shankResponse.reference;
+      const providerReference = orderItem?.order_code || generateReference('PRV');
 
-    const responsePayload = {
-      providerReference,
-      externalReference,
-      status,
-      shankResponse,
-    };
+      const status = shankResponse.success && orderItem?.status === 'accepted'
+        ? 'SUCCESSFUL'
+        : 'FAILED';
 
-    await prisma.providerTransaction.create({
-      data: {
-        providerId: provider.id,
-        orderId: order.id,
-        requestPayload: toJson({ ...requestPayload, shankNetworkId, volumeMb }),
-        responsePayload: toJson(responsePayload),
+      const responsePayload = {
+        providerReference,
+        externalReference,
         status,
-      },
-    });
+        shankNetworkId,
+        shankResponse,
+      };
 
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { externalReference },
-    });
+      await prisma.providerTransaction.create({
+        data: {
+          providerId: provider.id,
+          orderId: order.id,
+          requestPayload: toJson({ ...requestPayload, shankNetworkId, volumeMb }),
+          responsePayload: toJson(responsePayload),
+          status,
+        },
+      });
 
-    return { providerReference, externalReference, status };
-  } catch (error) {
-    const errorMessage = shankClient.getErrorMessage(error);
-    console.error('[Provider] Shank API error:', errorMessage);
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { externalReference },
+      });
 
-    const failPayload = {
-      providerReference: generateReference('PRV'),
-      externalReference: null,
-      status: 'FAILED' as const,
-      error: errorMessage,
-    };
+      return { providerReference, externalReference, status };
+    } catch (error) {
+      const errorMessage = shankClient.getErrorMessage(error);
+      console.error(`[Provider] Shank API error for networkId ${shankNetworkId}:`, errorMessage);
 
-    await prisma.providerTransaction.create({
-      data: {
-        providerId: provider.id,
-        orderId: order.id,
-        requestPayload: toJson({ ...requestPayload, shankNetworkId, volumeMb }),
-        responsePayload: toJson(failPayload),
-        status: 'FAILED',
-      },
-    });
+      if (isLast || !isScopeError(errorMessage)) {
+        const failPayload = {
+          providerReference: generateReference('PRV'),
+          externalReference: null,
+          status: 'FAILED' as const,
+          error: errorMessage,
+          attemptedNetworkIds: networkCandidates.slice(0, index + 1),
+        };
 
-    return failPayload;
+        await prisma.providerTransaction.create({
+          data: {
+            providerId: provider.id,
+            orderId: order.id,
+            requestPayload: toJson({ ...requestPayload, shankNetworkId, volumeMb, attemptedNetworkIds: networkCandidates.slice(0, index + 1) }),
+            responsePayload: toJson(failPayload),
+            status: 'FAILED',
+          },
+        });
+
+        return failPayload;
+      }
+
+      console.log(`[Provider] Retrying order ${orderId} with fallback network ID...`);
+    }
   }
+
+  return {
+    providerReference: generateReference('PRV'),
+    externalReference: null,
+    status: 'FAILED' as const,
+    error: 'All network candidates failed',
+  };
 };
