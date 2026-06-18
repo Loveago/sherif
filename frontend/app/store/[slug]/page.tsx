@@ -173,7 +173,7 @@ export default function PublicStorefrontPage() {
         </section>
 
         {/* Products grid */}
-        <section className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <section className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           <AnimatePresence mode="popLayout">
             {filteredProducts.map((product, index) => {
               const style = getNetworkStyle(product.network.code);
@@ -218,7 +218,7 @@ export default function PublicStorefrontPage() {
           </AnimatePresence>
 
           {filteredProducts.length === 0 && (
-            <div className="col-span-full rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500">
+            <div className="col-span-2 rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500 md:col-span-3 lg:col-span-4 xl:col-span-5">
               <ShoppingBag className="mx-auto h-10 w-10 text-slate-400" />
               <p className="mt-3 text-sm font-medium">No products available for this network</p>
             </div>
