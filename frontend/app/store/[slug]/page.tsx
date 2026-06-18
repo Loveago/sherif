@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/api';
+import Image from 'next/image';
 import type { Product, Storefront } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
 
@@ -38,6 +39,20 @@ const networkStyleByCode: Record<string, { bg: string; text: string; border: str
   TELECEL: { bg: 'bg-rose-600', text: 'text-white', border: 'border-rose-500', logoText: 't' },
   AIRTELTIGO: { bg: 'bg-sky-500', text: 'text-white', border: 'border-sky-500', logoText: 'AT' },
 };
+
+const networkIconByCode: Record<string, string> = {
+  MTN: '/networks/mtn.png',
+  TELECEL: '/networks/telecel.png',
+  AIRTELTIGO: '/networks/airteltigo.png',
+};
+
+const getNetworkIcon = (code: string) => networkIconByCode[code];
+
+function NetworkIcon({ code, name, className }: { code: string; name: string; className?: string }) {
+  const icon = getNetworkIcon(code);
+  if (!icon) return null;
+  return <Image src={icon} alt={name} width={64} height={64} className={`object-contain ${className}`} />;
+}
 
 const getNetworkStyle = (code: string) =>
   networkStyleByCode[code] || { bg: 'bg-violet-600', text: 'text-white', border: 'border-violet-500', logoText: code[0] };
@@ -161,7 +176,11 @@ export default function PublicStorefrontPage() {
                   <div
                     className={`flex h-12 w-12 items-center justify-center rounded-xl border-2 ${style.border} ${style.bg} ${style.text}`}
                   >
-                    {isAll ? 'ALL' : style.logoText}
+                    {isAll ? (
+                      'ALL'
+                    ) : (
+                      <NetworkIcon code={network} name={network} className="h-9 w-9" />
+                    )}
                   </div>
                   <span className={`text-xs font-semibold ${isActive ? 'text-blue-700' : 'text-slate-600'}`}>
                     {isAll ? 'All Networks' : network}
@@ -190,9 +209,7 @@ export default function PublicStorefrontPage() {
                   {/* Card top with network branding */}
                   <div className={`${style.bg} px-5 py-4 text-center`}>
                     <div className="mx-auto flex h-12 w-20 items-center justify-center rounded-full border-2 border-black/30 bg-white/90">
-                      <span className={`text-sm font-black ${style.text === 'text-white' ? 'text-slate-900' : style.text}`}>
-                        {style.logoText}
-                      </span>
+                      <NetworkIcon code={product.network.code} name={product.network.name} className="h-7 w-14" />
                     </div>
                   </div>
 
@@ -290,11 +307,16 @@ export default function PublicStorefrontPage() {
             >
               <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-blue-100">Complete Your Order</p>
-                    <p className="mt-1 text-xl font-bold text-white">
-                      {selectedProduct.network.name} · {selectedProduct.dataSize}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 p-1">
+                      <NetworkIcon code={selectedProduct.network.code} name={selectedProduct.network.name} className="h-7 w-7" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-blue-100">Complete Your Order</p>
+                      <p className="mt-1 text-xl font-bold text-white">
+                        {selectedProduct.network.name} · {selectedProduct.dataSize}
+                      </p>
+                    </div>
                   </div>
                   <button
                     onClick={() => setSelectedProduct(null)}
