@@ -1,8 +1,9 @@
-import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { generateReference } from '../utils/refs.js';
 import { shankClient } from './shank.service.js';
 import { dataSizeToVolumeMb, mapNetworkCodeToShankId } from '../utils/shank-mapping.js';
+
+const toJson = (value: unknown) => JSON.parse(JSON.stringify(value));
 
 export const fulfillOrderWithProvider = async (orderId: string) => {
   const provider = await prisma.provider.findFirst({
@@ -45,8 +46,8 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
       data: {
         providerId: provider.id,
         orderId: order.id,
-        requestPayload,
-        responsePayload: mockResponsePayload,
+        requestPayload: toJson(requestPayload),
+        responsePayload: toJson(mockResponsePayload),
         status: mockResponsePayload.status,
       },
     });
@@ -85,8 +86,8 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
       data: {
         providerId: provider.id,
         orderId: order.id,
-        requestPayload: { ...requestPayload, shankNetworkId, volumeMb } as Prisma.InputJsonValue,
-        responsePayload: responsePayload as Prisma.InputJsonValue,
+        requestPayload: toJson({ ...requestPayload, shankNetworkId, volumeMb }),
+        responsePayload: toJson(responsePayload),
         status,
       },
     });
@@ -112,8 +113,8 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
       data: {
         providerId: provider.id,
         orderId: order.id,
-        requestPayload: { ...requestPayload, shankNetworkId, volumeMb } as Prisma.InputJsonValue,
-        responsePayload: failPayload as Prisma.InputJsonValue,
+        requestPayload: toJson({ ...requestPayload, shankNetworkId, volumeMb }),
+        responsePayload: toJson(failPayload),
         status: 'FAILED',
       },
     });
