@@ -1,5 +1,18 @@
+export const normalizeDataSize = (input: string): string => {
+  const cleaned = input.trim().toUpperCase().replace(/\s/g, '');
+  const digits = cleaned.replace(/\D/g, '');
+  if (!digits) return '';
+  if (cleaned.includes('MB')) return `${digits}MB`;
+  return `${digits}GB`;
+};
+
 export const dataSizeToVolumeMb = (dataSize: string): number => {
-  const cleaned = dataSize.trim().toUpperCase().replace(/\s/g, '');
+  const normalized = normalizeDataSize(dataSize);
+  if (!normalized) {
+    throw new Error(`Cannot parse dataSize "${dataSize}" into volume_mb`);
+  }
+
+  const cleaned = normalized.trim().toUpperCase().replace(/\s/g, '');
 
   const gbMatch = cleaned.match(/^(\d+(?:\.\d+)?)GB$/);
   if (gbMatch) {
@@ -9,11 +22,6 @@ export const dataSizeToVolumeMb = (dataSize: string): number => {
   const mbMatch = cleaned.match(/^(\d+(?:\.\d+)?)MB$/);
   if (mbMatch) {
     return Math.round(parseFloat(mbMatch[1]));
-  }
-
-  const digitsOnly = cleaned.replace(/\D/g, '');
-  if (digitsOnly) {
-    return parseInt(digitsOnly, 10) * 1000;
   }
 
   throw new Error(`Cannot parse dataSize "${dataSize}" into volume_mb`);

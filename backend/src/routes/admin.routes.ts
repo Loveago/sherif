@@ -12,6 +12,7 @@ import { maybeCreditStorefrontCommission } from '../services/commission.service.
 import { exportToCSV, exportToExcel } from '../services/export.service.js';
 import { shankClient } from '../services/shank.service.js';
 import { pollOrderStatuses } from '../workers/shank-status.worker.js';
+import { normalizeDataSize } from '../utils/shank-mapping.js';
 
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
 
@@ -142,10 +143,11 @@ adminRouter.get('/products', async (_request, response, next) => {
 adminRouter.post('/products', validate(createProductSchema), async (request, response, next) => {
   try {
     const { rolePrices, promoPrice, showInShop, showForAgents, status, ...productData } = request.body;
+    const dataSize = normalizeDataSize(productData.description || productData.name);
     const product = await prisma.product.create({
       data: {
         ...productData,
-        dataSize: '',
+        dataSize,
         slug: `${productData.name}-${Date.now()}`.toLowerCase().replace(/\s+/g, '-'),
         sellingPrice: toDecimal(productData.sellingPrice),
         agentPrice: toDecimal(productData.agentPrice),
@@ -180,11 +182,12 @@ adminRouter.post('/products', validate(createProductSchema), async (request, res
 adminRouter.put('/products/:id', validate(createProductSchema), async (request, response, next) => {
   try {
     const { rolePrices, promoPrice, showInShop, showForAgents, status, id, ...productData } = request.body;
+    const dataSize = normalizeDataSize(productData.description || productData.name);
     const product = await prisma.product.update({
       where: { id: String(request.params.id) },
       data: {
         ...productData,
-        dataSize: '',
+        dataSize,
         sellingPrice: toDecimal(productData.sellingPrice),
         agentPrice: toDecimal(productData.agentPrice),
         resellerPrice: toDecimal(productData.resellerPrice),
@@ -1375,5 +1378,28 @@ adminRouter.post('/shank/transaction', async (request, response, next) => {
     return response.json(createSuccessResponse(transaction));
   } catch (error) {
     return response.status(502).json({ success: false, message: shankClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.post('/products/backfill-data-size', async (_request, response, next) => {
+  try {
+    const products = await prisma.product.findMany({
+      where: { dataSize: '' },
+    });
+
+    let updated = 0;
+    for (const product of products) {
+      const dataSize = normalizeDataSize(product.description || product.name);
+      if (!dataSize) continue;
+      await prisma.product.update({
+        where: { id: product.id },
+        data: { dataSize },
+      });
+      updated++;
+    }
+
+    return response.json(createSuccessResponse({ updated }, `Backfilled dataSize for ${updated} products`));
+  } catch (error) {
+    return next(error);
   }
 });

@@ -1,9 +1,14 @@
 import { prisma } from '../lib/prisma.js';
 import { generateReference } from '../utils/refs.js';
 import { shankClient } from './shank.service.js';
-import { dataSizeToVolumeMb, mapNetworkCodeToShankId } from '../utils/shank-mapping.js';
+import { dataSizeToVolumeMb, mapNetworkCodeToShankId, normalizeDataSize } from '../utils/shank-mapping.js';
 
 const toJson = (value: unknown) => JSON.parse(JSON.stringify(value));
+
+const resolveDataSize = (dataSize: string, description: string, name: string): string => {
+  if (dataSize && dataSize.trim()) return dataSize;
+  return normalizeDataSize(description || name);
+};
 
 export const fulfillOrderWithProvider = async (orderId: string) => {
   const provider = await prisma.provider.findFirst({
@@ -27,10 +32,16 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
     throw new Error('Order not found');
   }
 
+  const resolvedDataSize = resolveDataSize(
+    order.product.dataSize,
+    order.product.description,
+    order.product.name,
+  );
+
   const requestPayload = {
     phoneNumber: order.phoneNumber,
     network: order.product.network.code,
-    bundle: order.product.dataSize,
+    bundle: resolvedDataSize,
     amount: order.amount.toNumber(),
   };
 
@@ -62,7 +73,7 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
     throw new Error(`No Shank network ID mapping for network "${network.code}"`);
   }
 
-  const volumeMb = dataSizeToVolumeMb(order.product.dataSize);
+  const volumeMb = dataSizeToVolumeMb(resolvedDataSize);
 
   try {
     const idempotencyKey = `datahub-${order.receiptNumber}`;
