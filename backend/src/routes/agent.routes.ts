@@ -278,6 +278,72 @@ agentRouter.get('/store/:slug/paystack/verify', validate(verifyStorefrontCheckou
   }
 });
 
+agentRouter.get('/store/:slug/orders', async (request, response, next) => {
+  try {
+    const slug = String(request.params.slug);
+    const storefront = await prisma.storefront.findUnique({
+      where: { slug },
+    });
+
+    if (!storefront) {
+      return response.status(404).json({ success: false, message: 'Storefront not found' });
+    }
+
+    const orderId = typeof request.query.orderId === 'string' ? request.query.orderId : '';
+    const phoneNumber = typeof request.query.phoneNumber === 'string' ? request.query.phoneNumber : '';
+    const date = typeof request.query.date === 'string' ? request.query.date : '';
+
+    const where: Prisma.OrderWhereInput = {
+      userId: storefront.userId,
+      source: 'STOREFRONT',
+    };
+
+    if (orderId && phoneNumber) {
+      where.OR = [
+        { receiptNumber: { equals: orderId, mode: 'insensitive' } },
+        { phoneNumber: { contains: phoneNumber.replace(/\D/g, '').slice(-10), mode: 'insensitive' } },
+      ];
+    } else if (orderId) {
+      where.receiptNumber = { equals: orderId, mode: 'insensitive' };
+    } else if (phoneNumber) {
+      where.phoneNumber = { contains: phoneNumber.replace(/\D/g, '').slice(-10), mode: 'insensitive' };
+    }
+
+    if (date) {
+      const start = new Date(date);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+      where.createdAt = { gte: start, lt: end };
+    }
+
+    const orders = await prisma.order.findMany({
+      where,
+      include: { product: { include: { network: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    return response.json(
+      createSuccessResponse(
+        orders.map((order) => ({
+          orderId: order.receiptNumber,
+          status: order.status,
+          phoneNumber: order.phoneNumber,
+          createdAt: order.createdAt,
+          amount: order.amount,
+          product: {
+            name: order.product.name,
+            dataSize: order.product.dataSize,
+            network: order.product.network.name,
+          },
+        })),
+      ),
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
+
 agentRouter.get('/store/:slug/orders/:orderId', async (request, response, next) => {
   try {
     const slug = String(request.params.slug);
