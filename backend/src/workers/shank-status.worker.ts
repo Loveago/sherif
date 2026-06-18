@@ -10,7 +10,17 @@ const mapShankStatusToOrderStatus = (item: ShankOrderStatusItem): OrderStatus | 
   const apiStatus = (item.api_status || '').toLowerCase().trim();
   const numericStatus = item.status;
 
-  if (apiStatus === 'delivered' || apiStatus === 'success' || apiStatus === 'completed' || apiStatus === 'processed') {
+  // Shank docs: numeric status is the order status. Treat it as the source of truth.
+  // Common mappings reported by users: 0 = pending, 1 = processing, 2 = processed.
+  if (numericStatus === 0) return OrderStatus.PENDING;
+  if (numericStatus === 1) return OrderStatus.PROCESSING;
+  if (numericStatus === 2) return OrderStatus.SUCCESSFUL;
+  if (numericStatus === 3) return OrderStatus.FAILED;
+
+  // Fallback to api_status only when it clearly indicates a terminal state.
+  // "success" is intentionally ignored because it usually means the API call succeeded,
+  // not that the order itself is delivered.
+  if (apiStatus === 'processed' || apiStatus === 'delivered' || apiStatus === 'completed') {
     return OrderStatus.SUCCESSFUL;
   }
 
@@ -25,10 +35,6 @@ const mapShankStatusToOrderStatus = (item: ShankOrderStatusItem): OrderStatus | 
   if (apiStatus === 'pending' || apiStatus === 'queued') {
     return OrderStatus.PENDING;
   }
-
-  if (numericStatus === 1) return OrderStatus.SUCCESSFUL;
-  if (numericStatus === 2) return OrderStatus.FAILED;
-  if (numericStatus === 0) return OrderStatus.PENDING;
 
   return null;
 };
@@ -61,6 +67,7 @@ export const pollOrderStatuses = async (): Promise<{ checked: number; updated: n
   for (const externalRef of externalRefs) {
     try {
       const statusResponse = await shankClient.getOrderStatus(externalRef);
+      console.log(`[ShankWorker] Status response for ${externalRef}:`, JSON.stringify(statusResponse));
       const ordersForRef = pendingOrders.filter((o) => o.externalReference === externalRef);
 
       for (const order of ordersForRef) {
