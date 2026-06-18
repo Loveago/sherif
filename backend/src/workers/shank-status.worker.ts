@@ -6,11 +6,11 @@ import { createWalletTransaction } from '../services/wallet.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
 import { env } from '../config/env.js';
 
-const mapShankStatusToOrderStatus = (item: ShankOrderStatusItem): OrderStatus => {
-  const apiStatus = (item.api_status || '').toLowerCase();
+const mapShankStatusToOrderStatus = (item: ShankOrderStatusItem): OrderStatus | null => {
+  const apiStatus = (item.api_status || '').toLowerCase().trim();
   const numericStatus = item.status;
 
-  if (apiStatus === 'delivered' || apiStatus === 'success' || apiStatus === 'completed') {
+  if (apiStatus === 'delivered' || apiStatus === 'success' || apiStatus === 'completed' || apiStatus === 'processed') {
     return OrderStatus.SUCCESSFUL;
   }
 
@@ -18,15 +18,19 @@ const mapShankStatusToOrderStatus = (item: ShankOrderStatusItem): OrderStatus =>
     return OrderStatus.FAILED;
   }
 
-  if (apiStatus === 'pending' || apiStatus === 'queued' || apiStatus === 'processing') {
+  if (apiStatus === 'processing') {
     return OrderStatus.PROCESSING;
+  }
+
+  if (apiStatus === 'pending' || apiStatus === 'queued') {
+    return OrderStatus.PENDING;
   }
 
   if (numericStatus === 1) return OrderStatus.SUCCESSFUL;
   if (numericStatus === 2) return OrderStatus.FAILED;
-  if (numericStatus === 0) return OrderStatus.PROCESSING;
+  if (numericStatus === 0) return OrderStatus.PENDING;
 
-  return OrderStatus.PROCESSING;
+  return null;
 };
 
 export const pollOrderStatuses = async (): Promise<{ checked: number; updated: number }> => {
@@ -68,7 +72,7 @@ export const pollOrderStatuses = async (): Promise<{ checked: number; updated: n
 
         const newStatus = mapShankStatusToOrderStatus(matchingItem);
 
-        if (newStatus === order.status) continue;
+        if (!newStatus || newStatus === order.status) continue;
 
         await prisma.$transaction(async (tx) => {
           await tx.order.update({

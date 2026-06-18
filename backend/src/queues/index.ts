@@ -29,7 +29,10 @@ export const processFulfillmentJob = async (orderId: string) => {
   });
 
   const result = await fulfillOrderWithProvider(orderId);
-  const nextStatus = result.status === 'SUCCESSFUL' ? OrderStatus.SUCCESSFUL : OrderStatus.FAILED;
+  const nextStatus: OrderStatus =
+    result.status === 'SUCCESSFUL' ? OrderStatus.SUCCESSFUL :
+    result.status === 'FAILED' ? OrderStatus.FAILED :
+    OrderStatus.PROCESSING;
 
   await prisma.$transaction(async (tx) => {
     await tx.order.update({
@@ -66,7 +69,7 @@ export const processFulfillmentJob = async (orderId: string) => {
       const orders = await tx.order.findMany({ where: { batchId: order.batchId } });
       const successfulCount = orders.filter((entry) => entry.status === OrderStatus.SUCCESSFUL).length + (nextStatus === OrderStatus.SUCCESSFUL ? 1 : 0);
       const failedCount = orders.filter((entry) => entry.status === OrderStatus.FAILED).length + (nextStatus === OrderStatus.FAILED ? 1 : 0);
-      const processingCount = orders.filter((entry) => entry.status === OrderStatus.PENDING || entry.status === OrderStatus.PROCESSING).length - 1;
+      const processingCount = orders.filter((entry) => entry.status === OrderStatus.PENDING || entry.status === OrderStatus.PROCESSING).length + (nextStatus === OrderStatus.PROCESSING ? 0 : -1);
       const status = processingCount <= 0 ? 'COMPLETED' : 'RUNNING';
 
       await tx.orderBatch.update({
@@ -85,12 +88,14 @@ export const processFulfillmentJob = async (orderId: string) => {
     await maybeCreditStorefrontCommission(orderId);
   }
 
-  await createNotification(
-    order.userId,
-    nextStatus === OrderStatus.SUCCESSFUL ? 'Order completed' : 'Order failed',
-    `${order.product.name} for ${order.phoneNumber} is now ${nextStatus.toLowerCase()}.`,
-    'ORDER',
-  );
+  if (nextStatus === OrderStatus.SUCCESSFUL || nextStatus === OrderStatus.FAILED) {
+    await createNotification(
+      order.userId,
+      nextStatus === OrderStatus.SUCCESSFUL ? 'Order completed' : 'Order failed',
+      `${order.product.name} for ${order.phoneNumber} is now ${nextStatus.toLowerCase()}.`,
+      'ORDER',
+    );
+  }
 };
 
 export const queueFulfillment = async (orderId: string) => {

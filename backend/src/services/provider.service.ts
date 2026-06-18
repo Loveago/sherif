@@ -111,7 +111,7 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
       const providerReference = orderItem?.order_code || generateReference('PRV');
 
       const status = shankResponse.success && orderItem?.status === 'accepted'
-        ? 'SUCCESSFUL'
+        ? 'PROCESSING'
         : 'FAILED';
 
       const responsePayload = {
