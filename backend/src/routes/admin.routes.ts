@@ -1361,3 +1361,19 @@ adminRouter.post('/shank/poll-now', async (_request, response, next) => {
     return next(error);
   }
 });
+
+adminRouter.post('/shank/transaction', async (request, response, next) => {
+  try {
+    const { transactionId } = request.body;
+    if (!transactionId || typeof transactionId !== 'string') {
+      return response.status(400).json({ success: false, message: 'transactionId is required' });
+    }
+    if (!shankClient.isConfigured()) {
+      return response.status(400).json({ success: false, message: 'SHANK_API_KEY not configured' });
+    }
+    const transaction = await shankClient.fetchOtherNetworkTransaction(transactionId);
+    return response.json(createSuccessResponse(transaction));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: shankClient.getErrorMessage(error) });
+  }
+});

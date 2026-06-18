@@ -98,22 +98,43 @@ class ShankClient {
     return data;
   }
 
-  async submitOrder(networkId: number, msisdn: string, volumeMb: number): Promise<ShankOrderResponse> {
+  async submitOrder(
+    networkId: number,
+    msisdn: string,
+    volumeMb: number,
+    idempotencyKey?: string,
+  ): Promise<ShankOrderResponse> {
     const client = this.getClient();
-    const { data } = await client.post<ShankOrderResponse>('/orders', {
-      network_id: networkId,
-      msisdn,
-      volume_mb: volumeMb,
-    });
+    const { data } = await client.post<ShankOrderResponse>(
+      '/orders',
+      {
+        network_id: networkId,
+        msisdn,
+        volume_mb: volumeMb,
+      },
+      {
+        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+      },
+    );
     return data;
   }
 
-  async submitBulkOrder(networkId: number, recipients: Array<{ msisdn: string; volume_mb: number }>): Promise<ShankOrderResponse> {
+  async submitBulkOrder(
+    networkId: number,
+    recipients: Array<{ msisdn: string; volume_mb: number }>,
+    idempotencyKey?: string,
+  ): Promise<ShankOrderResponse> {
     const client = this.getClient();
-    const { data } = await client.post<ShankOrderResponse>('/orders/bulk', {
-      network_id: networkId,
-      recipients,
-    });
+    const { data } = await client.post<ShankOrderResponse>(
+      '/orders/bulk',
+      {
+        network_id: networkId,
+        recipients,
+      },
+      {
+        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+      },
+    );
     return data;
   }
 
@@ -126,6 +147,14 @@ class ShankClient {
   async fetchTransactions(): Promise<unknown[]> {
     const client = this.getClient();
     const { data } = await client.get<unknown[]>('/fetch-transactions');
+    return data;
+  }
+
+  async fetchOtherNetworkTransaction(transactionId: string): Promise<unknown> {
+    const client = this.getClient();
+    const { data } = await client.post<unknown>('/fetch-other-network-transaction', {
+      transaction_id: transactionId,
+    });
     return data;
   }
 

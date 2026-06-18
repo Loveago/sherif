@@ -25,6 +25,7 @@ import { createNotification } from '../services/notification.service.js';
 import { emitWebhookEvent } from '../services/webhook.service.js';
 import { parseBulkFile } from '../utils/uploads.js';
 import { initializePaystackPayment, verifyPaystackPayment } from '../services/paystack.service.js';
+import { queueFulfillment } from '../queues/index.js';
 import { env } from '../config/env.js';
 
 const upload = multer();
@@ -257,6 +258,10 @@ agentRouter.get('/store/:slug/paystack/verify', validate(verifyStorefrontCheckou
       source: 'STOREFRONT',
     });
 
+    queueFulfillment(updatedOrder.id).catch((error) => {
+      console.error(`[Storefront] Fulfillment failed for order ${updatedOrder.id}:`, error);
+    });
+
     return response.json(
       createSuccessResponse(
         {
@@ -265,7 +270,7 @@ agentRouter.get('/store/:slug/paystack/verify', validate(verifyStorefrontCheckou
           phoneNumber: updatedOrder.phoneNumber,
           amount: updatedOrder.amount,
         },
-        'Storefront order validated and queued in pending flow',
+        'Payment verified. Order is being processed.',
       ),
     );
   } catch (error) {
@@ -691,6 +696,10 @@ agentRouter.post('/orders', validate(createOrderSchema), async (request, respons
     );
     await emitWebhookEvent('order.created', { orderId: order.id, userId: request.auth!.userId });
 
+    queueFulfillment(order.id).catch((error) => {
+      console.error(`[Order] Fulfillment failed for order ${order.id}:`, error);
+    });
+
     return response.status(201).json(createSuccessResponse(order, 'Order created successfully'));
   } catch (error) {
     return next(error);
@@ -753,6 +762,12 @@ agentRouter.post('/orders/batch', validate(batchOrderSchema), async (request, re
       'ORDER',
     );
     await emitWebhookEvent('order.batch_created', { count: createdOrders.length, userId: request.auth!.userId });
+
+    for (const createdOrder of createdOrders) {
+      queueFulfillment(createdOrder.id).catch((error) => {
+        console.error(`[Batch] Fulfillment failed for order ${createdOrder.id}:`, error);
+      });
+    }
 
     return response.status(201).json(createSuccessResponse(createdOrders, 'Batch orders created successfully'));
   } catch (error) {

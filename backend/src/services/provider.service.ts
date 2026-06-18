@@ -65,7 +65,13 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
   const volumeMb = dataSizeToVolumeMb(order.product.dataSize);
 
   try {
-    const shankResponse = await shankClient.submitOrder(shankNetworkId, order.phoneNumber, volumeMb);
+    const idempotencyKey = `datahub-${order.receiptNumber}`;
+    const shankResponse = await shankClient.submitOrder(
+      shankNetworkId,
+      order.phoneNumber,
+      volumeMb,
+      idempotencyKey,
+    );
 
     const orderItem = shankResponse.orders[0];
     const externalReference = shankResponse.reference;
