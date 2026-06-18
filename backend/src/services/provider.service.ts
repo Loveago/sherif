@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { generateReference } from '../utils/refs.js';
 import { shankClient } from './shank.service.js';
@@ -84,8 +85,8 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
       data: {
         providerId: provider.id,
         orderId: order.id,
-        requestPayload: { ...requestPayload, shankNetworkId, volumeMb },
-        responsePayload,
+        requestPayload: { ...requestPayload, shankNetworkId, volumeMb } as Prisma.InputJsonValue,
+        responsePayload: responsePayload as Prisma.InputJsonValue,
         status,
       },
     });
@@ -111,8 +112,8 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
       data: {
         providerId: provider.id,
         orderId: order.id,
-        requestPayload: { ...requestPayload, shankNetworkId, volumeMb },
-        responsePayload: failPayload,
+        requestPayload: { ...requestPayload, shankNetworkId, volumeMb } as Prisma.InputJsonValue,
+        responsePayload: failPayload as Prisma.InputJsonValue,
         status: 'FAILED',
       },
     });
