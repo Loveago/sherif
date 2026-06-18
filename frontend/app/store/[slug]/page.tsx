@@ -173,7 +173,7 @@ export default function PublicStorefrontPage() {
         </section>
 
         {/* Products grid */}
-        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <section className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <AnimatePresence mode="popLayout">
             {filteredProducts.map((product, index) => {
               const style = getNetworkStyle(product.network.code);
@@ -200,7 +200,7 @@ export default function PublicStorefrontPage() {
                     <p className="text-2xl font-black text-slate-900">{product.dataSize}</p>
                     <p className="text-xs font-medium text-slate-500">{validityDays}</p>
                     <p className="mt-2 text-lg font-bold text-emerald-600">
-                      GHS {formatCurrency(product.sellingPrice)}
+                      {formatCurrency(product.sellingPrice)}
                     </p>
                     <Button
                       className="mt-4 w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white"
@@ -308,7 +308,7 @@ export default function PublicStorefrontPage() {
               <div className="space-y-4 p-5">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs text-slate-500">Amount to pay</p>
-                  <p className="text-2xl font-bold text-slate-900">GHS {formatCurrency(selectedProduct.sellingPrice)}</p>
+                  <p className="text-2xl font-bold text-slate-900">{formatCurrency(selectedProduct.sellingPrice)}</p>
                 </div>
 
                 <div>
