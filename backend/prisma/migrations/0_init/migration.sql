@@ -1,3 +1,6 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateEnum
 CREATE TYPE "UserRole" AS ENUM ('AGENT', 'ADMIN', 'USER', 'PREMIUM', 'NORMAL', 'SUPER', 'OTHER');
 
@@ -5,7 +8,10 @@ CREATE TYPE "UserRole" AS ENUM ('AGENT', 'ADMIN', 'USER', 'PREMIUM', 'NORMAL', '
 CREATE TYPE "VerificationStatus" AS ENUM ('PENDING', 'VERIFIED', 'SUSPENDED');
 
 -- CreateEnum
-CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'PROCESSING', 'SUCCESSFUL', 'FAILED', 'REFUNDED');
+CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'PROCESSING', 'SUCCESSFUL', 'FAILED', 'REFUNDED', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "OrderSource" AS ENUM ('BUY_NOW', 'BULK', 'STOREFRONT');
 
 -- CreateEnum
 CREATE TYPE "BatchStatus" AS ENUM ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED');
@@ -110,6 +116,7 @@ CREATE TABLE "Network" (
     "code" TEXT NOT NULL,
     "color" TEXT NOT NULL,
     "logoUrl" TEXT,
+    "shankNetworkId" INTEGER,
 
     CONSTRAINT "Network_pkey" PRIMARY KEY ("id")
 );
@@ -121,6 +128,7 @@ CREATE TABLE "Product" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),
     "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "dataSize" TEXT NOT NULL,
     "sellingPrice" DECIMAL(12,2) NOT NULL,
@@ -132,7 +140,6 @@ CREATE TABLE "Product" (
     "showInShop" BOOLEAN NOT NULL DEFAULT true,
     "showForAgents" BOOLEAN NOT NULL DEFAULT true,
     "status" BOOLEAN NOT NULL DEFAULT true,
-    "slug" TEXT NOT NULL,
     "networkId" TEXT NOT NULL,
 
     CONSTRAINT "Product_pkey" PRIMARY KEY ("id")
@@ -145,13 +152,15 @@ CREATE TABLE "Order" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "userId" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
-    "quantity" INTEGER NOT NULL,
+    "phoneNumber" TEXT NOT NULL,
     "amount" DECIMAL(12,2) NOT NULL,
     "status" "OrderStatus" NOT NULL DEFAULT 'PENDING',
+    "source" "OrderSource" NOT NULL DEFAULT 'BUY_NOW',
+    "providerReference" TEXT,
+    "externalReference" TEXT,
     "receiptNumber" TEXT NOT NULL,
+    "notes" TEXT,
     "batchId" TEXT,
-    "paymentMethod" "PaymentMethod",
-    "paymentReference" TEXT,
 
     CONSTRAINT "Order_pkey" PRIMARY KEY ("id")
 );
@@ -163,11 +172,54 @@ CREATE TABLE "OrderBatch" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "userId" TEXT NOT NULL,
     "status" "BatchStatus" NOT NULL DEFAULT 'PENDING',
-    "totalOrders" INTEGER NOT NULL,
-    "completedOrders" INTEGER NOT NULL DEFAULT 0,
-    "failedOrders" INTEGER NOT NULL DEFAULT 0,
+    "fileName" TEXT NOT NULL,
+    "totalRecords" INTEGER NOT NULL,
+    "totalAmount" DECIMAL(12,2) NOT NULL,
+    "successfulCount" INTEGER NOT NULL DEFAULT 0,
+    "failedCount" INTEGER NOT NULL DEFAULT 0,
+    "processingCount" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "OrderBatch_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Storefront" (
+    "id" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "userId" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "displayName" TEXT NOT NULL,
+    "tagline" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "bannerUrl" TEXT,
+    "logoUrl" TEXT,
+    "themeColor" TEXT NOT NULL DEFAULT '#7c3aed',
+    "contactEmail" TEXT,
+    "contactPhone" TEXT,
+    "instagramUrl" TEXT,
+    "twitterUrl" TEXT,
+    "whatsappUrl" TEXT,
+    "seoTitle" TEXT,
+    "seoDescription" TEXT,
+    "visits" INTEGER NOT NULL DEFAULT 0,
+    "sales" INTEGER NOT NULL DEFAULT 0,
+    "conversionRate" DECIMAL(5,2) NOT NULL,
+
+    CONSTRAINT "Storefront_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "StorefrontProduct" (
+    "id" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "storefrontId" TEXT NOT NULL,
+    "productId" TEXT NOT NULL,
+    "customPrice" DECIMAL(12,2) NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+
+    CONSTRAINT "StorefrontProduct_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -178,7 +230,9 @@ CREATE TABLE "Commission" (
     "userId" TEXT NOT NULL,
     "orderId" TEXT NOT NULL,
     "amount" DECIMAL(12,2) NOT NULL,
-    "percentage" DECIMAL(5,2) NOT NULL,
+    "source" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "paidAt" TIMESTAMP(3),
 
     CONSTRAINT "Commission_pkey" PRIMARY KEY ("id")
 );
@@ -190,12 +244,12 @@ CREATE TABLE "Withdrawal" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "userId" TEXT NOT NULL,
     "amount" DECIMAL(12,2) NOT NULL,
-    "status" "WithdrawalStatus" NOT NULL DEFAULT 'PENDING',
-    "paymentMethod" "PaymentMethod" NOT NULL,
-    "paymentReference" TEXT,
-    "mobileMoneyNumber" TEXT,
-    "bankAccountNumber" TEXT,
+    "method" TEXT NOT NULL,
+    "accountName" TEXT NOT NULL,
+    "accountNumber" TEXT NOT NULL,
     "bankName" TEXT,
+    "status" "WithdrawalStatus" NOT NULL DEFAULT 'PENDING',
+    "reference" TEXT NOT NULL,
 
     CONSTRAINT "Withdrawal_pkey" PRIMARY KEY ("id")
 );
@@ -208,8 +262,8 @@ CREATE TABLE "Refund" (
     "userId" TEXT NOT NULL,
     "orderId" TEXT NOT NULL,
     "amount" DECIMAL(12,2) NOT NULL,
-    "status" "RefundStatus" NOT NULL DEFAULT 'PENDING',
     "reason" TEXT NOT NULL,
+    "status" "RefundStatus" NOT NULL DEFAULT 'PENDING',
 
     CONSTRAINT "Refund_pkey" PRIMARY KEY ("id")
 );
@@ -220,12 +274,11 @@ CREATE TABLE "Complaint" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "userId" TEXT NOT NULL,
+    "assignedToId" TEXT,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
-    "status" "ComplaintStatus" NOT NULL DEFAULT 'OPEN',
-    "assignedToId" TEXT,
     "evidenceUrl" TEXT,
-    "adminNotes" TEXT,
+    "status" "ComplaintStatus" NOT NULL DEFAULT 'OPEN',
 
     CONSTRAINT "Complaint_pkey" PRIMARY KEY ("id")
 );
@@ -238,13 +291,24 @@ CREATE TABLE "Announcement" (
     "title" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "pinned" BOOLEAN NOT NULL DEFAULT false,
-    "targetRole" "UserRole",
-    "scheduledFor" TIMESTAMP(3),
     "active" BOOLEAN NOT NULL DEFAULT true,
+    "targetRole" "UserRole",
     "displayLocation" TEXT NOT NULL DEFAULT 'all',
     "priority" TEXT NOT NULL DEFAULT 'normal',
+    "scheduledFor" TIMESTAMP(3),
 
     CONSTRAINT "Announcement_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AdminSettings" (
+    "id" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "key" TEXT NOT NULL,
+    "value" TEXT NOT NULL,
+
+    CONSTRAINT "AdminSettings_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -254,10 +318,9 @@ CREATE TABLE "Notification" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "userId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
-    "message" TEXT NOT NULL,
+    "body" TEXT NOT NULL,
     "type" TEXT NOT NULL,
     "status" "NotificationStatus" NOT NULL DEFAULT 'UNREAD',
-    "relatedId" TEXT,
 
     CONSTRAINT "Notification_pkey" PRIMARY KEY ("id")
 );
@@ -269,68 +332,12 @@ CREATE TABLE "Payment" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "userId" TEXT NOT NULL,
     "amount" DECIMAL(12,2) NOT NULL,
-    "status" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
     "method" "PaymentMethod" NOT NULL,
+    "status" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
     "reference" TEXT NOT NULL,
-    "paystackReference" TEXT,
+    "providerRef" TEXT,
 
     CONSTRAINT "Payment_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "Storefront" (
-    "id" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "userId" TEXT NOT NULL,
-    "slug" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "description" TEXT,
-    "whatsappNumber" TEXT,
-    "logoUrl" TEXT,
-    "bannerUrl" TEXT,
-
-    CONSTRAINT "Storefront_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "Session" (
-    "id" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "userId" TEXT NOT NULL,
-    "userAgent" TEXT,
-    "ipAddress" TEXT,
-    "expiresAt" TIMESTAMP(3),
-
-    CONSTRAINT "Session_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "ApiKey" (
-    "id" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "userId" TEXT NOT NULL,
-    "key" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "lastUsedAt" TIMESTAMP(3),
-
-    CONSTRAINT "ApiKey_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "AuditLog" (
-    "id" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "actorId" TEXT NOT NULL,
-    "action" TEXT NOT NULL,
-    "resource" TEXT NOT NULL,
-    "resourceId" TEXT NOT NULL,
-    "changes" JSONB,
-
-    CONSTRAINT "AuditLog_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -340,10 +347,9 @@ CREATE TABLE "Provider" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "name" TEXT NOT NULL,
     "code" TEXT NOT NULL,
-    "apiKey" TEXT NOT NULL,
-    "apiUrl" TEXT NOT NULL,
-    "status" "ProviderStatus" NOT NULL DEFAULT 'INACTIVE',
-    "priority" INTEGER NOT NULL DEFAULT 0,
+    "status" "ProviderStatus" NOT NULL DEFAULT 'ACTIVE',
+    "priority" INTEGER NOT NULL DEFAULT 1,
+    "apiBaseUrl" TEXT,
 
     CONSTRAINT "Provider_pkey" PRIMARY KEY ("id")
 );
@@ -354,9 +360,10 @@ CREATE TABLE "ProviderTransaction" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "providerId" TEXT NOT NULL,
-    "reference" TEXT NOT NULL,
+    "orderId" TEXT,
+    "requestPayload" JSONB NOT NULL,
+    "responsePayload" JSONB NOT NULL,
     "status" TEXT NOT NULL,
-    "response" JSONB,
 
     CONSTRAINT "ProviderTransaction_pkey" PRIMARY KEY ("id")
 );
@@ -366,8 +373,9 @@ CREATE TABLE "Webhook" (
     "id" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "url" TEXT NOT NULL,
     "event" TEXT NOT NULL,
+    "url" TEXT NOT NULL,
+    "secret" TEXT NOT NULL,
     "active" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "Webhook_pkey" PRIMARY KEY ("id")
@@ -379,12 +387,69 @@ CREATE TABLE "WebhookLog" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "webhookId" TEXT NOT NULL,
-    "payload" JSONB NOT NULL,
-    "response" TEXT,
+    "event" TEXT NOT NULL,
     "statusCode" INTEGER,
-    "success" BOOLEAN NOT NULL,
+    "success" BOOLEAN NOT NULL DEFAULT false,
+    "responseBody" TEXT,
 
     CONSTRAINT "WebhookLog_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AuditLog" (
+    "id" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "actorId" TEXT NOT NULL,
+    "action" TEXT NOT NULL,
+    "entity" TEXT NOT NULL,
+    "entityId" TEXT NOT NULL,
+    "metadata" JSONB NOT NULL,
+
+    CONSTRAINT "AuditLog_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Session" (
+    "id" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "userId" TEXT NOT NULL,
+    "ipAddress" TEXT,
+    "userAgent" TEXT,
+    "deviceName" TEXT,
+    "lastActiveAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Session_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ApiKey" (
+    "id" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "userId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "key" TEXT NOT NULL,
+    "keyHash" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "usageCount" INTEGER NOT NULL DEFAULT 0,
+    "lastUsedAt" TIMESTAMP(3),
+
+    CONSTRAINT "ApiKey_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "RolePrice" (
+    "id" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "productId" TEXT NOT NULL,
+    "role" "UserRole" NOT NULL,
+    "price" DECIMAL(12,2) NOT NULL,
+    "userId" TEXT NOT NULL,
+
+    CONSTRAINT "RolePrice_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -409,26 +474,14 @@ CREATE TABLE "Message" (
     "senderId" TEXT NOT NULL,
     "receiverId" TEXT NOT NULL,
     "content" TEXT NOT NULL,
-    "encryptionIv" TEXT,
+    "encryptedContent" TEXT,
+    "iv" TEXT,
     "status" "MessageStatus" NOT NULL DEFAULT 'SENT',
     "readAt" TIMESTAMP(3),
-    "deletedBy" TEXT,
     "replyToId" TEXT,
+    "deletedBy" TEXT,
 
     CONSTRAINT "Message_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "RolePrice" (
-    "id" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "productId" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "role" "UserRole" NOT NULL,
-    "price" DECIMAL(12,2) NOT NULL,
-
-    CONSTRAINT "RolePrice_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -457,9 +510,13 @@ CREATE TABLE "AFARegistration" (
     "phone" TEXT NOT NULL,
     "location" TEXT NOT NULL,
     "occupation" TEXT NOT NULL,
+    "idType" TEXT NOT NULL,
     "idNumber" TEXT NOT NULL,
     "status" "AFARegistrationStatus" NOT NULL DEFAULT 'PENDING',
-    "adminNotes" TEXT,
+    "notes" TEXT,
+    "paymentStatus" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
+    "paymentReference" TEXT,
+    "amountPaid" DECIMAL(12,2),
 
     CONSTRAINT "AFARegistration_pkey" PRIMARY KEY ("id")
 );
@@ -469,22 +526,11 @@ CREATE TABLE "MTNExpressBundle" (
     "id" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "size" TEXT NOT NULL,
+    "bundleSize" TEXT NOT NULL,
     "price" DECIMAL(12,2) NOT NULL,
     "status" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "MTNExpressBundle_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "AdminSettings" (
-    "id" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "key" TEXT NOT NULL,
-    "value" TEXT NOT NULL,
-
-    CONSTRAINT "AdminSettings_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -509,16 +555,25 @@ CREATE UNIQUE INDEX "Product_slug_key" ON "Product"("slug");
 CREATE UNIQUE INDEX "Order_receiptNumber_key" ON "Order"("receiptNumber");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Commission_orderId_key" ON "Commission"("orderId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Refund_orderId_key" ON "Refund"("orderId");
+CREATE UNIQUE INDEX "Storefront_userId_key" ON "Storefront"("userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Storefront_slug_key" ON "Storefront"("slug");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Storefront_userId_key" ON "Storefront"("userId");
+CREATE UNIQUE INDEX "StorefrontProduct_storefrontId_productId_key" ON "StorefrontProduct"("storefrontId", "productId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Commission_orderId_key" ON "Commission"("orderId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Withdrawal_reference_key" ON "Withdrawal"("reference");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Refund_orderId_key" ON "Refund"("orderId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AdminSettings_key_key" ON "AdminSettings"("key");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Payment_reference_key" ON "Payment"("reference");
@@ -530,10 +585,13 @@ CREATE UNIQUE INDEX "Provider_name_key" ON "Provider"("name");
 CREATE UNIQUE INDEX "Provider_code_key" ON "Provider"("code");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Chat_participant1Id_participant2Id_key" ON "Chat"("participant1Id", "participant2Id");
+CREATE UNIQUE INDEX "ApiKey_key_key" ON "ApiKey"("key");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "RolePrice_productId_role_key" ON "RolePrice"("productId", "role");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Chat_participant1Id_participant2Id_key" ON "Chat"("participant1Id", "participant2Id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ReferralCode_code_key" ON "ReferralCode"("code");
@@ -542,7 +600,7 @@ CREATE UNIQUE INDEX "ReferralCode_code_key" ON "ReferralCode"("code");
 CREATE UNIQUE INDEX "ReferralCode_usedById_key" ON "ReferralCode"("usedById");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "AdminSettings_key_key" ON "AdminSettings"("key");
+CREATE UNIQUE INDEX "AFARegistration_paymentReference_key" ON "AFARegistration"("paymentReference");
 
 -- AddForeignKey
 ALTER TABLE "Wallet" ADD CONSTRAINT "Wallet_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -564,6 +622,15 @@ ALTER TABLE "Order" ADD CONSTRAINT "Order_batchId_fkey" FOREIGN KEY ("batchId") 
 
 -- AddForeignKey
 ALTER TABLE "OrderBatch" ADD CONSTRAINT "OrderBatch_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Storefront" ADD CONSTRAINT "Storefront_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StorefrontProduct" ADD CONSTRAINT "StorefrontProduct_storefrontId_fkey" FOREIGN KEY ("storefrontId") REFERENCES "Storefront"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StorefrontProduct" ADD CONSTRAINT "StorefrontProduct_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Commission" ADD CONSTRAINT "Commission_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -593,7 +660,13 @@ ALTER TABLE "Notification" ADD CONSTRAINT "Notification_userId_fkey" FOREIGN KEY
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Storefront" ADD CONSTRAINT "Storefront_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProviderTransaction" ADD CONSTRAINT "ProviderTransaction_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "Provider"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WebhookLog" ADD CONSTRAINT "WebhookLog_webhookId_fkey" FOREIGN KEY ("webhookId") REFERENCES "Webhook"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -602,13 +675,10 @@ ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId"
 ALTER TABLE "ApiKey" ADD CONSTRAINT "ApiKey_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "RolePrice" ADD CONSTRAINT "RolePrice_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ProviderTransaction" ADD CONSTRAINT "ProviderTransaction_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "Provider"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WebhookLog" ADD CONSTRAINT "WebhookLog_webhookId_fkey" FOREIGN KEY ("webhookId") REFERENCES "Webhook"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "RolePrice" ADD CONSTRAINT "RolePrice_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Chat" ADD CONSTRAINT "Chat_participant1Id_fkey" FOREIGN KEY ("participant1Id") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -617,7 +687,7 @@ ALTER TABLE "Chat" ADD CONSTRAINT "Chat_participant1Id_fkey" FOREIGN KEY ("parti
 ALTER TABLE "Chat" ADD CONSTRAINT "Chat_participant2Id_fkey" FOREIGN KEY ("participant2Id") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Message" ADD CONSTRAINT "Message_chatId_fkey" FOREIGN KEY ("chatId") REFERENCES "Chat"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Message" ADD CONSTRAINT "Message_chatId_fkey" FOREIGN KEY ("chatId") REFERENCES "Chat"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Message" ADD CONSTRAINT "Message_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -627,12 +697,6 @@ ALTER TABLE "Message" ADD CONSTRAINT "Message_receiverId_fkey" FOREIGN KEY ("rec
 
 -- AddForeignKey
 ALTER TABLE "Message" ADD CONSTRAINT "Message_replyToId_fkey" FOREIGN KEY ("replyToId") REFERENCES "Message"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "RolePrice" ADD CONSTRAINT "RolePrice_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "RolePrice" ADD CONSTRAINT "RolePrice_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ReferralCode" ADD CONSTRAINT "ReferralCode_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
