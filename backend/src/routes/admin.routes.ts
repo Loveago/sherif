@@ -491,7 +491,7 @@ adminRouter.get('/settings', async (_request, response, next) => {
           momoEnabled: map.momoEnabled !== 'false',
         },
         branding: {
-          appName: map.appName ?? 'DATAHUB Ghana',
+          appName: map.appName ?? 'CheapDataPacks Ghana',
           theme: map.theme ?? 'dark-premium',
         },
         providerStrategy: {
@@ -1378,6 +1378,58 @@ adminRouter.post('/shank/transaction', async (request, response, next) => {
     return response.json(createSuccessResponse(transaction));
   } catch (error) {
     return response.status(502).json({ success: false, message: shankClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.get('/referral-codes', async (_request, response, next) => {
+  try {
+    const codes = await prisma.referralCode.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        usedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+    });
+    return response.json(createSuccessResponse(codes));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/referral-codes', async (request, response, next) => {
+  try {
+    const { code, maxUses, expiresAt, createdById } = request.body;
+    const referralCode = await prisma.referralCode.create({
+      data: {
+        code: code.toUpperCase().trim(),
+        createdById: createdById || request.auth!.userId,
+        maxUses: maxUses || null,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        status: 'ACTIVE',
+      },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+    });
+    return response.status(201).json(createSuccessResponse(referralCode, 'Referral code created'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.put('/referral-codes/:id/revoke', async (request, response, next) => {
+  try {
+    const referralCode = await prisma.referralCode.update({
+      where: { id: request.params.id },
+      data: { status: 'INACTIVE' },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        usedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+    });
+    return response.json(createSuccessResponse(referralCode, 'Referral code revoked'));
+  } catch (error) {
+    return next(error);
   }
 });
 

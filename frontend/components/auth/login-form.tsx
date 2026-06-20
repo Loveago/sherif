@@ -50,7 +50,7 @@ export function LoginForm() {
             <Zap className="h-3 w-3" />
             Welcome back
           </div>
-          <h1 className="mt-5 text-3xl font-extrabold tracking-tight text-white">Sign in to DATAHUB</h1>
+          <h1 className="mt-5 text-3xl font-extrabold tracking-tight text-white">Sign in to CheapDataPacks</h1>
           <p className="mt-3 text-sm leading-relaxed text-slate-400">
             Enter your credentials to access your agent dashboard.
           </p>
@@ -62,7 +62,7 @@ export function LoginForm() {
               <Mail className="h-3.5 w-3.5 text-violet-400" />
               Email
             </label>
-            <Input placeholder="agent@datahubgh.com" {...register('email')} />
+            <Input placeholder="agent@cheappacksgh.com" {...register('email')} />
             {errors.email ? <p className="mt-2 text-xs text-rose-300">{errors.email.message}</p> : null}
           </div>
           <div>

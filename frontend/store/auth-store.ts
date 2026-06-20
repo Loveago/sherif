@@ -10,8 +10,8 @@ type AuthState = {
   clearAuth: () => void;
 };
 
-const TOKEN_KEY = 'datahub_token';
-const USER_KEY = 'datahub_user';
+const TOKEN_KEY = 'cheappacks_token';
+const USER_KEY = 'cheappacks_user';
 
 const readStoredAuth = () => {
   if (typeof window === 'undefined') {

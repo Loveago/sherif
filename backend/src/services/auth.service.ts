@@ -1,4 +1,4 @@
-import { UserRole, VerificationStatus } from '@prisma/client';
+import { UserRole, VerificationStatus, ReferralCodeStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { comparePassword, hashPassword, signToken } from '../utils/security.js';
 import { createAuditLog } from './audit.service.js';
@@ -10,11 +10,37 @@ export const registerUser = async (payload: {
   password: string;
   phone: string;
   companyName?: string;
+  referralCode?: string;
 }) => {
   const existingUser = await prisma.user.findUnique({ where: { email: payload.email } });
 
   if (existingUser) {
     throw new Error('User already exists');
+  }
+
+  let referralCodeId: string | undefined;
+
+  if (payload.referralCode) {
+    const code = payload.referralCode.toUpperCase().trim();
+    const referral = await prisma.referralCode.findUnique({ where: { code } });
+
+    if (!referral) {
+      throw new Error('Invalid referral code');
+    }
+    if (referral.status !== ReferralCodeStatus.ACTIVE) {
+      throw new Error('Referral code is not active');
+    }
+    if (referral.expiresAt && new Date() > referral.expiresAt) {
+      throw new Error('Referral code has expired');
+    }
+    if (referral.maxUses && referral.currentUses >= referral.maxUses) {
+      throw new Error('Referral code has reached maximum uses');
+    }
+    if (referral.usedById) {
+      throw new Error('Referral code has already been used');
+    }
+
+    referralCodeId = referral.id;
   }
 
   const passwordHash = await hashPassword(payload.password);
@@ -53,7 +79,17 @@ export const registerUser = async (payload: {
     },
   });
 
-  await createAuditLog(user.id, 'USER_REGISTERED', 'User', user.id, { email: user.email });
+  if (referralCodeId) {
+    await prisma.referralCode.update({
+      where: { id: referralCodeId },
+      data: {
+        currentUses: { increment: 1 },
+        usedById: user.id,
+      },
+    });
+  }
+
+  await createAuditLog(user.id, 'USER_REGISTERED', 'User', user.id, { email: user.email, referralCode: payload.referralCode });
 
   return {
     user,

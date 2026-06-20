@@ -25,7 +25,7 @@ export function LandingHeader() {
             </svg>
           </div>
           <div className="leading-tight">
-            <p className="text-xs font-bold tracking-wide text-white md:text-[13px]">DATAHUB</p>
+            <p className="text-xs font-bold tracking-wide text-white md:text-[13px]">CheapDataPacks</p>
             <p className="text-[8px] font-semibold uppercase tracking-[0.2em] text-gray-500 md:text-[9px]">Ghana</p>
           </div>
         </Link>

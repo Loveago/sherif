@@ -27,7 +27,7 @@ export default function LoginPage() {
               </svg>
             </div>
             <div className="leading-tight">
-              <p className="text-[13px] font-bold tracking-wide text-white">DATAHUB</p>
+              <p className="text-[13px] font-bold tracking-wide text-white">CheapDataPacks</p>
               <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-500">Ghana</p>
             </div>
           </Link>
@@ -41,7 +41,7 @@ export default function LoginPage() {
               ))}
             </div>
             <blockquote className="text-2xl font-semibold leading-snug text-white">
-              &ldquo;DATAHUB transformed my reselling business. I process hundreds of orders daily with zero downtime.&rdquo;
+              &ldquo;CheapDataPacks transformed my reselling business. I process hundreds of orders daily with zero downtime.&rdquo;
             </blockquote>
             <p className="mt-4 text-sm text-gray-400">
               <span className="font-semibold text-white">Kwame A.</span> — Top Agent, Accra
@@ -75,7 +75,7 @@ export default function LoginPage() {
               </svg>
             </div>
             <div className="leading-tight">
-              <p className="text-[13px] font-bold tracking-wide text-white">DATAHUB</p>
+              <p className="text-[13px] font-bold tracking-wide text-white">CheapDataPacks</p>
               <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-500">Ghana</p>
             </div>
           </div>

@@ -105,7 +105,7 @@ export default function StorefrontTrackPage() {
               </div>
               <div>
                 <h1 className="text-xl font-bold md:text-2xl">
-                  {storefront?.displayName || 'LOFAQ Data Hub'}
+                  {storefront?.displayName || 'CheapDataPacks'}
                 </h1>
                 <p className="text-xs text-blue-100 md:text-sm">
                   {storefront?.tagline || 'Affordable data bundles · AFA registration · Result checker vouchers'}
@@ -318,7 +318,7 @@ export default function StorefrontTrackPage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
               <ShoppingBag className="h-4 w-4" />
             </div>
-            <span className="font-semibold text-slate-900">{storefront?.displayName || 'LOFAQ Data Hub'}</span>
+            <span className="font-semibold text-slate-900">{storefront?.displayName || 'CheapDataPacks'}</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="inline-flex items-center gap-1.5"><Shield className="h-4 w-4 text-emerald-500" /> Secured</span>

@@ -1,4 +1,4 @@
-# DATAHUB Ghana
+# CheapDataPacks Ghana
 
 Premium full-stack data bundle marketplace, agent platform, storefront system, and enterprise admin panel for Ghana.
 
@@ -31,10 +31,10 @@ Premium full-stack data bundle marketplace, agent platform, storefront system, a
 ## Demo Credentials
 
 - Agent
-  - Email: `agent@datahubgh.com`
+  - Email: `agent@cheappacksgh.com`
   - Password: `Agent@123`
 - Admin
-  - Email: `admin@datahubgh.com`
+  - Email: `admin@cheappacksgh.com`
   - Password: `Admin@123`
 
 ## Environment Notes

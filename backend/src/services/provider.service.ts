@@ -96,7 +96,7 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
 
   for (const [index, shankNetworkId] of networkCandidates.entries()) {
     const isLast = index === networkCandidates.length - 1;
-    const idempotencyKey = `datahub-${order.receiptNumber}-${shankNetworkId}`;
+    const idempotencyKey = `cheappacks-${order.receiptNumber}-${shankNetworkId}`;
 
     try {
       const shankResponse = await shankClient.submitOrder(

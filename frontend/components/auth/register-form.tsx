@@ -12,7 +12,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { GlassCard } from '@/components/ui/glass-card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Sparkles, ArrowRight, User as UserIcon, Mail, Phone, Building2, Lock } from 'lucide-react';
+import { Sparkles, ArrowRight, User as UserIcon, Mail, Phone, Building2, Lock, Ticket } from 'lucide-react';
 
 const schema = z.object({
   firstName: z.string().min(2),
@@ -21,6 +21,7 @@ const schema = z.object({
   phone: z.string().min(10),
   companyName: z.string().optional(),
   password: z.string().min(8),
+  referralCode: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -82,7 +83,7 @@ export function RegisterForm() {
               <Mail className="h-3.5 w-3.5 text-violet-400" />
               Email
             </label>
-            <Input placeholder="agent@datahubgh.com" {...register('email')} />
+            <Input placeholder="agent@cheappacksgh.com" {...register('email')} />
             {errors.email ? <p className="mt-2 text-xs text-rose-300">{errors.email.message}</p> : null}
           </div>
           <div>
@@ -107,6 +108,14 @@ export function RegisterForm() {
             </label>
             <Input type="password" placeholder="Min. 8 characters" {...register('password')} />
             {errors.password ? <p className="mt-2 text-xs text-rose-300">{errors.password.message}</p> : null}
+          </div>
+          <div>
+            <label className="mb-2 flex items-center gap-1.5 text-sm font-medium text-slate-300">
+              <Ticket className="h-3.5 w-3.5 text-violet-400" />
+              Referral Code <span className="text-xs text-gray-500">(optional)</span>
+            </label>
+            <Input placeholder="e.g. ABC123XY" {...register('referralCode')} />
+            {errors.referralCode ? <p className="mt-2 text-xs text-rose-300">{errors.referralCode.message}</p> : null}
           </div>
           <div className="md:col-span-2">
             <Button

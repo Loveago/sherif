@@ -10,13 +10,16 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: 'DATAHUB Ghana',
-  description: 'Premium enterprise data bundle marketplace and agent platform for Ghana.',
+  title: 'CheapDataPacks Ghana',
+  description: 'Premium affordable data bundle marketplace and agent platform for Ghana.',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+      </head>
       <body className={spaceGrotesk.variable}>
         <Providers>{children}</Providers>
       </body>

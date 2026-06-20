@@ -34,11 +34,11 @@ export async function ensureSeed() {
       passwordHash: adminHash,
       phone: '0240000000',
       role: UserRole.ADMIN,
-      companyName: 'DATAHUB Ghana HQ',
+      companyName: 'CheapDataPacks Ghana HQ',
       verificationStatus: VerificationStatus.VERIFIED,
       emailVerifiedAt: new Date(),
       wallet: { create: { availableBalance: money(25000), pendingBalance: money(0) } },
-      storefront: { create: { slug: 'datahub-admin', displayName: 'DATAHUB Official', tagline: 'Enterprise-grade data operations.', description: 'Official DATAHUB storefront.', themeColor: '#8b5cf6', conversionRate: money(31.2) } },
+      storefront: { create: { slug: 'cheappacks-admin', displayName: 'CheapDataPacks Official', tagline: 'Enterprise-grade data operations.', description: 'Official CheapDataPacks storefront.', themeColor: '#8b5cf6', conversionRate: money(31.2) } },
     },
   });
 
@@ -50,7 +50,7 @@ export async function ensureSeed() {
       passwordHash: agentHash,
       phone: '0551234567',
       role: UserRole.AGENT,
-      companyName: 'DATAHUB Kofi Ventures',
+      companyName: 'CheapDataPacks Kofi Ventures',
       verificationStatus: VerificationStatus.VERIFIED,
       emailVerifiedAt: new Date(),
       wallet: { create: { availableBalance: money(1245.6), pendingBalance: money(0) } },
@@ -61,7 +61,7 @@ export async function ensureSeed() {
           tagline: 'Fast. Reliable. Affordable data.',
           description: 'Premium data bundles for MTN, Telecel and AirtelTigo with instant delivery.',
           themeColor: '#7c3aed',
-          contactEmail: 'kofi@datahubgh.com',
+          contactEmail: 'kofi@cheappacksgh.com',
           contactPhone: '0551234567',
           visits: 1254,
           sales: 356,
@@ -91,7 +91,7 @@ export async function ensureSeed() {
   });
 
   await prisma.webhook.create({
-    data: { event: 'wallet.funded', url: 'https://webhook.site/mock-datahub', secret: 'whsec_demo', active: true },
+    data: { event: 'wallet.funded', url: 'https://webhook.site/mock-cheappacks', secret: 'whsec_demo', active: true },
   });
 
   console.log('[startup-seed] Seed complete. Admin and demo agent created.');

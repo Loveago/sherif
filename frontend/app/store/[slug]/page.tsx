@@ -107,7 +107,7 @@ export default function PublicStorefrontPage() {
   }
 
   const { storefront } = data;
-  const brandName = storefront.displayName || 'LOFAQ Data Hub';
+  const brandName = storefront.displayName || 'CheapDataPacks';
   const brandTagline = storefront.tagline || 'Affordable data bundles · AFA registration · Result checker vouchers';
 
   return (

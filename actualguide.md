@@ -1,4 +1,4 @@
-# VPS Deployment Guide — Sherif / DATAHUB Ghana (Copy & Paste Ready)
+# VPS Deployment Guide — Sherif / CheapDataPacks Ghana (Copy & Paste Ready)
 
 This guide walks you through deploying the **entire Sherif application** (backend + frontend) on a **single VPS** under your own domain. You'll also host **PostgreSQL** directly on the VPS (not a cloud DB).
 

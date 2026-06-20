@@ -214,7 +214,7 @@ export default function LandingPage() {
                     <div className="rounded-[1.5rem] bg-[#0a0f1e] p-4 pt-5">
                       {/* Status */}
                       <div className="mb-4 flex items-center justify-between">
-                        <span className="text-[10px] font-bold tracking-widest text-white">DATAHUB</span>
+                        <span className="text-[10px] font-bold tracking-widest text-white">CheapDataPacks</span>
                         <div className="flex items-center gap-1">
                           <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                         </div>
@@ -440,12 +440,12 @@ export default function LandingPage() {
               </svg>
             </div>
             <div>
-              <p className="text-xs font-bold text-white">DATAHUB</p>
+              <p className="text-xs font-bold text-white">CheapDataPacks</p>
               <p className="text-[9px] text-gray-600">Ghana</p>
             </div>
           </div>
           <p className="text-center text-sm text-gray-600">
-            © 2026 DATAHUB Ghana. Premium enterprise data distribution platform.
+            © 2026 CheapDataPacks Ghana. Premium enterprise data distribution platform.
           </p>
           <div className="flex gap-6 text-sm text-gray-500">
             <Link href="/login" className="transition-colors hover:text-violet-300">Sign In</Link>

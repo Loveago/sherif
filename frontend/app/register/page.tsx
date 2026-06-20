@@ -27,7 +27,7 @@ export default function RegisterPage() {
               </svg>
             </div>
             <div className="leading-tight">
-              <p className="text-[13px] font-bold tracking-wide text-white">DATAHUB</p>
+              <p className="text-[13px] font-bold tracking-wide text-white">CheapDataPacks</p>
               <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-500">Ghana</p>
             </div>
           </Link>
@@ -41,7 +41,7 @@ export default function RegisterPage() {
               ))}
             </div>
             <blockquote className="text-2xl font-semibold leading-snug text-white">
-              &ldquo;Started as a side hustle, now I run a full data reselling business. DATAHUB made it possible.&rdquo;
+              &ldquo;Started as a side hustle, now I run a full data reselling business. CheapDataPacks made it possible.&rdquo;
             </blockquote>
             <p className="mt-4 text-sm text-gray-400">
               <span className="font-semibold text-white">Ama D.</span> — Reseller, Kumasi
@@ -75,7 +75,7 @@ export default function RegisterPage() {
               </svg>
             </div>
             <div className="leading-tight">
-              <p className="text-[13px] font-bold tracking-wide text-white">DATAHUB</p>
+              <p className="text-[13px] font-bold tracking-wide text-white">CheapDataPacks</p>
               <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-500">Ghana</p>
             </div>
           </div>

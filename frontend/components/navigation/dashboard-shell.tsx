@@ -46,6 +46,7 @@ const adminLinks: NavLink[] = [
   { href: '/admin/orders', label: 'Orders', icon: Package },
   { href: '/admin/user-management', label: 'User Management', icon: LayoutGrid },
   { href: '/admin/commissions', label: 'Commissions', icon: CreditCard },
+  { href: '/admin/referral-codes', label: 'Referral Codes', icon: ClipboardList },
   { href: '/admin/afa-registrations', label: 'AFA Registrations', icon: ClipboardList },
   { href: '/admin/reports', label: 'Reports', icon: Gauge },
   { href: '/admin/audit-logs', label: 'Audit Logs', icon: Bell },
@@ -126,7 +127,7 @@ export function DashboardShell({
             </svg>
           </div>
           <div>
-            <p className="text-sm font-bold text-white">DATAHUB</p>
+            <p className="text-sm font-bold text-white">CheapDataPacks</p>
             <p className="text-[10px] uppercase tracking-wider text-gray-500">Ghana</p>
           </div>
         </div>
@@ -200,7 +201,7 @@ export function DashboardShell({
                       <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </div>
-                  <p className="text-sm font-bold text-white">DATAHUB</p>
+                  <p className="text-sm font-bold text-white">CheapDataPacks</p>
                 </div>
                 <button
                   onClick={() => setMobileNavOpen(false)}

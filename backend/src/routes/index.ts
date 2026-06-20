@@ -8,7 +8,7 @@ import { createSuccessResponse } from '../utils/response.js';
 export const apiRouter = Router();
 
 apiRouter.get('/health', (_request, response) => {
-  return response.json(createSuccessResponse({ status: 'ok' }, 'DATAHUB Ghana API is healthy'));
+  return response.json(createSuccessResponse({ status: 'ok' }, 'CheapDataPacks Ghana API is healthy'));
 });
 
 apiRouter.use('/auth', authRouter);

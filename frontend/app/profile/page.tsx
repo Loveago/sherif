@@ -16,7 +16,7 @@ import { User as UserIcon, Mail, Phone, Building2, Lock, Save } from 'lucide-rea
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const { user: authUser, setAuth } = useAuthStore();
-  const token = authUser ? localStorage.getItem('datahub_token') : null;
+  const token = authUser ? localStorage.getItem('cheappacks_token') : null;
 
   const { data: user } = useQuery({
     queryKey: ['me'],

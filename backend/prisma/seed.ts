@@ -1,9 +1,9 @@
 import { PrismaClient, Prisma, UserRole, VerificationStatus, OrderStatus, BatchStatus, ComplaintStatus, RefundStatus, WithdrawalStatus, PaymentMethod, PaymentStatus, ProviderStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
-const DEMO_ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@datahubgh.com';
+const DEMO_ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@cheappacksgh.com';
 const DEMO_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Admin@123';
-const DEMO_AGENT_EMAIL = process.env.DEMO_AGENT_EMAIL || 'agent@datahubgh.com';
+const DEMO_AGENT_EMAIL = process.env.DEMO_AGENT_EMAIL || 'agent@cheappacksgh.com';
 const DEMO_AGENT_PASSWORD = process.env.DEMO_AGENT_PASSWORD || 'Agent@123';
 
 const prisma = new PrismaClient();
@@ -59,7 +59,7 @@ async function main() {
       passwordHash: passwordHashes[0],
       phone: '0551234567',
       role: UserRole.AGENT,
-      companyName: 'DATAHUB Kofi Ventures',
+      companyName: 'CheapDataPacks Kofi Ventures',
       verificationStatus: VerificationStatus.VERIFIED,
       emailVerifiedAt: new Date(),
       wallet: {
@@ -75,12 +75,12 @@ async function main() {
           tagline: 'Fast. Reliable. Affordable data.',
           description: 'Premium data bundles for MTN, Telecel and AirtelTigo with instant delivery and fintech-grade support.',
           themeColor: '#7c3aed',
-          contactEmail: 'kofi@datahubgh.com',
+          contactEmail: 'kofi@cheappacksgh.com',
           contactPhone: '0551234567',
-          instagramUrl: 'https://instagram.com/datahubghana',
-          twitterUrl: 'https://x.com/datahubghana',
+          instagramUrl: 'https://instagram.com/cheappacksghana',
+          twitterUrl: 'https://x.com/cheappacksghana',
           whatsappUrl: 'https://wa.me/233551234567',
-          seoTitle: 'Kofi Data Shop | DATAHUB Ghana',
+          seoTitle: 'Kofi Data Shop | CheapDataPacks Ghana',
           seoDescription: 'Premium Ghana data bundles at lightning-fast speed.',
           visits: 1254,
           sales: 356,
@@ -99,7 +99,7 @@ async function main() {
       passwordHash: passwordHashes[1],
       phone: '0240000000',
       role: UserRole.ADMIN,
-      companyName: 'DATAHUB Ghana HQ',
+      companyName: 'CheapDataPacks Ghana HQ',
       verificationStatus: VerificationStatus.VERIFIED,
       emailVerifiedAt: new Date(),
       wallet: {
@@ -110,10 +110,10 @@ async function main() {
       },
       storefront: {
         create: {
-          slug: 'datahub-admin',
-          displayName: 'DATAHUB Official',
+          slug: 'cheappacks-admin',
+          displayName: 'CheapDataPacks Official',
           tagline: 'Enterprise-grade data operations.',
-          description: 'Official DATAHUB storefront.',
+          description: 'Official CheapDataPacks storefront.',
           themeColor: '#8b5cf6',
           conversionRate: money(31.2),
         },
@@ -162,7 +162,7 @@ async function main() {
   await prisma.webhook.create({
     data: {
       event: 'wallet.funded',
-      url: 'https://webhook.site/mock-datahub',
+      url: 'https://webhook.site/mock-cheappacks',
       secret: 'whsec_demo',
       active: true,
     },
@@ -501,7 +501,7 @@ async function main() {
     data: [
       { key: 'afaRegistrationFee', value: '20' },
       { key: 'momoNumber', value: '0240000000' },
-      { key: 'momoName', value: 'DATAHUB Ghana' },
+      { key: 'momoName', value: 'CheapDataPacks Ghana' },
       { key: 'momoEnabled', value: 'true' },
       { key: 'whatsappNumber', value: '0240000000' },
     ],

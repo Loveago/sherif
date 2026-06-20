@@ -209,7 +209,7 @@ export default function APIKeysPage() {
             <div>
               <p className="font-medium text-white mb-2">2. Example Request</p>
               <code className="block bg-black/20 p-3 rounded text-xs text-gray-300 overflow-x-auto">
-                curl -H "Authorization: Bearer YOUR_API_KEY" https://api.datahubgh.com/v1/orders
+                curl -H "Authorization: Bearer YOUR_API_KEY" https://api.cheappacksgh.com/v1/orders
               </code>
             </div>
             <div>
