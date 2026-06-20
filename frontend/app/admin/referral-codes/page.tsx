@@ -68,7 +68,7 @@ export default function AdminReferralCodesPage() {
   const usedCodes = codes.filter((c) => c.currentUses > 0);
 
   return (
-    <AuthGuard allowedRoles={['ADMIN']}>
+    <AuthGuard requiredRole="ADMIN">
       <DashboardShell title="Referral Codes" description="Create and manage referral codes for agents and customers." mode="admin">
         <div className="space-y-6">
           {/* Stats */}
