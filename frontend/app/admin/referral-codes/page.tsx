@@ -202,7 +202,13 @@ export default function AdminReferralCodesPage() {
                         <td className="py-3 pr-4 font-mono text-white">{code.code}</td>
                         <td className="py-3 pr-4">
                           <Badge
-                            variant={code.status === 'ACTIVE' ? 'success' : code.status === 'INACTIVE' ? 'destructive' : 'default'}
+                            variant={
+                              code.status === 'ACTIVE'
+                                ? 'success'
+                                : code.status === 'INACTIVE'
+                                  ? 'danger'
+                                  : 'default'
+                            }
                           >
                             {code.status}
                           </Badge>
