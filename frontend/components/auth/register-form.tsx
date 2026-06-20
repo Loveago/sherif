@@ -21,7 +21,7 @@ const schema = z.object({
   phone: z.string().min(10),
   companyName: z.string().optional(),
   password: z.string().min(8),
-  referralCode: z.string().optional(),
+  referralCode: z.string().min(1, 'Referral code is required'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -112,7 +112,7 @@ export function RegisterForm() {
           <div>
             <label className="mb-2 flex items-center gap-1.5 text-sm font-medium text-slate-300">
               <Ticket className="h-3.5 w-3.5 text-violet-400" />
-              Referral Code <span className="text-xs text-gray-500">(optional)</span>
+              Referral Code <span className="text-xs text-rose-400">(required)</span>
             </label>
             <Input placeholder="e.g. ABC123XY" {...register('referralCode')} />
             {errors.referralCode ? <p className="mt-2 text-xs text-rose-300">{errors.referralCode.message}</p> : null}

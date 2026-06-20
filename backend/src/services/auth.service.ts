@@ -18,29 +18,27 @@ export const registerUser = async (payload: {
     throw new Error('User already exists');
   }
 
-  let referralCodeId: string | undefined;
+  if (!payload.referralCode) {
+    throw new Error('Referral code is required');
+  }
 
-  if (payload.referralCode) {
-    const code = payload.referralCode.toUpperCase().trim();
-    const referral = await prisma.referralCode.findUnique({ where: { code } });
+  const code = payload.referralCode.toUpperCase().trim();
+  const referral = await prisma.referralCode.findUnique({ where: { code } });
 
-    if (!referral) {
-      throw new Error('Invalid referral code');
-    }
-    if (referral.status !== ReferralCodeStatus.ACTIVE) {
-      throw new Error('Referral code is not active');
-    }
-    if (referral.expiresAt && new Date() > referral.expiresAt) {
-      throw new Error('Referral code has expired');
-    }
-    if (referral.maxUses && referral.currentUses >= referral.maxUses) {
-      throw new Error('Referral code has reached maximum uses');
-    }
-    if (referral.usedById) {
-      throw new Error('Referral code has already been used');
-    }
-
-    referralCodeId = referral.id;
+  if (!referral) {
+    throw new Error('Invalid referral code');
+  }
+  if (referral.status !== ReferralCodeStatus.ACTIVE) {
+    throw new Error('Referral code is not active');
+  }
+  if (referral.expiresAt && new Date() > referral.expiresAt) {
+    throw new Error('Referral code has expired');
+  }
+  if (referral.maxUses && referral.currentUses >= referral.maxUses) {
+    throw new Error('Referral code has reached maximum uses');
+  }
+  if (referral.usedById) {
+    throw new Error('Referral code has already been used');
   }
 
   const passwordHash = await hashPassword(payload.password);
@@ -79,15 +77,13 @@ export const registerUser = async (payload: {
     },
   });
 
-  if (referralCodeId) {
-    await prisma.referralCode.update({
-      where: { id: referralCodeId },
-      data: {
-        currentUses: { increment: 1 },
-        usedById: user.id,
-      },
-    });
-  }
+  await prisma.referralCode.update({
+    where: { id: referral.id },
+    data: {
+      currentUses: { increment: 1 },
+      usedById: user.id,
+    },
+  });
 
   await createAuditLog(user.id, 'USER_REGISTERED', 'User', user.id, { email: user.email, referralCode: payload.referralCode });
 
