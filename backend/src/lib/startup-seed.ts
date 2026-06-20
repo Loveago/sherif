@@ -21,9 +21,9 @@ export async function ensureSeed() {
   ]);
 
   const [mtn, telecel, airtelTigo] = await Promise.all([
-    prisma.network.create({ data: { name: 'MTN Ghana', code: 'MTN', color: '#facc15' } }),
-    prisma.network.create({ data: { name: 'Telecel Ghana', code: 'TELECEL', color: '#ef4444' } }),
-    prisma.network.create({ data: { name: 'AirtelTigo Ghana', code: 'AIRTELTIGO', color: '#3b82f6' } }),
+    prisma.network.upsert({ where: { name: 'MTN Ghana' }, update: {}, create: { name: 'MTN Ghana', code: 'MTN', color: '#facc15' } }),
+    prisma.network.upsert({ where: { name: 'Telecel Ghana' }, update: {}, create: { name: 'Telecel Ghana', code: 'TELECEL', color: '#ef4444' } }),
+    prisma.network.upsert({ where: { name: 'AirtelTigo Ghana' }, update: {}, create: { name: 'AirtelTigo Ghana', code: 'AIRTELTIGO', color: '#3b82f6' } }),
   ]);
 
   await prisma.user.create({
