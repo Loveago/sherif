@@ -42,8 +42,11 @@ export function ProgressBar({ progress }: { progress: number }) {
   return (
     <div className="h-1 w-full overflow-hidden bg-slate-200 dark:bg-slate-800">
       <div
-        className="h-full bg-gradient-to-r from-violet-500 to-blue-500 transition-all duration-300"
-        style={{ width: `${Math.min(progress, 100)}%` }}
+        className="h-full transition-all duration-300"
+        style={{
+          width: `${Math.min(progress, 100)}%`,
+          background: 'linear-gradient(90deg, var(--color-primary), var(--color-accent))',
+        }}
       />
     </div>
   );

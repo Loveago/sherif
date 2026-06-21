@@ -1,11 +1,11 @@
 import { cn } from '@/lib/utils';
 
 const variants = {
-  primary:
-    'bg-gradient-to-r from-violet-600 to-violet-700 text-white hover:from-violet-700 hover:to-violet-800 shadow-lg shadow-violet-600/30 hover:shadow-xl hover:shadow-violet-600/40',
-  secondary: 'bg-gray-800 text-white border border-gray-700 hover:bg-gray-700 hover:border-gray-600 shadow-md shadow-black/20',
+  primary: 'btn-primary',
+  secondary:
+    'bg-gray-800 text-white border border-gray-700 hover:bg-gray-700 hover:border-gray-600 shadow-md shadow-black/20',
   ghost: 'bg-transparent text-gray-300 hover:bg-gray-800/50 hover:text-white',
-  outline: 'bg-transparent text-white border border-gray-700 hover:border-violet-500 hover:text-violet-400 hover:bg-violet-600/5',
+  outline: 'bg-transparent border btn-outline',
 };
 
 const sizes = {

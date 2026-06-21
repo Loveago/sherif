@@ -502,3 +502,58 @@ html.light .animate-skeleton {
 .search-input:focus {
   border-color: var(--color-primary);
 }
+
+/* Global brand utilities */
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  color: #ffffff;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.9);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.03);
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 1);
+}
+
+.btn-outline {
+  color: var(--color-primary);
+  border-color: var(--color-primary-soft);
+}
+
+.btn-outline:hover {
+  background-color: var(--color-primary-soft);
+  color: #ffffff;
+}
+
+.badge-brand {
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary);
+  border-color: var(--nav-badge-bg);
+}
+
+.glass-brand {
+  box-shadow: 0 18px 45px -18px rgba(15, 23, 42, 0.9);
+}
+
+.glass-brand:hover {
+  box-shadow: 0 24px 60px -22px var(--color-primary-soft);
+  border-color: var(--color-primary-soft);
+}
+
+.eyebrow-brand {
+  color: var(--color-primary);
+}
+
+.eyebrow-pill {
+  border-color: var(--color-primary-soft);
+  background-color: rgba(15, 23, 42, 0.95);
+  color: var(--color-accent);
+}
+
+.link-brand {
+  color: var(--color-primary);
+}
+
+.link-brand:hover {
+  color: var(--color-accent);
+}

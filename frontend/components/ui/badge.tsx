@@ -1,7 +1,7 @@
 import { cn, getStatusColor } from '@/lib/utils';
 
 const variants = {
-  default: 'bg-violet-600/20 text-violet-400 border border-violet-500/30',
+  default: 'badge-brand border',
   secondary: 'bg-gray-700/30 text-gray-300 border border-gray-600/30',
   success: 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30',
   warning: 'bg-amber-600/20 text-amber-400 border border-amber-500/30',

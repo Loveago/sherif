@@ -48,10 +48,13 @@ export function RegisterForm() {
   return (
     <div className="relative">
       {/* Ambient glow behind card */}
-      <div className="absolute -inset-4 rounded-[2rem] bg-violet-600/10 blur-2xl" />
+      <div
+        className="absolute -inset-4 rounded-[2rem] blur-2xl"
+        style={{ backgroundColor: 'var(--color-primary-soft)' }}
+      />
       <GlassCard className="relative w-full max-w-2xl p-5 sm:p-8">
         <div className="mb-8">
-          <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/25 bg-violet-500/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-violet-300">
+          <div className="inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] eyebrow-pill">
             <Sparkles className="h-3 w-3" />
             Create your account
           </div>
@@ -64,7 +67,7 @@ export function RegisterForm() {
         <form className="grid gap-5 md:grid-cols-2" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
           <div>
             <label className="mb-2 flex items-center gap-1.5 text-sm font-medium text-slate-300">
-              <UserIcon className="h-3.5 w-3.5 text-violet-400" />
+              <UserIcon className="h-3.5 w-3.5" style={{ color: 'var(--color-primary)' }} />
               First Name
             </label>
             <Input placeholder="Kwame" {...register('firstName')} />
@@ -72,7 +75,7 @@ export function RegisterForm() {
           </div>
           <div>
             <label className="mb-2 flex items-center gap-1.5 text-sm font-medium text-slate-300">
-              <UserIcon className="h-3.5 w-3.5 text-violet-400" />
+              <UserIcon className="h-3.5 w-3.5" style={{ color: 'var(--color-primary)' }} />
               Last Name
             </label>
             <Input placeholder="Asante" {...register('lastName')} />
@@ -80,7 +83,7 @@ export function RegisterForm() {
           </div>
           <div>
             <label className="mb-2 flex items-center gap-1.5 text-sm font-medium text-slate-300">
-              <Mail className="h-3.5 w-3.5 text-violet-400" />
+              <Mail className="h-3.5 w-3.5" style={{ color: 'var(--color-primary)' }} />
               Email
             </label>
             <Input placeholder="agent@cheappacksgh.com" {...register('email')} />
@@ -88,7 +91,7 @@ export function RegisterForm() {
           </div>
           <div>
             <label className="mb-2 flex items-center gap-1.5 text-sm font-medium text-slate-300">
-              <Phone className="h-3.5 w-3.5 text-violet-400" />
+              <Phone className="h-3.5 w-3.5" style={{ color: 'var(--color-primary)' }} />
               Phone
             </label>
             <Input placeholder="+233 20 000 0000" {...register('phone')} />
@@ -96,14 +99,14 @@ export function RegisterForm() {
           </div>
           <div>
             <label className="mb-2 flex items-center gap-1.5 text-sm font-medium text-slate-300">
-              <Building2 className="h-3.5 w-3.5 text-violet-400" />
+              <Building2 className="h-3.5 w-3.5" style={{ color: 'var(--color-primary)' }} />
               Company Name <span className="text-xs text-gray-500">(optional)</span>
             </label>
             <Input placeholder="Your Business Ltd." {...register('companyName')} />
           </div>
           <div>
             <label className="mb-2 flex items-center gap-1.5 text-sm font-medium text-slate-300">
-              <Lock className="h-3.5 w-3.5 text-violet-400" />
+              <Lock className="h-3.5 w-3.5" style={{ color: 'var(--color-primary)' }} />
               Password
             </label>
             <Input type="password" placeholder="Min. 8 characters" {...register('password')} />
@@ -111,7 +114,7 @@ export function RegisterForm() {
           </div>
           <div>
             <label className="mb-2 flex items-center gap-1.5 text-sm font-medium text-slate-300">
-              <Ticket className="h-3.5 w-3.5 text-violet-400" />
+              <Ticket className="h-3.5 w-3.5" style={{ color: 'var(--color-primary)' }} />
               Referral Code <span className="text-xs text-rose-400">(required)</span>
             </label>
             <Input placeholder="e.g. ABC123XY" {...register('referralCode')} />
@@ -139,7 +142,7 @@ export function RegisterForm() {
 
         <div className="mt-8 border-t border-[#1a2444] pt-6 text-center text-sm text-slate-400">
           Already have an account?{' '}
-          <Link href="/login" className="font-semibold text-violet-300 transition-colors hover:text-white">
+          <Link href="/login" className="font-semibold transition-colors link-brand">
             Sign in
           </Link>
         </div>
