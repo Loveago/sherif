@@ -194,7 +194,7 @@ export function DashboardShell({
               {/* Drawer Header */}
               <div className="flex items-center justify-between px-4 py-4 border-b border-gray-800">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-sm font-bold text-white">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg brand-pill text-sm font-bold text-white">
                     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
                       <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" />
                       <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -276,35 +276,38 @@ export function DashboardShell({
                 </p>
               </div>
             </div>
-            <div className="relative shrink-0">
-              <button
-                onClick={() => setMenuOpen((v) => !v)}
-                className="flex h-10 w-10 items-center justify-center rounded-full brand-pill text-sm font-bold text-white shadow-lg/40"
-              >
-                {initials}
-              </button>
-              <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-[#0b1120] bg-emerald-400" />
-              {menuOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                  <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-2xl border border-gray-700/60 bg-[#111827] shadow-2xl">
-                    <div className="px-4 py-3 border-b border-gray-800">
-                      <p className="text-sm font-semibold text-white">{user?.firstName} {user?.lastName}</p>
-                      <p className="text-xs text-gray-500">{mode === 'admin' ? 'Administrator' : 'Agent'}</p>
+            <div className="flex items-center gap-2 shrink-0">
+              <ThemeSwitcher />
+              <div className="relative">
+                <button
+                  onClick={() => setMenuOpen((v) => !v)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full brand-pill text-sm font-bold text-white shadow-lg/40"
+                >
+                  {initials}
+                </button>
+                <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-[#0b1120] bg-emerald-400" />
+                {menuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+                    <div className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-2xl border border-gray-700/60 bg-[#111827] shadow-2xl">
+                      <div className="px-4 py-3 border-b border-gray-800">
+                        <p className="text-sm font-semibold text-white">{user?.firstName} {user?.lastName}</p>
+                        <p className="text-xs text-gray-500">{mode === 'admin' ? 'Administrator' : 'Agent'}</p>
+                      </div>
+                      <Link href="/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800/60 hover:text-white transition-colors">
+                        <User className="h-4 w-4" /> Profile
+                      </Link>
+                      <Link href="/settings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800/60 hover:text-white transition-colors">
+                        <Settings className="h-4 w-4" /> Settings
+                      </Link>
+                      <div className="border-t border-gray-800/60" />
+                      <button onClick={() => { setMenuOpen(false); handleLogout(); }} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-rose-400 hover:bg-rose-500/10 transition-colors">
+                        <LogOut className="h-4 w-4" /> Log Out
+                      </button>
                     </div>
-                    <Link href="/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800/60 hover:text-white transition-colors">
-                      <User className="h-4 w-4" /> Profile
-                    </Link>
-                    <Link href="/settings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800/60 hover:text-white transition-colors">
-                      <Settings className="h-4 w-4" /> Settings
-                    </Link>
-                    <div className="border-t border-gray-800/60" />
-                    <button onClick={() => { setMenuOpen(false); handleLogout(); }} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-rose-400 hover:bg-rose-500/10 transition-colors">
-                      <LogOut className="h-4 w-4" /> Log Out
-                    </button>
-                  </div>
-                </>
-              )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
