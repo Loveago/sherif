@@ -13,7 +13,7 @@ interface StatItem {
 }
 
 const iconMap = {
-  orders: { Icon: ShoppingBag, orbClass: 'icon-orb-violet', textClass: 'text-violet-400' },
+  orders: { Icon: ShoppingBag, orbClass: 'icon-orb-violet', textClass: '' },
   success: { Icon: CheckCircle2, orbClass: 'icon-orb-emerald', textClass: 'text-emerald-400' },
   pending: { Icon: Clock, orbClass: 'icon-orb-amber', textClass: 'text-amber-400' },
   failed: { Icon: XCircle, orbClass: 'icon-orb-rose', textClass: 'text-rose-400' },
@@ -36,7 +36,10 @@ export function OverviewStats({ stats }: { stats: StatItem[] }) {
           >
             <div className="flex items-center gap-2.5">
               <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${orbClass}`}>
-                <Icon className={`h-4 w-4 ${textClass}`} />
+                <Icon
+                  className="h-4 w-4"
+                  style={stat.icon === 'orders' ? { color: 'var(--color-primary)' } : undefined}
+                />
               </div>
               <p className="text-[11px] font-medium text-gray-400 leading-tight">{stat.label}</p>
             </div>

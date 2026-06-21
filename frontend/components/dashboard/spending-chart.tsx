@@ -31,7 +31,7 @@ export function SpendingChart({
     <div className="rounded-2xl border border-gray-800/60 bg-[#111827]/60 p-5 animate-slide-up animate-slide-up-delay-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <BarChart3 className="h-4 w-4 text-violet-400" />
+          <BarChart3 className="h-4 w-4" style={{ color: 'var(--color-primary)' }} />
           <h3 className="text-sm font-bold text-white">Spending Overview</h3>
         </div>
         <select defaultValue="This Month" className="rounded-lg border border-gray-700/60 bg-gray-900/80 px-2.5 py-1 text-[11px] text-gray-300 outline-none">
@@ -46,8 +46,8 @@ export function SpendingChart({
             <LineChart data={chartData}>
               <defs>
                 <linearGradient id="spendingFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#7c3aed" stopOpacity={0} />
+                  <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.32} />
+                  <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid stroke="rgba(55, 65, 81, 0.2)" vertical={false} />
@@ -73,15 +73,15 @@ export function SpendingChart({
                   color: '#fff',
                   boxShadow: '0 8px 32px -8px rgba(0,0,0,0.5)',
                 }}
-                itemStyle={{ color: '#a78bfa' }}
+                itemStyle={{ color: 'var(--color-primary)' }}
               />
               <Line
                 type="monotone"
                 dataKey={dataKey}
-                stroke="#8b5cf6"
+                stroke="var(--color-primary)"
                 strokeWidth={2.5}
-                dot={{ r: 4, fill: '#8b5cf6', stroke: '#111827', strokeWidth: 2 }}
-                activeDot={{ r: 6, fill: '#a78bfa', stroke: '#fff', strokeWidth: 2 }}
+                dot={{ r: 4, fill: 'var(--color-primary)', stroke: '#111827', strokeWidth: 2 }}
+                activeDot={{ r: 6, fill: 'var(--color-accent)', stroke: '#fff', strokeWidth: 2 }}
               />
             </LineChart>
           </ResponsiveContainer>

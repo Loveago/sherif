@@ -13,7 +13,7 @@ interface AdminStat {
 }
 
 const iconMap = {
-  revenue: { Icon: DollarSign, orbClass: 'icon-orb-violet', textClass: 'text-violet-400' },
+  revenue: { Icon: DollarSign, orbClass: 'icon-orb-violet', textClass: '' },
   users: { Icon: Users, orbClass: 'icon-orb-sky', textClass: 'text-sky-400' },
   pending: { Icon: Clock, orbClass: 'icon-orb-amber', textClass: 'text-amber-400' },
   success: { Icon: TrendingUp, orbClass: 'icon-orb-emerald', textClass: 'text-emerald-400' },
@@ -36,7 +36,10 @@ export function AdminOverviewStats({ stats }: { stats: AdminStat[] }) {
           >
             <div className="flex items-center gap-2.5">
               <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${orbClass}`}>
-                <Icon className={`h-4 w-4 ${textClass}`} />
+                <Icon
+                  className="h-4 w-4"
+                  style={stat.icon === 'revenue' ? { color: 'var(--color-primary)' } : undefined}
+                />
               </div>
               <p className="text-[11px] font-medium text-gray-400 leading-tight">{stat.label}</p>
             </div>

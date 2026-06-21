@@ -32,7 +32,11 @@ export function TransactionList({
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold text-white">{title}</h3>
         {onViewAll && (
-          <button onClick={onViewAll} className="text-sm text-violet-400 hover:text-violet-300">
+          <button
+            onClick={onViewAll}
+            className="text-sm font-medium transition-colors"
+            style={{ color: 'var(--color-primary)' }}
+          >
             View all
           </button>
         )}

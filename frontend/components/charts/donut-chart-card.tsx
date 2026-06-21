@@ -3,8 +3,6 @@
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { GlassCard } from '@/components/ui/glass-card';
 
-const COLORS = ['#facc15', '#38bdf8', '#f97316', '#a78bfa', '#34d399'];
-
 export function DonutChartCard({
   title,
   data,
@@ -32,7 +30,16 @@ export function DonutChartCard({
                 stroke="none"
               >
                 {data.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={
+                      index === 0
+                        ? 'var(--color-primary)'
+                        : index === 1
+                        ? 'var(--color-accent)'
+                        : 'rgba(148, 163, 184, 0.8)'
+                    }
+                  />
                 ))}
               </Pie>
               <Tooltip
@@ -52,7 +59,14 @@ export function DonutChartCard({
               <div className="flex items-center gap-2">
                 <div
                   className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                  style={{
+                    backgroundColor:
+                      index === 0
+                        ? 'var(--color-primary)'
+                        : index === 1
+                        ? 'var(--color-accent)'
+                        : 'rgba(148, 163, 184, 0.8)',
+                  }}
                 />
                 <span className="text-sm text-gray-300">{item.label}</span>
               </div>

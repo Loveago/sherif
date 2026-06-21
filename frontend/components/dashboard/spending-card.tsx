@@ -7,7 +7,10 @@ export function SpendingCard({ value, change }: { value: string; change: string 
     <div
       className="relative overflow-hidden rounded-2xl border border-gray-800/60 bg-gradient-to-br from-[#111827] to-[#0d1321] p-5 glow-spending animate-slide-up animate-slide-up-delay-2"
     >
-      <div className="absolute -right-6 -top-6 h-28 w-28 rounded-full bg-violet-600/10 blur-[40px]" />
+      <div
+        className="absolute -right-6 -top-6 h-28 w-28 rounded-full blur-[40px]"
+        style={{ backgroundColor: 'var(--color-primary-soft)' }}
+      />
       <div className="relative flex items-center justify-between">
         <div>
           <p className="text-xs font-medium text-gray-400">Total Spending</p>
@@ -18,8 +21,11 @@ export function SpendingCard({ value, change }: { value: string; change: string 
             <span className="text-[10px] text-gray-500">from last month</span>
           </div>
         </div>
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-600/15">
-          <Wallet className="h-6 w-6 text-violet-400" />
+        <div
+          className="flex h-12 w-12 items-center justify-center rounded-2xl"
+          style={{ backgroundColor: 'var(--color-primary-soft)' }}
+        >
+          <Wallet className="h-6 w-6" style={{ color: 'var(--color-primary)' }} />
         </div>
       </div>
     </div>

@@ -21,11 +21,17 @@ export function WalletBalanceCard() {
       className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#131c31] to-[#0d1321] p-5 sm:p-6 glow-ambient animate-slide-up"
     >
       {/* Ambient background glow */}
-      <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-violet-600/15 blur-[60px]" />
-      <div className="absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-violet-500/10 blur-[50px]" />
+      <div
+        className="absolute -right-10 -top-10 h-40 w-40 rounded-full blur-[60px]"
+        style={{ backgroundColor: 'var(--color-primary-soft)' }}
+      />
+      <div
+        className="absolute -left-10 -bottom-10 h-32 w-32 rounded-full blur-[50px]"
+        style={{ backgroundColor: 'var(--color-primary-soft)' }}
+      />
       <div className="absolute inset-0 opacity-50"
         style={{
-          backgroundImage: 'radial-gradient(circle, rgba(124,58,237,0.08) 1px, transparent 1px)',
+          backgroundImage: 'radial-gradient(circle, var(--color-primary-soft) 1px, transparent 1px)',
           backgroundSize: '24px 24px',
         }}
       />
@@ -42,7 +48,11 @@ export function WalletBalanceCard() {
           </div>
           <Link
             href="/wallet"
-            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-600/30 transition-all hover:bg-violet-500 hover:shadow-violet-600/40 active:scale-95"
+            className="mt-5 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-95"
+            style={{
+              background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
+              boxShadow: '0 18px 45px rgba(15,23,42,0.9)',
+            }}
           >
             <Wallet className="h-4 w-4" />
             + Fund Wallet
@@ -51,9 +61,15 @@ export function WalletBalanceCard() {
 
         {/* Wallet illustration */}
         <div className="relative hidden shrink-0 sm:block">
-          <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600/30 to-violet-800/20">
-            <Wallet className="h-10 w-10 text-violet-300" />
-            <div className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-violet-500 text-[10px] font-bold text-white shadow-lg shadow-violet-500/40">
+          <div
+            className="relative flex h-20 w-20 items-center justify-center rounded-2xl"
+            style={{
+              background:
+                'radial-gradient(circle at 0% 0%, var(--color-primary-soft), transparent 60%), radial-gradient(circle at 100% 100%, rgba(15,23,42,0.9), rgba(15,23,42,0.95))',
+            }}
+          >
+            <Wallet className="h-10 w-10 text-[color:var(--color-accent)]" />
+            <div className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full nav-badge text-[10px] font-bold shadow-lg">
               ₵
             </div>
           </div>

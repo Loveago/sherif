@@ -17,6 +17,9 @@
   --warning: #f59e0b;
   --color-primary: #7c3aed;
   --color-accent: #38bdf8;
+  --color-primary-soft: rgba(124, 58, 237, 0.18);
+  --nav-active-bg: rgba(124, 58, 237, 0.18);
+  --nav-badge-bg: #7c3aed;
 }
 
 /* Violet Theme (Default) */
@@ -24,6 +27,9 @@ html.theme-violet {
   --color-primary: #7c3aed;
   --color-accent: #38bdf8;
   --color-secondary: #d946ef;
+  --color-primary-soft: rgba(124, 58, 237, 0.18);
+  --nav-active-bg: rgba(124, 58, 237, 0.18);
+  --nav-badge-bg: #7c3aed;
 }
 
 /* Ocean Theme */
@@ -31,6 +37,9 @@ html.theme-ocean {
   --color-primary: #0284c7;
   --color-accent: #06b6d4;
   --color-secondary: #0369a1;
+  --color-primary-soft: rgba(2, 132, 199, 0.2);
+  --nav-active-bg: rgba(2, 132, 199, 0.2);
+  --nav-badge-bg: #0284c7;
 }
 
 /* Sunset Theme */
@@ -38,6 +47,9 @@ html.theme-sunset {
   --color-primary: #ea580c;
   --color-accent: #ec4899;
   --color-secondary: #f97316;
+  --color-primary-soft: rgba(234, 88, 12, 0.2);
+  --nav-active-bg: rgba(234, 88, 12, 0.2);
+  --nav-badge-bg: #ea580c;
 }
 
 /* Forest Theme */
@@ -45,6 +57,9 @@ html.theme-forest {
   --color-primary: #16a34a;
   --color-accent: #059669;
   --color-secondary: #15803d;
+  --color-primary-soft: rgba(22, 163, 74, 0.2);
+  --nav-active-bg: rgba(22, 163, 74, 0.2);
+  --nav-badge-bg: #16a34a;
 }
 
 /* Candy Theme */
@@ -52,6 +67,9 @@ html.theme-candy {
   --color-primary: #ec4899;
   --color-accent: #f43f5e;
   --color-secondary: #db2777;
+  --color-primary-soft: rgba(236, 72, 153, 0.2);
+  --nav-active-bg: rgba(236, 72, 153, 0.2);
+  --nav-badge-bg: #ec4899;
 }
 
 /* Cyberpunk Theme */
@@ -59,6 +77,9 @@ html.theme-cyberpunk {
   --color-primary: #d946ef;
   --color-accent: #06b6d4;
   --color-secondary: #a855f7;
+  --color-primary-soft: rgba(217, 70, 239, 0.2);
+  --nav-active-bg: rgba(217, 70, 239, 0.2);
+  --nav-badge-bg: #d946ef;
 }
 
 /* Aurora Theme */
@@ -66,6 +87,9 @@ html.theme-aurora {
   --color-primary: #4ade80;
   --color-accent: #3b82f6;
   --color-secondary: #10b981;
+  --color-primary-soft: rgba(74, 222, 128, 0.2);
+  --nav-active-bg: rgba(74, 222, 128, 0.2);
+  --nav-badge-bg: #4ade80;
 }
 
 /* Gold Theme */
@@ -73,6 +97,9 @@ html.theme-gold {
   --color-primary: #eab308;
   --color-accent: #f97316;
   --color-secondary: #d97706;
+  --color-primary-soft: rgba(234, 179, 8, 0.22);
+  --nav-active-bg: rgba(234, 179, 8, 0.22);
+  --nav-badge-bg: #eab308;
 }
 
 * {
@@ -436,4 +463,42 @@ html.light .animate-skeleton {
 
 .transition-fast {
   transition: all 0.15s ease-out;
+}
+
+/* Navigation & brand helpers */
+.nav-item-active {
+  background-color: var(--nav-active-bg);
+  color: var(--color-primary);
+}
+
+.nav-item-inactive {
+  color: var(--text-muted);
+}
+
+.nav-item-inactive:hover {
+  background-color: rgba(15, 23, 42, 0.9);
+  color: var(--text);
+}
+
+.nav-badge {
+  background-color: var(--nav-badge-bg);
+  color: #ffffff;
+}
+
+.brand-pill {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+}
+
+.brand-soft {
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.brand-avatar {
+  background-color: var(--nav-badge-bg);
+  color: #ffffff;
+}
+
+.search-input:focus {
+  border-color: var(--color-primary);
 }

@@ -73,15 +73,13 @@ function NavItem({
       onClick={onClick}
       className={cn(
         'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors relative',
-        isActive
-          ? 'bg-violet-600/10 text-violet-400'
-          : 'text-gray-400 hover:bg-gray-800 hover:text-white',
+        isActive ? 'nav-item-active' : 'nav-item-inactive',
       )}
     >
       <Icon className="h-4 w-4" />
       <span>{link.label}</span>
       {'badge' in link && link.badge && cartItems > 0 && (
-        <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-violet-600 text-xs font-semibold text-white">
+        <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full nav-badge text-xs font-semibold">
           {cartItems}
         </span>
       )}
@@ -116,12 +114,12 @@ export function DashboardShell({
   const initials = user?.firstName?.[0]?.toUpperCase() || 'U';
 
   return (
-    <div className="flex min-h-screen bg-[#060a14]">
+    <div className="flex min-h-screen" style={{ backgroundColor: 'var(--bg-0)' }}>
       {/* Desktop Sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-gray-800 bg-[#0b1120] lg:flex">
         {/* Logo */}
         <div className="flex items-center gap-2 px-6 py-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-sm font-bold text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg brand-pill text-sm font-bold text-white">
             <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
               <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" />
               <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -135,7 +133,7 @@ export function DashboardShell({
 
         {/* User Profile */}
         <div className="mx-4 mb-4 flex items-center gap-3 rounded-xl border border-gray-800 bg-gray-900/50 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-600/20 text-violet-400">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full brand-soft">
             <User className="h-4 w-4" />
           </div>
           <div className="flex-1 min-w-0">
@@ -214,7 +212,7 @@ export function DashboardShell({
 
               {/* Mobile User Profile */}
               <div className="mx-4 mt-4 mb-2 flex items-center gap-3 rounded-xl border border-gray-800 bg-gray-900/50 px-4 py-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-600 text-sm font-medium text-white">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full brand-avatar text-sm font-medium text-white">
                   {initials}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -281,7 +279,7 @@ export function DashboardShell({
             <div className="relative shrink-0">
               <button
                 onClick={() => setMenuOpen((v) => !v)}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-violet-700 text-sm font-bold text-white shadow-lg shadow-violet-600/30"
+                className="flex h-10 w-10 items-center justify-center rounded-full brand-pill text-sm font-bold text-white shadow-lg/40"
               >
                 {initials}
               </button>
@@ -318,7 +316,7 @@ export function DashboardShell({
                 <input
                   readOnly
                   value="Search for anything..."
-                  className="w-80 rounded-xl border border-gray-700 bg-gray-900 py-2.5 pl-10 pr-4 text-sm text-gray-400 outline-none focus:border-violet-500 transition-colors"
+                  className="w-80 rounded-xl border border-gray-700 bg-gray-900 py-2.5 pl-10 pr-4 text-sm text-gray-400 outline-none transition-colors search-input"
                 />
               </div>
             </div>
@@ -330,7 +328,7 @@ export function DashboardShell({
               >
                 <ShoppingCart className="h-4 w-4" />
                 {cartItems > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border-2 border-[#0b1120] bg-violet-500 px-1 text-[9px] font-bold text-white">
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border-2 border-[#0b1120] nav-badge px-1 text-[9px] font-bold">
                     {cartItems}
                   </span>
                 )}
@@ -340,12 +338,12 @@ export function DashboardShell({
                 className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-gray-700 bg-gray-900 text-gray-400 transition-colors hover:text-white"
               >
                 <Bell className="h-4 w-4" />
-                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0b1120] bg-violet-500" />
+                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0b1120] nav-badge" />
               </Link>
               <div className="relative">
                 <button
                   onClick={() => setMenuOpen((v) => !v)}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-600 text-sm font-bold text-white hover:bg-violet-500 transition-colors"
+                  className="flex h-10 w-10 items-center justify-center rounded-full brand-avatar text-sm font-bold transition-colors"
                 >
                   {initials}
                 </button>
