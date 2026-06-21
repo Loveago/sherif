@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import type { Storefront, Order, Withdrawal, Product } from '@/lib/types';
+import { sortProductsBySize, sortNetworksByPriority } from '@/lib/product-sorting';
 import { Store, Eye, BarChart3, Users, TrendingUp, Copy, Check, Wallet, ArrowUpRight, Package, Clock, AlertCircle, Plus, Trash2, ChevronDown } from 'lucide-react';
 
 export default function StorefrontPage() {
@@ -211,30 +212,20 @@ export default function StorefrontPage() {
 
               {products && Array.isArray(products) && products.length > 0 ? (
                 (() => {
-                  const networkOrder = ['MTN', 'Telecel', 'AirtelTigo'];
-                  const grouped = products.reduce<Record<string, Product[]>>((acc, product) => {
+                  const sortedBySize = sortProductsBySize(products);
+                  const grouped = sortedBySize.reduce<Record<string, Product[]>>((acc, product) => {
                     const netName = product.network.name;
                     if (!acc[netName]) acc[netName] = [];
                     acc[netName].push(product);
                     return acc;
                   }, {});
 
-                  // Sort networks: MTN first, then Telecel, then AirtelTigo
-                  const sortedNetworks = Object.keys(grouped).sort((a, b) => {
-                    const aIdx = networkOrder.findIndex((n) => a.toLowerCase().includes(n.toLowerCase()));
-                    const bIdx = networkOrder.findIndex((n) => b.toLowerCase().includes(n.toLowerCase()));
-                    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-                    if (aIdx !== -1) return -1;
-                    if (bIdx !== -1) return 1;
-                    return a.localeCompare(b);
-                  });
+                  const sortedNetworks = sortNetworksByPriority(Object.keys(grouped));
 
                   return (
                     <>
                       {sortedNetworks.map((networkName) => {
-                        const netProducts = grouped[networkName].sort(
-                          (a, b) => a.sellingPrice - b.sellingPrice
-                        );
+                        const netProducts = grouped[networkName];
                         const activeCount = netProducts.filter((p) => p.isOnStorefront).length;
                         return (
                           <GlassCard key={networkName} className="p-5">

@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
 import type { Product } from '@/lib/types';
+import { sortNetworksByPriority, sortProductsBySize } from '@/lib/product-sorting';
 import { GlassCard } from '@/components/ui/glass-card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -37,8 +38,14 @@ export function QuickPurchaseCard() {
   });
 
   const selectedNetwork = watch('network');
-  const networkOptions = useMemo(() => Array.from(new Set(products.map((product) => product.network.code))), [products]);
-  const bundleOptions = useMemo(() => products.filter((product) => product.network.code === selectedNetwork), [products, selectedNetwork]);
+  const networkOptions = useMemo(
+    () => sortNetworksByPriority(Array.from(new Set(products.map((product) => product.network.code)))),
+    [products],
+  );
+  const bundleOptions = useMemo(
+    () => sortProductsBySize(products.filter((product) => product.network.code === selectedNetwork)),
+    [products, selectedNetwork],
+  );
 
   useEffect(() => {
     resetField('productId');

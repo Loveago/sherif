@@ -24,6 +24,7 @@ import { apiRequest } from '@/lib/api';
 import Image from 'next/image';
 import type { Product, Storefront } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
+import { sortProductsBySize, sortProductsForDisplay, sortNetworksByPriority } from '@/lib/product-sorting';
 
 type StorefrontResponse = { storefront: Storefront; products: Product[] };
 type InitializeStorefrontPaymentResponse = {
@@ -74,14 +75,16 @@ export default function PublicStorefrontPage() {
 
   const networks = useMemo(() => {
     if (!data?.products) return ['ALL'];
-    const unique = Array.from(new Set(data.products.map((product) => product.network.code)));
-    return ['ALL', ...unique];
+    const codes = Array.from(new Set(data.products.map((product) => product.network.code)));
+    const sortedCodes = sortNetworksByPriority(codes);
+    return ['ALL', ...sortedCodes];
   }, [data?.products]);
 
   const filteredProducts = useMemo(() => {
     if (!data?.products) return [];
-    if (selectedNetwork === 'ALL') return data.products;
-    return data.products.filter((product) => product.network.code === selectedNetwork);
+    if (selectedNetwork === 'ALL') return sortProductsForDisplay(data.products);
+    const byNetwork = data.products.filter((product) => product.network.code === selectedNetwork);
+    return sortProductsBySize(byNetwork);
   }, [data?.products, selectedNetwork]);
 
   const checkoutMutation = useMutation({

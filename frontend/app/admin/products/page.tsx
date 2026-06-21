@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/api';
 import type { Network, Product } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
+import { sortProductsForDisplay } from '@/lib/product-sorting';
 import {
   Search, Pencil, Trash2, X, Check, RotateCcw,
   Package, Eye, EyeOff, Tag, Filter
@@ -45,8 +46,6 @@ const ROLE_LABELS: Record<string, string> = {
   AGENT: 'Agent',
   ADMIN: 'Admin',
 };
-
-const NETWORK_ORDER = ['MTN', 'Telecel', 'AirtelTigo'];
 
 function getNetworkColor(networkName: string): string {
   const name = networkName.toUpperCase();
@@ -230,15 +229,7 @@ export default function AdminProductsPage() {
       );
     }
 
-    // Sort: MTN first, then Telecel, then AirtelTigo
-    list.sort((a, b) => {
-      const aNet = NETWORK_ORDER.findIndex((n) => a.network.name.toUpperCase().includes(n.toUpperCase()));
-      const bNet = NETWORK_ORDER.findIndex((n) => b.network.name.toUpperCase().includes(n.toUpperCase()));
-      if (aNet !== bNet) return aNet - bNet;
-      return (a.sellingPrice ?? 0) - (b.sellingPrice ?? 0);
-    });
-
-    return list;
+    return sortProductsForDisplay(list);
   }, [products, search, shopFilter, agentFilter, priceFilter]);
 
   const activeCount = products.filter((p) => p.status).length;

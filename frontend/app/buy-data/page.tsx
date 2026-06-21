@@ -12,6 +12,7 @@ import { apiRequest } from '@/lib/api';
 import { useCartStore } from '@/store/cart-store';
 import type { Product } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
+import { sortProductsBySize } from '@/lib/product-sorting';
 import { Check, ChevronRight, ShoppingCart } from 'lucide-react';
 
 const networks = [
@@ -71,10 +72,12 @@ export default function BuyDataPage() {
 
   const bundleOptions = useMemo(
     () =>
-      products.filter(
-        (product) =>
-          product.network.code.toLowerCase() === selectedNetwork.toLowerCase() ||
-          product.network.name.toLowerCase() === selectedNetwork.toLowerCase(),
+      sortProductsBySize(
+        products.filter(
+          (product) =>
+            product.network.code.toLowerCase() === selectedNetwork.toLowerCase() ||
+            product.network.name.toLowerCase() === selectedNetwork.toLowerCase(),
+        ),
       ),
     [products, selectedNetwork],
   );
