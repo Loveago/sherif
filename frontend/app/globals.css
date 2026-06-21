@@ -4,21 +4,75 @@
 
 :root {
   color-scheme: dark;
-  --bg-0: #060a14;
-  --bg-1: #0b1120;
-  --bg-2: #111827;
-  --panel: rgba(15, 23, 42, 0.85);
-  --panel-2: rgba(17, 24, 39, 0.92);
-  --stroke: rgba(55, 65, 81, 0.5);
-  --violet: #7c3aed;
-  --violet-2: #6d28d9;
-  --magenta: #d946ef;
-  --blue: #38bdf8;
+  --bg-0: #0f0f1e;
+  --bg-1: #1a1a2e;
+  --bg-2: #16213e;
+  --panel: rgba(26, 26, 46, 0.85);
+  --panel-2: rgba(22, 33, 62, 0.92);
+  --stroke: rgba(100, 116, 139, 0.3);
   --text: #f1f5f9;
   --text-muted: #94a3b8;
   --success: #10b981;
   --danger: #ef4444;
   --warning: #f59e0b;
+  --color-primary: #7c3aed;
+  --color-accent: #38bdf8;
+}
+
+/* Violet Theme (Default) */
+html.theme-violet {
+  --color-primary: #7c3aed;
+  --color-accent: #38bdf8;
+  --color-secondary: #d946ef;
+}
+
+/* Ocean Theme */
+html.theme-ocean {
+  --color-primary: #0284c7;
+  --color-accent: #06b6d4;
+  --color-secondary: #0369a1;
+}
+
+/* Sunset Theme */
+html.theme-sunset {
+  --color-primary: #ea580c;
+  --color-accent: #ec4899;
+  --color-secondary: #f97316;
+}
+
+/* Forest Theme */
+html.theme-forest {
+  --color-primary: #16a34a;
+  --color-accent: #059669;
+  --color-secondary: #15803d;
+}
+
+/* Candy Theme */
+html.theme-candy {
+  --color-primary: #ec4899;
+  --color-accent: #f43f5e;
+  --color-secondary: #db2777;
+}
+
+/* Cyberpunk Theme */
+html.theme-cyberpunk {
+  --color-primary: #d946ef;
+  --color-accent: #06b6d4;
+  --color-secondary: #a855f7;
+}
+
+/* Aurora Theme */
+html.theme-aurora {
+  --color-primary: #4ade80;
+  --color-accent: #3b82f6;
+  --color-secondary: #10b981;
+}
+
+/* Gold Theme */
+html.theme-gold {
+  --color-primary: #eab308;
+  --color-accent: #f97316;
+  --color-secondary: #d97706;
 }
 
 * {
@@ -280,3 +334,106 @@ textarea {
 .icon-orb-amber { background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(245, 158, 11, 0.08)); }
 .icon-orb-rose { background: linear-gradient(135deg, rgba(244, 63, 94, 0.25), rgba(244, 63, 94, 0.08)); }
 .icon-orb-sky { background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(56, 189, 248, 0.08)); }
+
+/* Loading animations */
+@keyframes spin-smooth {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-smooth {
+  animation: spin-smooth 1s linear infinite;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(124, 58, 237, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out;
+}
+
+@keyframes bounce-in {
+  0% { opacity: 0; transform: scale(0.3); }
+  50% { opacity: 1; }
+  70% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.4s ease-out;
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.4s ease-out;
+}
+
+/* Skeleton shimmer animation */
+@keyframes skeleton-shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+.animate-skeleton {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.2) 20%, rgba(255, 255, 255, 0) 40%, rgba(255, 255, 255, 0));
+  background-size: 1000px 100%;
+  animation: skeleton-shimmer 2s infinite;
+}
+
+html.light .animate-skeleton {
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.05) 20%, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0));
+  background-size: 1000px 100%;
+  animation: skeleton-shimmer 2s infinite;
+}
+
+/* Transition utilities */
+.transition-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transition-fast {
+  transition: all 0.15s ease-out;
+}

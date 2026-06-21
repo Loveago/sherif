@@ -13,3 +13,8 @@ backend/generated
 .vscode
 .idea
 vercel.txt
+
+# Documentation files
+*.md
+!README.md
+!CHANGELOG.md

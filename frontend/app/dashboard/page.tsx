@@ -16,23 +16,27 @@ import { BarChart3 } from 'lucide-react';
 import { apiRequest } from '@/lib/api';
 import type { DashboardResponse } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
+import { LoadingState } from '@/components/loaders/loading-state';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => apiRequest<DashboardResponse>('/dashboard'),
   });
 
-  if (isLoading || !data) {
-    return (
-      <AuthGuard>
-        <DashboardShell title="Dashboard" description="Loading...">
-          <div className="flex items-center justify-center py-20 text-gray-400">Loading dashboard...</div>
-        </DashboardShell>
-      </AuthGuard>
-    );
-  }
+  return (
+    <AuthGuard>
+      <DashboardShell title="Dashboard" description="">
+        <LoadingState isLoading={isLoading} error={error} skeleton="grid">
+          {data ? <DashboardContent data={data} router={router} /> : null}
+        </LoadingState>
+      </DashboardShell>
+    </AuthGuard>
+  );
+}
+
+function DashboardContent({ data, router }: { data: any; router: any }) {
 
   const metrics = data.metrics ?? {};
   const stats = [
@@ -47,55 +51,67 @@ export default function DashboardPage() {
   const networkUsage = data.networkUsage ?? [];
 
   return (
-    <AuthGuard>
-      <DashboardShell title="Dashboard" description="">
-        <div className="mx-auto max-w-xl lg:max-w-none space-y-4">
-          {/* Wallet Balance */}
-          <WalletBalanceCard />
+    <div className="mx-auto max-w-xl lg:max-w-none space-y-4">
+      {/* Wallet Balance */}
+      <div className="animate-fade-in">
+        <WalletBalanceCard />
+      </div>
 
-          {/* Overview Section Header */}
-          <div className="flex items-center justify-between pt-1">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-violet-400" />
-              <h2 className="text-sm font-bold text-white">Overview</h2>
-            </div>
-            <select defaultValue="This Month" className="rounded-lg border border-gray-700/60 bg-gray-900/80 px-2.5 py-1 text-[11px] text-gray-300 outline-none">
-              <option>This Month</option>
-              <option>Last Month</option>
-              <option>This Year</option>
-            </select>
-          </div>
-
-          {/* Stats Grid */}
-          <OverviewStats stats={stats} />
-
-          {/* Total Spending */}
-          <SpendingCard value={formatCurrency(metrics.totalSpending ?? 0)} change="+22.4%" />
-
-          {/* Spending Chart */}
-          <SpendingChart data={revenueSeries} dataKey="revenue" />
-
-          {/* Refer & Earn */}
-          <ReferEarnCard />
-
-          {/* Desktop extras */}
-          <div className="hidden lg:grid lg:grid-cols-[1fr_0.8fr_0.5fr] lg:gap-4">
-            <TransactionList
-              title="Recent Transactions"
-              orders={orders}
-              onViewAll={() => router.push('/orders')}
-            />
-            <DonutChartCard
-              title="Top Networks"
-              data={networkUsage.map((entry) => ({
-                label: entry.networkCode,
-                count: entry.orders,
-              }))}
-            />
-            <QuickActionsCard />
-          </div>
+      {/* Overview Section Header */}
+      <div className="flex items-center justify-between pt-1 animate-fade-in" style={{ animationDelay: '0.1s' }}>
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-violet-400" />
+          <h2 className="text-sm font-bold text-white">Overview</h2>
         </div>
-      </DashboardShell>
-    </AuthGuard>
+        <select defaultValue="This Month" className="rounded-lg border border-gray-700/60 bg-gray-900/80 px-2.5 py-1 text-[11px] text-gray-300 outline-none">
+          <option>This Month</option>
+          <option>Last Month</option>
+          <option>This Year</option>
+        </select>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="animate-fade-in" style={{ animationDelay: '0.2s' }}>
+        <OverviewStats stats={stats} />
+      </div>
+
+      {/* Total Spending */}
+      <div className="animate-fade-in" style={{ animationDelay: '0.3s' }}>
+        <SpendingCard value={formatCurrency(metrics.totalSpending ?? 0)} change="+22.4%" />
+      </div>
+
+      {/* Spending Chart */}
+      <div className="animate-fade-in" style={{ animationDelay: '0.4s' }}>
+        <SpendingChart data={revenueSeries} dataKey="revenue" />
+      </div>
+
+      {/* Refer & Earn */}
+      <div className="animate-fade-in" style={{ animationDelay: '0.5s' }}>
+        <ReferEarnCard />
+      </div>
+
+      {/* Desktop extras */}
+      <div className="hidden lg:grid lg:grid-cols-[1fr_0.8fr_0.5fr] lg:gap-4">
+        <div className="animate-fade-in" style={{ animationDelay: '0.6s' }}>
+          <TransactionList
+            title="Recent Transactions"
+            orders={orders}
+            onViewAll={() => router.push('/orders')}
+          />
+        </div>
+        <div className="animate-fade-in" style={{ animationDelay: '0.7s' }}>
+          <DonutChartCard
+            title="Top Networks"
+            data={networkUsage.map((entry: any) => ({
+              label: entry.networkCode,
+              count: entry.orders,
+            }))}
+          />
+        </div>
+        <div className="animate-fade-in" style={{ animationDelay: '0.8s' }}>
+          <QuickActionsCard />
+        </div>
+      </div>
+    </div>
   );
 }

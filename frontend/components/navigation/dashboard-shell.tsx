@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 import { useCartStore } from '@/store/cart-store';
 import { WhatsAppBubble } from '@/components/whatsapp-bubble';
+import { ThemeSwitcher } from '@/components/theme-switcher';
 
 interface NavLink {
   href: string;
@@ -322,6 +323,7 @@ export function DashboardShell({
               </div>
             </div>
             <div className="flex items-center gap-3 shrink-0">
+              <ThemeSwitcher />
               <Link
                 href="/cart"
                 className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-gray-700 bg-gray-900 text-gray-400 transition-colors hover:text-white"
