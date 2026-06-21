@@ -505,6 +505,8 @@ adminRouter.get('/settings', async (_request, response, next) => {
         },
         whatsappNumber: map.whatsappNumber || '',
         afaRegistrationFee: Number(map.afaRegistrationFee ?? 20),
+        paystackPublicKey: map.paystackPublicKey || process.env.PAYSTACK_PUBLIC_KEY || '',
+        paystackSecretKey: map.paystackSecretKey || process.env.PAYSTACK_SECRET_KEY || '',
       }),
     );
   } catch (error) {

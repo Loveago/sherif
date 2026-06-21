@@ -1,7 +1,12 @@
 import axios from 'axios';
+import { prisma } from '../lib/prisma.js';
 
 const PAYSTACK_BASE_URL = 'https://api.paystack.co';
-const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || '';
+
+async function getPaystackSecretKey(): Promise<string> {
+  const setting = await prisma.adminSettings.findUnique({ where: { key: 'paystackSecretKey' } });
+  return setting?.value || process.env.PAYSTACK_SECRET_KEY || '';
+}
 
 export interface PaystackInitializeResponse {
   status: boolean;
@@ -37,6 +42,7 @@ export async function initializePaystackPayment(
   metadata?: Record<string, any>
 ): Promise<PaystackInitializeResponse> {
   try {
+    const secretKey = await getPaystackSecretKey();
     const payload: any = {
       email,
       amount: Math.round(amount * 100),
@@ -51,7 +57,7 @@ export async function initializePaystackPayment(
       payload,
       {
         headers: {
-          Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+          Authorization: `Bearer ${secretKey}`,
           'Content-Type': 'application/json',
         },
       }
@@ -67,11 +73,12 @@ export async function initializePaystackPayment(
 
 export async function verifyPaystackPayment(reference: string): Promise<PaystackVerifyResponse> {
   try {
+    const secretKey = await getPaystackSecretKey();
     const response = await axios.get<PaystackVerifyResponse>(
       `${PAYSTACK_BASE_URL}/transaction/verify/${reference}`,
       {
         headers: {
-          Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+          Authorization: `Bearer ${secretKey}`,
         },
       }
     );

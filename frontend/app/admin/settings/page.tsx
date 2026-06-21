@@ -9,7 +9,7 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/lib/api';
-import { Smartphone, CheckCircle, MessageCircle, CreditCard } from 'lucide-react';
+import { Smartphone, CheckCircle, MessageCircle, CreditCard, Key } from 'lucide-react';
 
 type AdminSettings = {
   platformFees: { withdrawalFee: number; serviceFee: number };
@@ -20,6 +20,8 @@ type AdminSettings = {
   momoSettings: { momoNumber: string; momoName: string; momoEnabled: boolean };
   whatsappNumber: string;
   afaRegistrationFee: number;
+  paystackPublicKey: string;
+  paystackSecretKey: string;
 };
 
 export default function AdminSettingsPage() {
@@ -59,6 +61,17 @@ export default function AdminSettingsPage() {
     },
   });
 
+  const paystackForm = useForm({
+    defaultValues: {
+      paystackPublicKey: data?.paystackPublicKey ?? '',
+      paystackSecretKey: data?.paystackSecretKey ?? '',
+    },
+    values: {
+      paystackPublicKey: data?.paystackPublicKey ?? '',
+      paystackSecretKey: data?.paystackSecretKey ?? '',
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: (values: Record<string, string>) =>
       apiRequest('/admin/settings', { method: 'PUT', body: JSON.stringify(values) }),
@@ -87,6 +100,13 @@ export default function AdminSettingsPage() {
   const onSaveAfaFee = afaFeeForm.handleSubmit((values) => {
     updateMutation.mutate({
       afaRegistrationFee: String(values.afaRegistrationFee),
+    });
+  });
+
+  const onSavePaystack = paystackForm.handleSubmit((values) => {
+    updateMutation.mutate({
+      paystackPublicKey: values.paystackPublicKey,
+      paystackSecretKey: values.paystackSecretKey,
     });
   });
 
@@ -197,6 +217,47 @@ export default function AdminSettingsPage() {
                       <CheckCircle className="h-4 w-4" /> Saved
                     </span>
                   ) : 'Save AFA Fee'}
+                </Button>
+              </div>
+            </div>
+          </GlassCard>
+
+          {/* Paystack API Keys */}
+          <GlassCard className="p-6 md:col-span-2 xl:col-span-3">
+            <div className="flex items-center gap-2">
+              <Key className="h-5 w-5 text-amber-400" />
+              <p className="text-sm font-semibold text-white">Paystack API Keys</p>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Update your Paystack public and secret keys here. Changes take effect immediately for all new payments.
+            </p>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400">Public Key</label>
+                <Input
+                  placeholder="pk_test_..."
+                  {...paystackForm.register('paystackPublicKey')}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400">Secret Key</label>
+                <Input
+                  type="password"
+                  placeholder="sk_test_..."
+                  {...paystackForm.register('paystackSecretKey')}
+                />
+              </div>
+              <div className="flex items-end">
+                <Button
+                  onClick={onSavePaystack}
+                  disabled={updateMutation.isPending}
+                  className="w-full"
+                >
+                  {updateMutation.isPending ? 'Saving...' : saved ? (
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle className="h-4 w-4" /> Saved
+                    </span>
+                  ) : 'Save Paystack Keys'}
                 </Button>
               </div>
             </div>
