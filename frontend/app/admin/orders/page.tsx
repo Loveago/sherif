@@ -21,6 +21,8 @@ interface Order {
   amount: number;
   phoneNumber: string;
   createdAt: string;
+  source?: string;
+  providerReference?: string | null;
   user: { firstName: string; lastName: string };
   product: { name: string; description: string; dataSize: string; network: { name: string } };
 }
@@ -31,6 +33,7 @@ export default function AdminOrdersPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [productFilter, setProductFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
   const [fullTable, setFullTable] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -38,11 +41,14 @@ export default function AdminOrdersPage() {
   const [newStatus, setNewStatus] = useState('');
 
   const { data: orders = [], isLoading } = useQuery({
-    queryKey: ['admin-orders', search, statusFilter],
-    queryFn: () =>
-      apiRequest<Order[]>(
-        `/admin/orders?search=${search}&status=${statusFilter}`
-      ),
+    queryKey: ['admin-orders', search, statusFilter, sourceFilter],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      if (statusFilter) params.set('status', statusFilter);
+      if (sourceFilter) params.set('source', sourceFilter);
+      return apiRequest<Order[]>(`/admin/orders?${params.toString()}`);
+    },
   });
 
   const updateOrderStatusMutation = useMutation({
@@ -139,6 +145,51 @@ export default function AdminOrdersPage() {
           </span>
         );
     }
+  };
+
+  const getSourceBadge = (source?: string) => {
+    const normalized = (source || '').toUpperCase();
+
+    if (normalized === 'STOREFRONT') {
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-300 border border-emerald-500/30">
+          Storefront
+        </span>
+      );
+    }
+
+    if (normalized === 'BULK') {
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/10 px-2.5 py-0.5 text-xs font-medium text-sky-300 border border-sky-500/30">
+          Bulk
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/10 px-2.5 py-0.5 text-xs font-medium text-violet-300 border border-violet-500/30">
+        Dashboard
+      </span>
+    );
+  };
+
+  const getPaymentBadge = (order: Order) => {
+    const isStorefront = order.source === 'STOREFRONT' || order.receiptNumber.startsWith('STORE-');
+    const isPaid = isStorefront ? Boolean(order.providerReference) : true;
+
+    if (isPaid) {
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-300 border border-emerald-500/30">
+          Paid
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-600/10 px-2.5 py-0.5 text-xs font-medium text-gray-300 border border-gray-600/30">
+        Unpaid
+      </span>
+    );
   };
 
   const handleBulkAction = (status: string) => {
@@ -262,11 +313,15 @@ export default function AdminOrdersPage() {
                 <option value="FAILED">Failed</option>
                 <option value="CANCELLED">Cancelled</option>
               </select>
-              <select className="rounded-xl border border-gray-700/50 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none">
+              <select
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value)}
+                className="rounded-xl border border-gray-700/50 bg-slate-900/50 px-3 py-2 text-sm text-white outline-none"
+              >
                 <option value="">All Sources</option>
                 <option value="DASHBOARD">Dashboard</option>
                 <option value="STOREFRONT">Storefront</option>
-                <option value="API">API</option>
+                <option value="BULK">Bulk</option>
               </select>
               <Input
                 type="date"
@@ -404,13 +459,16 @@ export default function AdminOrdersPage() {
                           {order.product.description}
                         </td>
                       )}
-                      <td className="px-4 py-3">{getStatusBadge(order.status)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                          {getStatusBadge(order.status)}
+                          {getPaymentBadge(order)}
+                        </div>
+                      </td>
                       {fullTable && (
                         <>
                           <td className="px-4 py-3">
-                            <span className="rounded bg-violet-500/10 px-2 py-0.5 text-xs text-violet-400 border border-violet-500/20">
-                              Dashboard
-                            </span>
+                            {getSourceBadge(order.source)}
                           </td>
                           <td className="px-4 py-3 text-gray-400">
                             {new Date(order.createdAt).toLocaleDateString('en-US', {

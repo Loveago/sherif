@@ -76,6 +76,7 @@ export type Order = {
   status: string;
   receiptNumber: string;
   providerReference?: string | null;
+  source?: string;
   createdAt: string;
   product: Product;
   refund?: Refund | null;

@@ -44,7 +44,9 @@ export const processFulfillmentJob = async (orderId: string) => {
       },
     });
 
-    if (nextStatus === OrderStatus.FAILED) {
+    const isStorefrontOrder = order.source === 'STOREFRONT';
+
+    if (nextStatus === OrderStatus.FAILED && !isStorefrontOrder) {
       await createWalletTransaction(
         wallet.id,
         order.amount.toNumber(),

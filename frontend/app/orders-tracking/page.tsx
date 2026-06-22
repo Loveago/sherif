@@ -17,6 +17,8 @@ interface Order {
   amount: number;
   phoneNumber: string;
   createdAt: string;
+  source?: string;
+  providerReference?: string | null;
   product: { name: string; network: { name: string } };
 }
 
@@ -98,16 +100,20 @@ export default function OrdersTrackingPage() {
           <h3 className="text-lg font-semibold text-white mb-4">Your Orders</h3>
 
           <div className="space-y-3">
-            {filteredOrders.map((order) => (
-              <div
-                key={order.id}
-                className="flex items-center justify-between rounded-lg border border-gray-700/50 bg-gray-900/30 p-4 cursor-pointer hover:bg-gray-900/50 transition-colors"
-                onClick={() => {
-                  setSelectedOrder(order);
-                  setShowDetailsModal(true);
-                }}
-              >
-                <div className="flex-1">
+            {filteredOrders.map((order) => {
+              const isStorefront = order.source === 'STOREFRONT' || order.receiptNumber.startsWith('STORE-');
+              const isPaid = isStorefront ? Boolean(order.providerReference) : true;
+
+              return (
+                <div
+                  key={order.id}
+                  className="flex items-center justify-between rounded-lg border border-gray-700/50 bg-gray-900/30 p-4 cursor-pointer hover:bg-gray-900/50 transition-colors"
+                  onClick={() => {
+                    setSelectedOrder(order);
+                    setShowDetailsModal(true);
+                  }}
+                >
+                  <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-600/20">
                       <Package className="h-5 w-5 text-violet-400" />
@@ -136,12 +142,15 @@ export default function OrdersTrackingPage() {
                         <Badge variant={order.status === 'SUCCESSFUL' ? 'success' : 'warning'}>
                           {order.status}
                         </Badge>
+                        <Badge variant={isPaid ? 'success' : 'secondary'}>
+                          {isPaid ? 'Paid' : 'Unpaid'}
+                        </Badge>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {filteredOrders.length === 0 && (
               <p className="text-center text-gray-500 py-8">No orders found</p>

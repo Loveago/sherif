@@ -808,7 +808,7 @@ agentRouter.post('/orders/batch', validate(batchOrderSchema), async (request, re
             productId: product.id,
             phoneNumber: o.phoneNumber,
             amount: product.sellingPrice,
-            source: 'BUY_NOW',
+            source: 'BULK',
             receiptNumber: generateOrderReference('BUY_NOW'),
             status: 'PENDING',
           },

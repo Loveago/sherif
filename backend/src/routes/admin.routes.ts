@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { Prisma, UserRole, OrderStatus, WalletTransactionCategory, WalletTransactionType } from '@prisma/client';
+import { Prisma, UserRole, OrderStatus, OrderSource, WalletTransactionCategory, WalletTransactionType } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -666,16 +666,53 @@ adminRouter.post('/products/:id/role-price', async (request, response, next) => 
 
 adminRouter.get('/orders', async (request, response, next) => {
   try {
-    const { status, userId, productId, startDate, endDate } = request.query;
-    
+    const { status, userId, productId, startDate, endDate, search, source } = request.query;
+
+    const where: Prisma.OrderWhereInput = {
+      ...(status && { status: status as OrderStatus }),
+      ...(userId && { userId: String(userId) }),
+      ...(productId && { productId: String(productId) }),
+      ...(startDate && { createdAt: { gte: new Date(String(startDate)) } }),
+      ...(endDate && { createdAt: { lte: new Date(String(endDate)) } }),
+    };
+
+    if (source && typeof source === 'string' && source.trim()) {
+      const normalized = source.toUpperCase();
+
+      if (normalized === 'DASHBOARD') {
+        where.source = OrderSource.BUY_NOW;
+      } else if (normalized === 'BULK') {
+        where.source = OrderSource.BULK;
+      } else if (normalized === 'STOREFRONT') {
+        where.source = OrderSource.STOREFRONT;
+      }
+    }
+
+    if (search && typeof search === 'string' && search.trim()) {
+      const term = search.trim();
+
+      where.AND = [
+        ...(where.AND ?? []),
+        {
+          OR: [
+            { receiptNumber: { contains: term, mode: 'insensitive' } },
+            { phoneNumber: { contains: term } },
+            {
+              user: {
+                OR: [
+                  { firstName: { contains: term, mode: 'insensitive' } },
+                  { lastName: { contains: term, mode: 'insensitive' } },
+                  { email: { contains: term, mode: 'insensitive' } },
+                ],
+              },
+            },
+          ],
+        },
+      ];
+    }
+
     const orders = await prisma.order.findMany({
-      where: {
-        ...(status && { status: status as OrderStatus }),
-        ...(userId && { userId: String(userId) }),
-        ...(productId && { productId: String(productId) }),
-        ...(startDate && { createdAt: { gte: new Date(String(startDate)) } }),
-        ...(endDate && { createdAt: { lte: new Date(String(endDate)) } }),
-      },
+      where,
       include: {
         product: { include: { network: true } },
         user: true,

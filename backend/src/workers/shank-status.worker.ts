@@ -87,7 +87,9 @@ export const pollOrderStatuses = async (): Promise<{ checked: number; updated: n
             data: { status: newStatus },
           });
 
-          if (newStatus === OrderStatus.FAILED && order.user.wallet) {
+          const isStorefrontOrder = order.source === 'STOREFRONT';
+
+          if (newStatus === OrderStatus.FAILED && order.user.wallet && !isStorefrontOrder) {
             await createWalletTransaction(
               order.user.wallet.id,
               order.amount.toNumber(),

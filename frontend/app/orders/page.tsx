@@ -115,6 +115,8 @@ export default function OrdersPage() {
             const networkCode = order.product?.network?.code || 'MTN';
             const canCancel = ['PENDING', 'PROCESSING'].includes(order.status);
             const canRefund = order.status === 'SUCCESSFUL';
+            const isStorefront = order.source === 'STOREFRONT' || order.receiptNumber.startsWith('STORE-');
+            const isPaid = isStorefront ? Boolean(order.providerReference) : true;
 
             return (
               <GlassCard key={order.id} className="p-4">
@@ -135,6 +137,9 @@ export default function OrdersPage() {
                         <div className="mt-0.5 flex items-center justify-end gap-1">
                           {statusIcons[order.status]}
                           <span className="text-xs text-gray-400 capitalize">{order.status.toLowerCase()}</span>
+                          <Badge variant={isPaid ? 'success' : 'secondary'} className="ml-1">
+                            {isPaid ? 'Paid' : 'Unpaid'}
+                          </Badge>
                         </div>
                       </div>
                     </div>
