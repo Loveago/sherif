@@ -149,8 +149,9 @@ export default function OrdersTrackingPage() {
                     </div>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            );
+          })}
 
             {filteredOrders.length === 0 && (
               <p className="text-center text-gray-500 py-8">No orders found</p>
