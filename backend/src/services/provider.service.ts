@@ -29,6 +29,19 @@ const isScopeError = (message: string): boolean => {
   return lower.includes('network not in api key scopes') || lower.includes('not in scope');
 };
 
+export const isInsufficientBalanceError = (message: string | null | undefined): boolean => {
+  if (!message) return false;
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('insufficient balance') ||
+    lower.includes('insufficient funds') ||
+    lower.includes('not enough balance') ||
+    lower.includes('low balance') ||
+    lower.includes('balance too low') ||
+    lower.includes('wallet balance')
+  );
+};
+
 export const fulfillOrderWithProvider = async (orderId: string) => {
   const provider = await prisma.provider.findFirst({
     where: { status: 'ACTIVE' },

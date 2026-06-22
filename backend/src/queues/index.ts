@@ -1,6 +1,6 @@
 import { OrderStatus, WalletTransactionCategory, WalletTransactionType, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
-import { fulfillOrderWithProvider } from '../services/provider.service.js';
+import { fulfillOrderWithProvider, isInsufficientBalanceError } from '../services/provider.service.js';
 import { createNotification } from '../services/notification.service.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
@@ -46,7 +46,10 @@ export const processFulfillmentJob = async (orderId: string) => {
 
     const isStorefrontOrder = order.source === 'STOREFRONT';
 
-    if (nextStatus === OrderStatus.FAILED && !isStorefrontOrder) {
+    const failureMessage = (result as any).error as string | undefined;
+    const isBalanceError = isInsufficientBalanceError(failureMessage);
+
+    if (nextStatus === OrderStatus.FAILED && !isStorefrontOrder && !isBalanceError) {
       await createWalletTransaction(
         wallet.id,
         order.amount.toNumber(),
