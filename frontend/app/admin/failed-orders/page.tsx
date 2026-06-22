@@ -136,9 +136,9 @@ export default function AdminFailedOrdersPage() {
           >
             <ShieldAlert className="h-4 w-4" />
             Critical Issues
-            {(criticalIssues?.summary.total ?? 0) > 0 && (
+            {(criticalIssues?.summary?.total ?? 0) > 0 && (
               <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-xs text-amber-400">
-                {criticalIssues.summary.total}
+                {criticalIssues?.summary?.total ?? 0}
               </span>
             )}
           </button>

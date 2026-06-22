@@ -1632,17 +1632,29 @@ adminRouter.get('/failed-orders', requireAuth, requireRole(UserRole.ADMIN), asyn
         product: { include: { network: true } },
         user: true,
         refund: true,
-        providerTransaction: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
       },
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
 
+    const orderIds = orders.map((o) => o.id);
+
+    const providerTxs = orderIds.length > 0
+      ? await prisma.providerTransaction.findMany({
+          where: { orderId: { in: orderIds }, status: 'FAILED' },
+          orderBy: { createdAt: 'desc' },
+        })
+      : [];
+
+    const txByOrderId = new Map<string, typeof providerTxs[number]>();
+    for (const tx of providerTxs) {
+      if (tx.orderId && !txByOrderId.has(tx.orderId)) {
+        txByOrderId.set(tx.orderId, tx);
+      }
+    }
+
     const formatted = orders.map((order) => {
-      const lastTx = order.providerTransaction[0];
+      const lastTx = txByOrderId.get(order.id);
       const responsePayload = lastTx?.responsePayload as Record<string, any> | null;
 
       return {
@@ -1661,7 +1673,7 @@ adminRouter.get('/failed-orders', requireAuth, requireRole(UserRole.ADMIN), asyn
         refundAmount: order.refund?.amount ?? null,
         failureReason: responsePayload?.error ?? responsePayload?.message ?? 'Unknown error',
         attemptedNetworkIds: responsePayload?.attemptedNetworkIds ?? null,
-        providerReference: lastTx?.providerReference ?? null,
+        providerReference: order.providerReference ?? null,
         failedAt: lastTx?.createdAt ?? order.updatedAt,
       };
     });
@@ -1681,7 +1693,6 @@ adminRouter.get('/critical-issues', requireAuth, requireRole(UserRole.ADMIN), as
     const [
       recentProviderFailures,
       recentWebhookFailures,
-      recentShankFailures,
       stuckProcessingOrders,
     ] = await Promise.all([
       // Provider transaction failures in last 24h
@@ -1689,14 +1700,6 @@ adminRouter.get('/critical-issues', requireAuth, requireRole(UserRole.ADMIN), as
         where: {
           status: 'FAILED',
           createdAt: { gte: since },
-        },
-        include: {
-          order: {
-            include: {
-              product: { include: { network: true } },
-              user: { select: { firstName: true, lastName: true, email: true } },
-            },
-          },
         },
         orderBy: { createdAt: 'desc' },
         take: 50,
@@ -1710,21 +1713,6 @@ adminRouter.get('/critical-issues', requireAuth, requireRole(UserRole.ADMIN), as
         },
         include: { webhook: true },
         orderBy: { createdAt: 'desc' },
-        take: 50,
-      }),
-
-      // Shank status worker failures (orders stuck in PROCESSING that failed)
-      prisma.order.findMany({
-        where: {
-          status: 'FAILED',
-          updatedAt: { gte: since },
-          providerTransaction: { some: { status: 'FAILED' } },
-        },
-        include: {
-          product: { include: { network: true } },
-          user: { select: { firstName: true, lastName: true, email: true } },
-        },
-        orderBy: { updatedAt: 'desc' },
         take: 50,
       }),
 
@@ -1753,8 +1741,25 @@ adminRouter.get('/critical-issues', requireAuth, requireRole(UserRole.ADMIN), as
       metadata: Record<string, unknown>;
     }> = [];
 
+    const providerFailureOrderIds = recentProviderFailures
+      .map((tx) => tx.orderId)
+      .filter((id): id is string => !!id);
+
+    const providerFailureOrders = providerFailureOrderIds.length > 0
+      ? await prisma.order.findMany({
+          where: { id: { in: providerFailureOrderIds } },
+          include: {
+            product: { include: { network: true } },
+            user: { select: { firstName: true, lastName: true, email: true } },
+          },
+        })
+      : [];
+
+    const orderMap = new Map(providerFailureOrders.map((o) => [o.id, o]));
+
     for (const tx of recentProviderFailures) {
       const payload = tx.responsePayload as Record<string, any> | null;
+      const relatedOrder = tx.orderId ? orderMap.get(tx.orderId) : null;
       issues.push({
         type: 'PROVIDER_FAILURE',
         severity: 'critical',
@@ -1765,8 +1770,8 @@ adminRouter.get('/critical-issues', requireAuth, requireRole(UserRole.ADMIN), as
         metadata: {
           orderId: tx.orderId,
           providerId: tx.providerId,
-          receiptNumber: tx.order?.receiptNumber,
-          network: tx.order?.product?.network?.name,
+          receiptNumber: relatedOrder?.receiptNumber,
+          network: relatedOrder?.product?.network?.name,
           attemptedIds: payload?.attemptedNetworkIds,
         },
       });
