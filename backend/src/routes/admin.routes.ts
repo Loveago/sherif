@@ -691,8 +691,10 @@ adminRouter.get('/orders', async (request, response, next) => {
     if (search && typeof search === 'string' && search.trim()) {
       const term = search.trim();
 
+      const existingAnd = Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : [];
+
       where.AND = [
-        ...(where.AND ?? []),
+        ...existingAnd,
         {
           OR: [
             { receiptNumber: { contains: term, mode: 'insensitive' } },

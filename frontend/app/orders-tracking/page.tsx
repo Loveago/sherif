@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AuthGuard } from '@/components/auth/auth-guard';
 import { DashboardShell } from '@/components/navigation/dashboard-shell';
@@ -33,7 +33,7 @@ export default function OrdersTrackingPage() {
       apiRequest<Order[]>(`/orders?status=${statusFilter}`),
   });
 
-  const statusIcons: Record<string, React.ReactNode> = {
+  const statusIcons: Record<string, ReactNode> = {
     PENDING: <Clock className="h-5 w-5 text-amber-400" />,
     PROCESSING: <Clock className="h-5 w-5 text-blue-400" />,
     SUCCESSFUL: <CheckCircle2 className="h-5 w-5 text-emerald-400" />,
@@ -159,7 +159,7 @@ export default function OrdersTrackingPage() {
         </GlassCard>
 
         {/* Order Details Modal */}
-        {showDetailsModal && selectedOrder && (
+        {showDetailsModal && selectedOrder ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-y-auto">
             <GlassCard className="w-full max-w-2xl p-6 m-4">
               <h3 className="text-lg font-semibold text-white mb-4">
@@ -225,7 +225,7 @@ export default function OrdersTrackingPage() {
               </button>
             </GlassCard>
           </div>
-        )}
+        ) : null}
       </DashboardShell>
     </AuthGuard>
   );
