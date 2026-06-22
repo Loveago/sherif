@@ -7,8 +7,19 @@ import { maybeCreditStorefrontCommission } from '../services/commission.service.
 import { env } from '../config/env.js';
 
 const mapShankStatusToOrderStatus = (item: ShankOrderStatusItem): OrderStatus | null => {
-  const apiStatus = (item.api_status || '').toLowerCase().trim();
-  const numericStatus = item.status;
+  const rawApiStatus = (item.api_status || '').toString().toLowerCase().trim();
+  const rawStatus = (item.status ?? '').toString().toLowerCase().trim();
+
+  // Try to interpret numeric codes first if present.
+  let numericStatus: number | null = null;
+  if (typeof item.status === 'number') {
+    numericStatus = item.status;
+  } else {
+    const parsed = Number(item.status);
+    if (!Number.isNaN(parsed)) {
+      numericStatus = parsed;
+    }
+  }
 
   // Shank docs: numeric status is the order status. Treat it as the source of truth.
   // Common mappings reported by users: 0 = pending, 1 = processing, 2 = processed.
@@ -17,22 +28,24 @@ const mapShankStatusToOrderStatus = (item: ShankOrderStatusItem): OrderStatus | 
   if (numericStatus === 2) return OrderStatus.SUCCESSFUL;
   if (numericStatus === 3) return OrderStatus.FAILED;
 
-  // Fallback to api_status only when it clearly indicates a terminal state.
+  // Fallback to textual status when numeric codes are not provided or not usable.
+  const combinedStatus = rawStatus || rawApiStatus;
+
   // "success" is intentionally ignored because it usually means the API call succeeded,
   // not that the order itself is delivered.
-  if (apiStatus === 'processed' || apiStatus === 'delivered' || apiStatus === 'completed') {
+  if (combinedStatus === 'processed' || combinedStatus === 'delivered' || combinedStatus === 'completed') {
     return OrderStatus.SUCCESSFUL;
   }
 
-  if (apiStatus === 'failed' || apiStatus === 'rejected' || apiStatus === 'error') {
+  if (combinedStatus === 'failed' || combinedStatus === 'rejected' || combinedStatus === 'error') {
     return OrderStatus.FAILED;
   }
 
-  if (apiStatus === 'processing') {
+  if (combinedStatus === 'processing') {
     return OrderStatus.PROCESSING;
   }
 
-  if (apiStatus === 'pending' || apiStatus === 'queued') {
+  if (combinedStatus === 'pending' || combinedStatus === 'queued') {
     return OrderStatus.PENDING;
   }
 

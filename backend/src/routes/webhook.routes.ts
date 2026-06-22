@@ -78,13 +78,38 @@ webhookRouter.post('/webhooks/shank/orders-processed', async (request, response,
 
       if (!order) continue;
 
-      const apiStatus = (item.api_status || item.status || '').toString().toLowerCase();
-      const newStatus =
-        apiStatus === 'delivered' || apiStatus === 'success' || apiStatus === 'completed'
-          ? OrderStatus.SUCCESSFUL
-          : apiStatus === 'failed' || apiStatus === 'rejected' || apiStatus === 'error'
-            ? OrderStatus.FAILED
-            : null;
+      const rawApiStatus = (item.api_status || '').toString().toLowerCase().trim();
+      const rawStatus = (item.status ?? '').toString().toLowerCase().trim();
+      const apiStatus = rawStatus || rawApiStatus;
+
+      let numericStatus: number | null = null;
+      if (typeof item.status === 'number') {
+        numericStatus = item.status;
+      } else {
+        const parsed = Number(item.status);
+        if (!Number.isNaN(parsed)) {
+          numericStatus = parsed;
+        }
+      }
+
+      let newStatus: OrderStatus | null = null;
+
+      if (numericStatus === 0) newStatus = OrderStatus.PENDING;
+      else if (numericStatus === 1) newStatus = OrderStatus.PROCESSING;
+      else if (numericStatus === 2) newStatus = OrderStatus.SUCCESSFUL;
+      else if (numericStatus === 3) newStatus = OrderStatus.FAILED;
+
+      if (!newStatus) {
+        if (apiStatus === 'processed' || apiStatus === 'delivered' || apiStatus === 'completed') {
+          newStatus = OrderStatus.SUCCESSFUL;
+        } else if (apiStatus === 'failed' || apiStatus === 'rejected' || apiStatus === 'error') {
+          newStatus = OrderStatus.FAILED;
+        } else if (apiStatus === 'processing') {
+          newStatus = OrderStatus.PROCESSING;
+        } else if (apiStatus === 'pending' || apiStatus === 'queued') {
+          newStatus = OrderStatus.PENDING;
+        }
+      }
 
       if (!newStatus || newStatus === order.status) continue;
 

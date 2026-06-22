@@ -42,7 +42,7 @@ export interface ShankOrderStatusItem {
   id: number;
   beneficiary_number: string;
   order_reference: string;
-  status: number;
+  status: number | string;
   api_status: string;
   api_source: string;
   volume: string;
