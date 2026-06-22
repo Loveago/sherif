@@ -1599,3 +1599,225 @@ adminRouter.post('/reconciler/toggle', requireAuth, requireRole(UserRole.ADMIN),
     return next(error);
   }
 });
+
+// ─── Failed Orders ───
+
+adminRouter.get('/failed-orders', requireAuth, requireRole(UserRole.ADMIN), async (request, response, next) => {
+  try {
+    const { search = '', network = '' } = request.query;
+
+    const where: Prisma.OrderWhereInput = {
+      status: 'FAILED',
+      ...(network && { product: { network: { code: String(network).toUpperCase() } } }),
+      ...(search && {
+        OR: [
+          { receiptNumber: { contains: String(search), mode: 'insensitive' } },
+          { phoneNumber: { contains: String(search) } },
+          {
+            user: {
+              OR: [
+                { firstName: { contains: String(search), mode: 'insensitive' } },
+                { lastName: { contains: String(search), mode: 'insensitive' } },
+                { email: { contains: String(search), mode: 'insensitive' } },
+              ],
+            },
+          },
+        ],
+      }),
+    };
+
+    const orders = await prisma.order.findMany({
+      where,
+      include: {
+        product: { include: { network: true } },
+        user: true,
+        refund: true,
+        providerTransaction: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+
+    const formatted = orders.map((order) => {
+      const lastTx = order.providerTransaction[0];
+      const responsePayload = lastTx?.responsePayload as Record<string, any> | null;
+
+      return {
+        id: order.id,
+        receiptNumber: order.receiptNumber,
+        phoneNumber: order.phoneNumber,
+        amount: order.amount,
+        status: order.status,
+        source: order.source,
+        createdAt: order.createdAt,
+        network: order.product.network.name,
+        productName: order.product.name,
+        customer: `${order.user.firstName} ${order.user.lastName}`,
+        customerEmail: order.user.email,
+        refundStatus: order.refund?.status ?? null,
+        refundAmount: order.refund?.amount ?? null,
+        failureReason: responsePayload?.error ?? responsePayload?.message ?? 'Unknown error',
+        attemptedNetworkIds: responsePayload?.attemptedNetworkIds ?? null,
+        providerReference: lastTx?.providerReference ?? null,
+        failedAt: lastTx?.createdAt ?? order.updatedAt,
+      };
+    });
+
+    return response.json(createSuccessResponse(formatted));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ─── Critical Issues ───
+
+adminRouter.get('/critical-issues', requireAuth, requireRole(UserRole.ADMIN), async (_request, response, next) => {
+  try {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000); // last 24h
+
+    const [
+      recentProviderFailures,
+      recentWebhookFailures,
+      recentShankFailures,
+      stuckProcessingOrders,
+    ] = await Promise.all([
+      // Provider transaction failures in last 24h
+      prisma.providerTransaction.findMany({
+        where: {
+          status: 'FAILED',
+          createdAt: { gte: since },
+        },
+        include: {
+          order: {
+            include: {
+              product: { include: { network: true } },
+              user: { select: { firstName: true, lastName: true, email: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }),
+
+      // Webhook failures in last 24h
+      prisma.webhookLog.findMany({
+        where: {
+          success: false,
+          createdAt: { gte: since },
+        },
+        include: { webhook: true },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }),
+
+      // Shank status worker failures (orders stuck in PROCESSING that failed)
+      prisma.order.findMany({
+        where: {
+          status: 'FAILED',
+          updatedAt: { gte: since },
+          providerTransaction: { some: { status: 'FAILED' } },
+        },
+        include: {
+          product: { include: { network: true } },
+          user: { select: { firstName: true, lastName: true, email: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 50,
+      }),
+
+      // Orders stuck in PROCESSING for > 30 minutes
+      prisma.order.findMany({
+        where: {
+          status: 'PROCESSING',
+          updatedAt: { lt: new Date(Date.now() - 30 * 60 * 1000) },
+        },
+        include: {
+          product: { include: { network: true } },
+          user: { select: { firstName: true, lastName: true, email: true } },
+        },
+        orderBy: { updatedAt: 'asc' },
+        take: 50,
+      }),
+    ]);
+
+    const issues: Array<{
+      type: string;
+      severity: 'critical' | 'warning' | 'info';
+      title: string;
+      description: string;
+      entityId: string;
+      createdAt: Date;
+      metadata: Record<string, unknown>;
+    }> = [];
+
+    for (const tx of recentProviderFailures) {
+      const payload = tx.responsePayload as Record<string, any> | null;
+      issues.push({
+        type: 'PROVIDER_FAILURE',
+        severity: 'critical',
+        title: 'Provider fulfillment failed',
+        description: payload?.error ?? payload?.message ?? 'Provider rejected order',
+        entityId: tx.orderId ?? tx.id,
+        createdAt: tx.createdAt,
+        metadata: {
+          orderId: tx.orderId,
+          providerId: tx.providerId,
+          receiptNumber: tx.order?.receiptNumber,
+          network: tx.order?.product?.network?.name,
+          attemptedIds: payload?.attemptedNetworkIds,
+        },
+      });
+    }
+
+    for (const log of recentWebhookFailures) {
+      issues.push({
+        type: 'WEBHOOK_FAILURE',
+        severity: 'warning',
+        title: `Webhook delivery failed (${log.webhook.event})`,
+        description: `Status ${log.statusCode} — ${log.responseBody?.slice(0, 100) ?? 'No response'}`,
+        entityId: log.webhookId,
+        createdAt: log.createdAt,
+        metadata: {
+          webhookUrl: log.webhook.url,
+          event: log.webhook.event,
+          statusCode: log.statusCode,
+        },
+      });
+    }
+
+    for (const order of stuckProcessingOrders) {
+      issues.push({
+        type: 'STUCK_ORDER',
+        severity: 'warning',
+        title: 'Order stuck in PROCESSING',
+        description: `Order ${order.receiptNumber} for ${order.phoneNumber} has been PROCESSING for over 30 minutes.`,
+        entityId: order.id,
+        createdAt: order.updatedAt,
+        metadata: {
+          receiptNumber: order.receiptNumber,
+          phoneNumber: order.phoneNumber,
+          network: order.product?.network?.name,
+          product: order.product?.name,
+          customer: `${order.user?.firstName ?? ''} ${order.user?.lastName ?? ''}`.trim(),
+        },
+      });
+    }
+
+    return response.json(
+      createSuccessResponse({
+        issues: issues.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
+        summary: {
+          providerFailures24h: recentProviderFailures.length,
+          webhookFailures24h: recentWebhookFailures.length,
+          stuckOrders: stuckProcessingOrders.length,
+          total: issues.length,
+        },
+      }),
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
