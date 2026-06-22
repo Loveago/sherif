@@ -12,7 +12,7 @@ const resolveDataSize = (dataSize: string, description: string, name: string): s
 
 const getShankNetworkCandidates = (networkCode: string, configuredId?: number | null): number[] => {
   const fallbackMap: Record<string, number[]> = {
-    MTN: [3, 5, 6, 7],
+    MTN: [3],
     TELECEL: [2],
     AIRTELTIGO: [1, 4],
   };

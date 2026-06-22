@@ -13,6 +13,13 @@ import { exportToCSV, exportToExcel } from '../services/export.service.js';
 import { shankClient } from '../services/shank.service.js';
 import { pollOrderStatuses } from '../workers/shank-status.worker.js';
 import { normalizeDataSize } from '../utils/shank-mapping.js';
+import {
+  getReconcilerStatus,
+  runReconcilerTick,
+  togglePaymentReconciler,
+  reconcilerState,
+} from '../workers/payment-reconciler.worker.js';
+import { findPendingStorefrontOrders, reconcileSingleOrder } from '../services/reconciler.service.js';
 
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
 
@@ -1492,6 +1499,102 @@ adminRouter.post('/products/backfill-data-size', async (_request, response, next
     }
 
     return response.json(createSuccessResponse({ updated }, `Backfilled dataSize for ${updated} products`));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ─── Payment Reconciler ───
+
+adminRouter.get('/reconciler/status', requireAuth, requireRole(UserRole.ADMIN), async (_request, response, next) => {
+  try {
+    const status = getReconcilerStatus();
+    const pendingCount = await prisma.order.count({
+      where: {
+        source: 'STOREFRONT',
+        status: 'PENDING',
+        providerReference: null,
+        ...(status.startAfter && { createdAt: { gt: new Date(status.startAfter) } }),
+      },
+    });
+
+    return response.json(
+      createSuccessResponse({
+        ...status,
+        pendingCount,
+      }),
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/reconciler/trigger', requireAuth, requireRole(UserRole.ADMIN), async (_request, response, next) => {
+  try {
+    const result = await runReconcilerTick();
+    return response.json(createSuccessResponse(result, 'Reconciliation triggered'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.get('/reconciler/pending', requireAuth, requireRole(UserRole.ADMIN), async (_request, response, next) => {
+  try {
+    const pendingOrders = await findPendingStorefrontOrders(
+      reconcilerState.startAfter ?? undefined,
+    );
+    return response.json(createSuccessResponse(pendingOrders));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/reconciler/:orderId/reconcile', requireAuth, requireRole(UserRole.ADMIN), async (request, response, next) => {
+  try {
+    const orderId = String(request.params.orderId);
+    const order = await prisma.order.findFirst({
+      where: {
+        id: orderId,
+        source: 'STOREFRONT',
+        status: 'PENDING',
+        providerReference: null,
+      },
+      include: {
+        product: { include: { network: true } },
+        user: true,
+      },
+    });
+
+    if (!order) {
+      return response.status(404).json({ success: false, message: 'Order not found or not eligible for reconciliation' });
+    }
+
+    // Guard: only reconcile orders created after the reconciler became active
+    if (reconcilerState.startAfter && order.createdAt < reconcilerState.startAfter) {
+      return response.status(400).json({ success: false, message: 'Order was created before the reconciler was active and cannot be reconciled automatically' });
+    }
+
+    const result = await reconcileSingleOrder(order);
+
+    if (result === 'reconciled') {
+      return response.json(createSuccessResponse({ result }, 'Order reconciled successfully'));
+    }
+
+    if (result === 'failed') {
+      return response.status(400).json({ success: false, message: 'Reconciliation failed' });
+    }
+
+    return response.json(createSuccessResponse({ result }, 'Order skipped (not paid yet)'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/reconciler/toggle', requireAuth, requireRole(UserRole.ADMIN), async (request, response, next) => {
+  try {
+    const { enabled } = request.body;
+    togglePaymentReconciler(Boolean(enabled));
+    return response.json(createSuccessResponse({ enabled: Boolean(enabled) }, `Reconciler ${enabled ? 'enabled' : 'disabled'}`));
   } catch (error) {
     return next(error);
   }
