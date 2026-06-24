@@ -21,6 +21,9 @@ const envSchema = z.object({
   SHANK_API_KEY: z.string().optional(),
   SHANK_API_BASE_URL: z.string().url().default('https://agent.skanka5.com/api/v1'),
   SHANK_WORKER_INTERVAL_MS: z.coerce.number().default(30000),
+  CODECRAFT_API_KEY: z.string().optional(),
+  CODECRAFT_API_BASE_URL: z.string().url().default('https://api.codecraftnetwork.com/api'),
+  CODECRAFT_WORKER_INTERVAL_MS: z.coerce.number().default(30000),
 });
 
 export const env = envSchema.parse(process.env);

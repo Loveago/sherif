@@ -53,8 +53,33 @@ export const agentRouter = Router();
 
  agentRouter.get('/products', async (_request, response, next) => {
    try {
+     const settings = await prisma.adminSettings.findMany();
+     const map: Record<string, string> = {};
+     settings.forEach((s) => { map[s.key] = s.value; });
+
+     const productsEnabled = map.productsEnabled !== 'false';
+     const mtnEnabled = map.productsMtnEnabled !== 'false';
+     const telecelEnabled = map.productsTelecelEnabled !== 'false';
+     const airteltigoEnabled = map.productsAirteltigoEnabled !== 'false';
+
+     if (!productsEnabled) {
+       return response.json(createSuccessResponse([]));
+     }
+
+     const allowedNetworks: string[] = [];
+     if (mtnEnabled) allowedNetworks.push('MTN');
+     if (telecelEnabled) allowedNetworks.push('TELECEL');
+     if (airteltigoEnabled) allowedNetworks.push('AIRTELTIGO');
+
      const products = await prisma.product.findMany({
-       where: { status: true, deletedAt: null },
+       where: {
+         status: true,
+         deletedAt: null,
+         showForAgents: true,
+         network: {
+           code: { in: allowedNetworks.length > 0 ? allowedNetworks : ['MTN', 'TELECEL', 'AIRTELTIGO'] },
+         },
+       },
        include: { network: true },
        orderBy: [{ network: { name: 'asc' } }, { sellingPrice: 'asc' }],
      });
@@ -85,17 +110,42 @@ export const agentRouter = Router();
        },
      });
 
-     const storefrontProducts = await prisma.storefrontProduct.findMany({
-       where: { storefrontId: storefront.id, isActive: true },
-       include: { product: { include: { network: true } } },
-       orderBy: [{ product: { network: { name: 'asc' } } }, { product: { sellingPrice: 'asc' } }],
-     });
+     const settings = await prisma.adminSettings.findMany();
+     const map: Record<string, string> = {};
+     settings.forEach((s) => { map[s.key] = s.value; });
 
-     const products = storefrontProducts.map((sp) => ({
-       ...sp.product,
-       sellingPrice: sp.customPrice.toNumber(),
-       storefrontProductId: sp.id,
-     }));
+     const productsEnabled = map.productsEnabled !== 'false';
+     const mtnEnabled = map.productsMtnEnabled !== 'false';
+     const telecelEnabled = map.productsTelecelEnabled !== 'false';
+     const airteltigoEnabled = map.productsAirteltigoEnabled !== 'false';
+
+     let products: any[] = [];
+
+     if (productsEnabled) {
+       const allowedNetworks: string[] = [];
+       if (mtnEnabled) allowedNetworks.push('MTN');
+       if (telecelEnabled) allowedNetworks.push('TELECEL');
+       if (airteltigoEnabled) allowedNetworks.push('AIRTELTIGO');
+
+       const storefrontProducts = await prisma.storefrontProduct.findMany({
+         where: { storefrontId: storefront.id, isActive: true },
+         include: { product: { include: { network: true } } },
+         orderBy: [{ product: { network: { name: 'asc' } } }, { product: { sellingPrice: 'asc' } }],
+       });
+
+       products = storefrontProducts
+         .filter((sp) =>
+           sp.product.status &&
+           !sp.product.deletedAt &&
+           sp.product.showInShop &&
+           (allowedNetworks.length === 0 || allowedNetworks.includes(sp.product.network.code)),
+         )
+         .map((sp) => ({
+           ...sp.product,
+           sellingPrice: sp.customPrice.toNumber(),
+           storefrontProductId: sp.id,
+         }));
+     }
 
      return response.json(createSuccessResponse({ storefront, products }));
    } catch (error) {
@@ -131,6 +181,24 @@ agentRouter.post('/store/:slug/paystack/initialize', validate(initializeStorefro
 
     if (!storefrontProduct || !storefrontProduct.product.status || storefrontProduct.product.deletedAt) {
       return response.status(404).json({ success: false, message: 'Storefront product not found' });
+    }
+
+    const settings = await prisma.adminSettings.findMany();
+    const map: Record<string, string> = {};
+    settings.forEach((s) => { map[s.key] = s.value; });
+
+    const productsEnabled = map.productsEnabled !== 'false';
+    const mtnEnabled = map.productsMtnEnabled !== 'false';
+    const telecelEnabled = map.productsTelecelEnabled !== 'false';
+    const airteltigoEnabled = map.productsAirteltigoEnabled !== 'false';
+
+    if (!productsEnabled) {
+      return response.status(400).json({ success: false, message: 'Product catalog is currently disabled' });
+    }
+
+    const code = storefrontProduct.product.network.code.toUpperCase();
+    if ((code === 'MTN' && !mtnEnabled) || (code === 'TELECEL' && !telecelEnabled) || (code === 'AIRTELTIGO' && !airteltigoEnabled)) {
+      return response.status(400).json({ success: false, message: 'Orders for this network are currently disabled' });
     }
 
     const orderReference = generateOrderReference('STOREFRONT');
@@ -720,10 +788,28 @@ agentRouter.post('/wallet/withdraw', validate(withdrawSchema), async (request, r
 
 agentRouter.post('/orders', validate(createOrderSchema), async (request, response, next) => {
   try {
-    const product = await prisma.product.findUnique({ where: { id: request.body.productId } });
+    const product = await prisma.product.findUnique({ where: { id: request.body.productId }, include: { network: true } });
 
     if (!product || !product.status || product.deletedAt) {
       return response.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const settings = await prisma.adminSettings.findMany();
+    const map: Record<string, string> = {};
+    settings.forEach((s) => { map[s.key] = s.value; });
+
+    const productsEnabled = map.productsEnabled !== 'false';
+    const mtnEnabled = map.productsMtnEnabled !== 'false';
+    const telecelEnabled = map.productsTelecelEnabled !== 'false';
+    const airteltigoEnabled = map.productsAirteltigoEnabled !== 'false';
+
+    if (!productsEnabled) {
+      return response.status(400).json({ success: false, message: 'Product catalog is currently disabled' });
+    }
+
+    const code = product.network.code.toUpperCase();
+    if ((code === 'MTN' && !mtnEnabled) || (code === 'TELECEL' && !telecelEnabled) || (code === 'AIRTELTIGO' && !airteltigoEnabled)) {
+      return response.status(400).json({ success: false, message: 'Orders for this network are currently disabled' });
     }
 
     const wallet = await getWalletByUserId(request.auth!.userId);
@@ -778,12 +864,35 @@ agentRouter.post('/orders/batch', validate(batchOrderSchema), async (request, re
     const productIds: string[] = [...new Set(orders.map((o) => o.productId))];
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, status: true, deletedAt: null },
+      include: { network: true },
     });
     const productMap = new Map(products.map((p) => [p.id, p]));
 
-    const invalid = orders.filter((o) => !productMap.has(o.productId));
+    const settings = await prisma.adminSettings.findMany();
+    const map: Record<string, string> = {};
+    settings.forEach((s) => { map[s.key] = s.value; });
+
+    const productsEnabled = map.productsEnabled !== 'false';
+    const mtnEnabled = map.productsMtnEnabled !== 'false';
+    const telecelEnabled = map.productsTelecelEnabled !== 'false';
+    const airteltigoEnabled = map.productsAirteltigoEnabled !== 'false';
+
+    if (!productsEnabled) {
+      return response.status(400).json({ success: false, message: 'Product catalog is currently disabled' });
+    }
+
+    const invalid = orders.filter((o) => {
+      const product = productMap.get(o.productId);
+      if (!product) return true;
+      const code = product.network.code.toUpperCase();
+      if (code === 'MTN' && !mtnEnabled) return true;
+      if (code === 'TELECEL' && !telecelEnabled) return true;
+      if (code === 'AIRTELTIGO' && !airteltigoEnabled) return true;
+      return false;
+    });
+
     if (invalid.length > 0) {
-      return response.status(400).json({ success: false, message: 'Some products were not found or inactive' });
+      return response.status(400).json({ success: false, message: 'Some products were not found, inactive, or their network is disabled' });
     }
 
     const totalAmount = orders.reduce((sum: number, o) => sum + (productMap.get(o.productId)!.sellingPrice.toNumber()), 0);

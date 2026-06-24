@@ -1,0 +1,218 @@
+API Docs
+Getting Started
+Authentication
+Packages
+Wallet
+Create Order
+Order Status
+Code Craft Network API
+Getting Started
+Use this API to initiate data bundle purchases, check order status, retrieve wallet balance, and fetch available packages.
+
+Authentication
+All requests require an API key sent via headers:
+
+x-api-key: YOUR_API_KEY
+Base URL:
+
+api.codecraftnetwork.com/api
+Get Packages
+GET
+Endpoint: /packages.php
+
+{
+  "status": "success",
+  "message": "Successful",
+  "data": {
+    "data":{ 
+    "regular_packages": [ 
+    { 
+    "network": "AT", 
+    "package": "1", 
+    "amount": "4.50" 
+    }, 
+    { 
+    "network": "MTN", 
+    "package": "1", 
+    "amount": "4.50" 
+    }
+    
+    "bigtime_packages": [ 
+    { 
+    "network": "AT", 
+    "package": "50", 
+    "amount": "45" 
+    }, 
+    { 
+    "network": "MTN", 
+    "package": "12", 
+    "amount": "45" 
+    }
+    },
+    
+  }
+}
+Wallet Balance
+GET
+Endpoint: /wallet.php
+
+{
+  "status": "success",
+  "message": "Successful",
+  "data": {
+    "wallet": 10.00
+  }
+}
+Create Order – Regular Packages
+POST
+Endpoint: /initiate.php
+
+
+Payload:
+{
+  "recipient_number": "0554226398",
+  "gig": "1",
+  "network": "MTN | AT | TELECEL"
+}
+
+Note:
+- Reference / Order ID is generated automatically
+
+Response:
+{
+  "status": 200,
+  "message": "Order recorded successfully",
+  "reference_id": "API0552321442c5ddfe6"
+}
+
+Copy
+Create Order – BigTime Packages
+POST
+Endpoint: /special.php
+
+
+Payload:
+{
+  "recipient_number": "0554226398",
+  "gig": "50",
+  "network": "MTN | AT"
+}
+
+Response:
+{
+  "status": 200,
+  "message": "Order recorded successfully",
+  "reference_id": "API0552321442c5ddfe6"
+}
+
+Copy
+Status Codes
+S/N	Code	Meaning
+1	100	Admin wallet is low
+2	101	Account out of stock
+3	200	Successful
+4	500	Internal system error
+5	102	Agent not found
+6	103	Price not found
+7	555	Network not found
+Check Order Status – Regular Orders
+GET
+Endpoint: /response_regular.php
+
+
+Payload:
+{
+  "reference_id": "API0552321442c5ddfe6"
+}
+
+Response:
+{
+  "status": 200,
+  "success": true,
+  "message": "Order found",
+  "data": {
+    "beneficiary": "0554226398",
+    "gig": "1",
+    "network": "MTN",
+    "order_date": "Sunday, January 18, 2026",
+    "order_time": "23:21:44 PM",
+    "price": 4.2,
+    "order_status": "Pending"
+  }
+}
+
+Copy
+Check Order Status – BigTime Orders
+GET
+Endpoint: /response_big_time.php
+
+
+Payload:
+{
+  "reference_id": "API0552321442c5ddfe6"
+}
+
+Response:
+{
+  "status": 200,
+  "success": true,
+  "message": "Order found",
+  "data": {
+    "beneficiary": "0554226398",
+    "gig": "50",
+    "network": "MTN",
+    "order_date": "Sunday, January 18, 2026",
+    "order_time": "23:21:44 PM",
+    "price": 40.0,
+    "order_status": "Pending"
+  }
+}
+
+Copy
+Code samples
+Place orders
+Check order status
+
+<?php
+
+// --------------------------------------------
+// CodeCraft Network API Example (Demo Only)
+// --------------------------------------------
+
+// Your API Key
+$api_key = "YOUR_API_KEY_HERE";
+
+// API Endpoint
+$url = "https://api.codecraftnetwork.com/api/initiate.php";
+
+// Request Data
+$data = [
+    "recipient_number" => "0550000000",
+    "gig"              => "1",
+    "network"          => "MTN"
+];
+
+// Convert to JSON
+$jsonData = json_encode($data);
+
+// Initialize cURL
+$ch = curl_init($url);
+
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST           => true,
+    CURLOPT_HTTPHEADER     => [
+        "Accept: application/json",
+        "Content-Type: application/json",
+        "x-api-key: " . $api_key,
+    ],
+    CURLOPT_POSTFIELDS     => $jsonData,
+]);
+
+$response = curl_exec($ch);
+curl_close($ch);
+
+echo $response;
+
+?>
+Copy

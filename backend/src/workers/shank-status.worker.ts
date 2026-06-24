@@ -61,6 +61,11 @@ export const pollOrderStatuses = async (): Promise<{ checked: number; updated: n
     where: {
       status: { in: [OrderStatus.PENDING, OrderStatus.PROCESSING] },
       externalReference: { not: null },
+      product: {
+        network: {
+          code: 'MTN',
+        },
+      },
     },
     include: {
       product: { include: { network: true } },

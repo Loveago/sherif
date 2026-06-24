@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { generateReference } from '../utils/refs.js';
 import { shankClient } from './shank.service.js';
+import { codecraftClient } from './codecraft.service.js';
 import { dataSizeToVolumeMb, mapNetworkCodeToShankId, normalizeDataSize } from '../utils/shank-mapping.js';
 
 const toJson = (value: unknown) => JSON.parse(JSON.stringify(value));
@@ -42,6 +43,11 @@ export const isInsufficientBalanceError = (message: string | null | undefined): 
   );
 };
 
+const isAtBigTimeProduct = (name: string, description: string): boolean => {
+  const haystack = `${name} ${description}`.toLowerCase();
+  return haystack.includes('bigtime') || haystack.includes('big time');
+};
+
 export const fulfillOrderWithProvider = async (orderId: string) => {
   const provider = await prisma.provider.findFirst({
     where: { status: 'ACTIVE' },
@@ -70,15 +76,18 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
     order.product.name,
   );
 
-  const requestPayload = {
+  const requestPayloadBase = {
     phoneNumber: order.phoneNumber,
     network: order.product.network.code,
     bundle: resolvedDataSize,
     amount: order.amount.toNumber(),
   };
 
-  if (!shankClient.isConfigured()) {
-    console.warn('[Provider] SHANK_API_KEY not set, using mock fulfillment');
+  const networkCode = order.product.network.code.toUpperCase();
+
+  // When no external provider is configured, behave as instant success (mock)
+  if (!shankClient.isConfigured() && !codecraftClient.isConfigured()) {
+    console.warn('[Provider] No external provider API configured, using mock fulfillment');
     const mockResponsePayload = {
       providerReference: generateReference('PRV'),
       externalReference: null as string | null,
@@ -89,7 +98,7 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
       data: {
         providerId: provider.id,
         orderId: order.id,
-        requestPayload: toJson(requestPayload),
+        requestPayload: toJson(requestPayloadBase),
         responsePayload: toJson(mockResponsePayload),
         status: mockResponsePayload.status,
       },
@@ -98,48 +107,144 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
     return mockResponsePayload;
   }
 
-  const network = order.product.network;
-  const networkCandidates = getShankNetworkCandidates(network.code, network.shankNetworkId);
+  // MTN stays on Shank as primary provider
+  if (networkCode === 'MTN') {
+    if (!shankClient.isConfigured()) {
+      throw new Error('SHANK_API_KEY is not configured for MTN orders');
+    }
 
-  if (networkCandidates.length === 0) {
-    throw new Error(`No Shank network ID mapping for network "${network.code}"`);
+    const network = order.product.network;
+    const networkCandidates = getShankNetworkCandidates(network.code, network.shankNetworkId);
+
+    if (networkCandidates.length === 0) {
+      throw new Error(`No Shank network ID mapping for network "${network.code}"`);
+    }
+
+    const volumeMb = dataSizeToVolumeMb(resolvedDataSize);
+
+    for (const [index, shankNetworkId] of networkCandidates.entries()) {
+      const isLast = index === networkCandidates.length - 1;
+      const idempotencyKey = `cheappacks-${order.receiptNumber}-${shankNetworkId}`;
+
+      try {
+        const shankResponse = await shankClient.submitOrder(
+          shankNetworkId,
+          order.phoneNumber,
+          volumeMb,
+          idempotencyKey,
+        );
+
+        const orderItem = shankResponse.orders[0];
+        const externalReference = shankResponse.reference;
+        const providerReference = orderItem?.order_code || generateReference('PRV');
+
+        const status = shankResponse.success && orderItem?.status === 'accepted'
+          ? 'PROCESSING'
+          : 'FAILED';
+
+        const responsePayload = {
+          providerReference,
+          externalReference,
+          status,
+          shankNetworkId,
+          shankResponse,
+        };
+
+        await prisma.providerTransaction.create({
+          data: {
+            providerId: provider.id,
+            orderId: order.id,
+            requestPayload: toJson({ ...requestPayloadBase, shankNetworkId, volumeMb }),
+            responsePayload: toJson(responsePayload),
+            status,
+          },
+        });
+
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { externalReference },
+        });
+
+        return { providerReference, externalReference, status };
+      } catch (error) {
+        const errorMessage = shankClient.getErrorMessage(error);
+        console.error(`[Provider] Shank API error for networkId ${shankNetworkId}:`, errorMessage);
+
+        if (isLast || !isScopeError(errorMessage)) {
+          const failPayload = {
+            providerReference: generateReference('PRV'),
+            externalReference: null,
+            status: 'FAILED' as const,
+            error: errorMessage,
+            attemptedNetworkIds: networkCandidates.slice(0, index + 1),
+          };
+
+          await prisma.providerTransaction.create({
+            data: {
+              providerId: provider.id,
+              orderId: order.id,
+              requestPayload: toJson({
+                ...requestPayloadBase,
+                shankNetworkId,
+                volumeMb,
+                attemptedNetworkIds: networkCandidates.slice(0, index + 1),
+              }),
+              responsePayload: toJson(failPayload),
+              status: 'FAILED',
+            },
+          });
+
+          return failPayload;
+        }
+
+        console.log(`[Provider] Retrying order ${orderId} with fallback network ID...`);
+      }
+    }
   }
 
-  const volumeMb = dataSizeToVolumeMb(resolvedDataSize);
+  // Telecel & AirtelTigo go through Codecraft
+  if (networkCode === 'TELECEL' || networkCode === 'AIRTELTIGO') {
+    if (!codecraftClient.isConfigured()) {
+      throw new Error('CODECRAFT_API_KEY is not configured for Telecel/AirtelTigo orders');
+    }
 
-  for (const [index, shankNetworkId] of networkCandidates.entries()) {
-    const isLast = index === networkCandidates.length - 1;
-    const idempotencyKey = `cheappacks-${order.receiptNumber}-${shankNetworkId}`;
+    const isAt = networkCode === 'AIRTELTIGO';
+    const isBigTime = isAt && isAtBigTimeProduct(order.product.name, order.product.description);
+
+    // Map internal networks to Codecraft network strings
+    const codecraftNetwork: 'MTN' | 'AT' | 'TELECEL' = isAt ? 'AT' : 'TELECEL';
+
+    // Derive Codecraft gig from our dataSize (e.g. 1GB -> "1", 500MB -> "500")
+    const normalized = normalizeDataSize(resolvedDataSize); // e.g. "1GB" or "500MB"
+    const digits = normalized.replace(/\D/g, '');
+    const gig = digits || resolvedDataSize;
 
     try {
-      const shankResponse = await shankClient.submitOrder(
-        shankNetworkId,
-        order.phoneNumber,
-        volumeMb,
-        idempotencyKey,
-      );
+      const createResponse = isBigTime
+        ? await codecraftClient.createBigTimeOrder(order.phoneNumber, gig, codecraftNetwork === 'AT' ? 'AT' : 'MTN')
+        : await codecraftClient.createRegularOrder(order.phoneNumber, gig, codecraftNetwork);
 
-      const orderItem = shankResponse.orders[0];
-      const externalReference = shankResponse.reference;
-      const providerReference = orderItem?.order_code || generateReference('PRV');
+      const externalReference = createResponse.reference_id;
+      const providerReference = createResponse.reference_id || generateReference('PRV');
 
-      const status = shankResponse.success && orderItem?.status === 'accepted'
-        ? 'PROCESSING'
-        : 'FAILED';
+      const status = createResponse.status === 200 ? 'PROCESSING' as const : 'FAILED' as const;
 
       const responsePayload = {
         providerReference,
         externalReference,
         status,
-        shankNetworkId,
-        shankResponse,
+        provider: 'CODECRAFT',
+        isBigTime,
+        codecraftNetwork,
+        gig,
+        createResponse,
       };
 
       await prisma.providerTransaction.create({
         data: {
           providerId: provider.id,
           orderId: order.id,
-          requestPayload: toJson({ ...requestPayload, shankNetworkId, volumeMb }),
+          requestPayload: toJson({ ...requestPayloadBase, codecraftNetwork, gig, isBigTime }),
           responsePayload: toJson(responsePayload),
           status,
         },
@@ -152,39 +257,33 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
 
       return { providerReference, externalReference, status };
     } catch (error) {
-      const errorMessage = shankClient.getErrorMessage(error);
-      console.error(`[Provider] Shank API error for networkId ${shankNetworkId}:`, errorMessage);
+      const errorMessage = codecraftClient.getErrorMessage(error);
+      console.error('[Provider] Codecraft API error:', errorMessage);
 
-      if (isLast || !isScopeError(errorMessage)) {
-        const failPayload = {
-          providerReference: generateReference('PRV'),
-          externalReference: null,
-          status: 'FAILED' as const,
-          error: errorMessage,
-          attemptedNetworkIds: networkCandidates.slice(0, index + 1),
-        };
+      const failPayload = {
+        providerReference: generateReference('PRV'),
+        externalReference: null as string | null,
+        status: 'FAILED' as const,
+        error: errorMessage,
+        provider: 'CODECRAFT',
+        isBigTime,
+        codecraftNetwork,
+        gig,
+      };
 
-        await prisma.providerTransaction.create({
-          data: {
-            providerId: provider.id,
-            orderId: order.id,
-            requestPayload: toJson({ ...requestPayload, shankNetworkId, volumeMb, attemptedNetworkIds: networkCandidates.slice(0, index + 1) }),
-            responsePayload: toJson(failPayload),
-            status: 'FAILED',
-          },
-        });
+      await prisma.providerTransaction.create({
+        data: {
+          providerId: provider.id,
+          orderId: order.id,
+          requestPayload: toJson({ ...requestPayloadBase, codecraftNetwork, gig, isBigTime }),
+          responsePayload: toJson(failPayload),
+          status: 'FAILED',
+        },
+      });
 
-        return failPayload;
-      }
-
-      console.log(`[Provider] Retrying order ${orderId} with fallback network ID...`);
+      return failPayload;
     }
   }
 
-  return {
-    providerReference: generateReference('PRV'),
-    externalReference: null,
-    status: 'FAILED' as const,
-    error: 'All network candidates failed',
-  };
+  throw new Error(`Unsupported network for provider fulfillment: ${networkCode}`);
 };

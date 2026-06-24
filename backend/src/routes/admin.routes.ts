@@ -514,6 +514,12 @@ adminRouter.get('/settings', async (_request, response, next) => {
         afaRegistrationFee: Number(map.afaRegistrationFee ?? 20),
         paystackPublicKey: map.paystackPublicKey || process.env.PAYSTACK_PUBLIC_KEY || '',
         paystackSecretKey: map.paystackSecretKey || process.env.PAYSTACK_SECRET_KEY || '',
+        catalog: {
+          productsEnabled: map.productsEnabled !== 'false',
+          mtnEnabled: map.productsMtnEnabled !== 'false',
+          telecelEnabled: map.productsTelecelEnabled !== 'false',
+          airteltigoEnabled: map.productsAirteltigoEnabled !== 'false',
+        },
       }),
     );
   } catch (error) {

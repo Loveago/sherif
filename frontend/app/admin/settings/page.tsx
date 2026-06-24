@@ -22,6 +22,12 @@ type AdminSettings = {
   afaRegistrationFee: number;
   paystackPublicKey: string;
   paystackSecretKey: string;
+  catalog: {
+    productsEnabled: boolean;
+    mtnEnabled: boolean;
+    telecelEnabled: boolean;
+    airteltigoEnabled: boolean;
+  };
 };
 
 export default function AdminSettingsPage() {
@@ -40,6 +46,21 @@ export default function AdminSettingsPage() {
       momoNumber: data?.momoSettings?.momoNumber ?? '',
       momoName: data?.momoSettings?.momoName ?? '',
       momoEnabled: data?.momoSettings?.momoEnabled ?? true,
+    },
+  });
+
+  const catalogForm = useForm({
+    defaultValues: {
+      productsEnabled: data?.catalog?.productsEnabled ?? true,
+      mtnEnabled: data?.catalog?.mtnEnabled ?? true,
+      telecelEnabled: data?.catalog?.telecelEnabled ?? true,
+      airteltigoEnabled: data?.catalog?.airteltigoEnabled ?? true,
+    },
+    values: {
+      productsEnabled: data?.catalog?.productsEnabled ?? true,
+      mtnEnabled: data?.catalog?.mtnEnabled ?? true,
+      telecelEnabled: data?.catalog?.telecelEnabled ?? true,
+      airteltigoEnabled: data?.catalog?.airteltigoEnabled ?? true,
     },
   });
 
@@ -110,6 +131,15 @@ export default function AdminSettingsPage() {
     });
   });
 
+  const onSaveCatalog = catalogForm.handleSubmit((values) => {
+    updateMutation.mutate({
+      productsEnabled: String(values.productsEnabled),
+      productsMtnEnabled: String(values.mtnEnabled),
+      productsTelecelEnabled: String(values.telecelEnabled),
+      productsAirteltigoEnabled: String(values.airteltigoEnabled),
+    });
+  });
+
   return (
     <AuthGuard requiredRole="ADMIN">
       <DashboardShell mode="admin" title="System Settings" description="Configure fees, MoMo details, payment toggles and provider strategy.">
@@ -151,6 +181,75 @@ export default function AdminSettingsPage() {
                   ) : 'Save MoMo Details'}
                 </Button>
               </div>
+            </div>
+          </GlassCard>
+
+          {/* Catalog Visibility */}
+          <GlassCard className="p-6 md:col-span-2 xl:col-span-3">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-white">Catalog Visibility</p>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Turn the entire catalog on or off, and control which networks are visible to agents and storefront visitors.
+            </p>
+            <div className="mt-4 grid gap-4 md:grid-cols-4">
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400">Catalog Enabled</label>
+                <label className="inline-flex items-center gap-2 text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border border-white/20 bg-black/40"
+                    {...catalogForm.register('productsEnabled')}
+                  />
+                  <span>Show all products</span>
+                </label>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400">MTN</label>
+                <label className="inline-flex items-center gap-2 text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border border-white/20 bg-black/40"
+                    {...catalogForm.register('mtnEnabled')}
+                  />
+                  <span>Enable MTN products</span>
+                </label>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400">Telecel</label>
+                <label className="inline-flex items-center gap-2 text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border border-white/20 bg-black/40"
+                    {...catalogForm.register('telecelEnabled')}
+                  />
+                  <span>Enable Telecel products</span>
+                </label>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400">AirtelTigo / AT</label>
+                <label className="inline-flex items-center gap-2 text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border border-white/20 bg-black/40"
+                    {...catalogForm.register('airteltigoEnabled')}
+                  />
+                  <span>Enable AirtelTigo (AT) products</span>
+                </label>
+              </div>
+            </div>
+            <div className="mt-4 flex items-end">
+              <Button
+                onClick={onSaveCatalog}
+                disabled={updateMutation.isPending}
+                className="w-full md:w-auto"
+              >
+                {updateMutation.isPending ? 'Saving...' : saved ? (
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle className="h-4 w-4" /> Saved
+                  </span>
+                ) : 'Save Catalog Settings'}
+              </Button>
             </div>
           </GlassCard>
 
