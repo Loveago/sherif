@@ -16,6 +16,8 @@ const mapCodecraftStatusToOrderStatus = (orderStatus: string | null | undefined)
   return null;
 };
 
+const STALE_ORDER_MS = 5 * 60 * 60 * 1000; // 5 hours
+
 export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; updated: number }> => {
   if (!codecraftClient.isConfigured()) {
     return { checked: 0, updated: 0 };
@@ -42,13 +44,26 @@ export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; u
     return { checked: 0, updated: 0 };
   }
 
-  const externalRefs = [...new Set(pendingOrders.map((o) => o.externalReference!))];
+  const now = Date.now();
+
+  // Skip orders older than 5 hours — stop polling them but don't change their status
+  const activeOrders = pendingOrders.filter((o) => {
+    const createdAt = new Date(o.createdAt).getTime();
+    return now - createdAt <= STALE_ORDER_MS;
+  });
+
+  const skippedCount = pendingOrders.length - activeOrders.length;
+  if (skippedCount > 0) {
+    console.log(`[CodecraftWorker] Skipping ${skippedCount} orders older than 5 hours`);
+  }
+
+  const externalRefs = [...new Set(activeOrders.map((o) => o.externalReference!))];
 
   let updated = 0;
 
   for (const externalRef of externalRefs) {
     try {
-      const ordersForRef = pendingOrders.filter((o) => o.externalReference === externalRef);
+      const ordersForRef = activeOrders.filter((o) => o.externalReference === externalRef);
       if (ordersForRef.length === 0) {
         continue;
       }
@@ -62,11 +77,25 @@ export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; u
         ? await codecraftClient.getBigTimeOrderStatus(externalRef)
         : await codecraftClient.getRegularOrderStatus(externalRef);
 
+      console.log(`[CodecraftWorker] Raw status response for ${externalRef}:`, JSON.stringify(statusResponse));
+
       if (!statusResponse.data) {
+        console.log(`[CodecraftWorker] No data in response for ${externalRef}, skipping`);
         continue;
       }
 
-      const newStatus = mapCodecraftStatusToOrderStatus(statusResponse.data.order_status);
+      // Handle data as either an object or an array (API may return either)
+      const dataObj = Array.isArray(statusResponse.data)
+        ? statusResponse.data[0]
+        : statusResponse.data;
+
+      if (!dataObj) {
+        console.log(`[CodecraftWorker] Empty data array for ${externalRef}, skipping`);
+        continue;
+      }
+
+      const newStatus = mapCodecraftStatusToOrderStatus(dataObj.order_status);
+      console.log(`[CodecraftWorker] Mapped status "${dataObj.order_status}" -> ${newStatus} for ${externalRef}`);
       if (!newStatus) {
         continue;
       }
@@ -125,8 +154,8 @@ export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; u
     }
   }
 
-  console.log(`[CodecraftWorker] Checked ${pendingOrders.length} orders, updated ${updated}`);
-  return { checked: pendingOrders.length, updated };
+  console.log(`[CodecraftWorker] Checked ${activeOrders.length} orders, updated ${updated}`);
+  return { checked: activeOrders.length, updated };
 };
 
 let workerTimer: NodeJS.Timeout | null = null;

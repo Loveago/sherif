@@ -6,6 +6,8 @@ import { createWalletTransaction } from '../services/wallet.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
 import { env } from '../config/env.js';
 
+const STALE_ORDER_MS = 5 * 60 * 60 * 1000; // 5 hours
+
 const mapShankStatusToOrderStatus = (item: ShankOrderStatusItem): OrderStatus | null => {
   const rawApiStatus = (item.api_status || '').toString().toLowerCase().trim();
   const rawStatus = (item.status ?? '').toString().toLowerCase().trim();
@@ -78,7 +80,20 @@ export const pollOrderStatuses = async (): Promise<{ checked: number; updated: n
     return { checked: 0, updated: 0 };
   }
 
-  const externalRefs = [...new Set(pendingOrders.map((o) => o.externalReference!))];
+  const now = Date.now();
+
+  // Skip orders older than 5 hours — stop polling them but don't change their status
+  const activeOrders = pendingOrders.filter((o) => {
+    const createdAt = new Date(o.createdAt).getTime();
+    return now - createdAt <= STALE_ORDER_MS;
+  });
+
+  const skippedCount = pendingOrders.length - activeOrders.length;
+  if (skippedCount > 0) {
+    console.log(`[ShankWorker] Skipping ${skippedCount} orders older than 5 hours`);
+  }
+
+  const externalRefs = [...new Set(activeOrders.map((o) => o.externalReference!))];
 
   let updated = 0;
 
@@ -86,7 +101,7 @@ export const pollOrderStatuses = async (): Promise<{ checked: number; updated: n
     try {
       const statusResponse = await shankClient.getOrderStatus(externalRef);
       console.log(`[ShankWorker] Status response for ${externalRef}:`, JSON.stringify(statusResponse));
-      const ordersForRef = pendingOrders.filter((o) => o.externalReference === externalRef);
+      const ordersForRef = activeOrders.filter((o) => o.externalReference === externalRef);
 
       for (const order of ordersForRef) {
         const matchingItem = statusResponse.items.find(
@@ -148,8 +163,8 @@ export const pollOrderStatuses = async (): Promise<{ checked: number; updated: n
     }
   }
 
-  console.log(`[ShankWorker] Checked ${pendingOrders.length} orders, updated ${updated}`);
-  return { checked: pendingOrders.length, updated };
+  console.log(`[ShankWorker] Checked ${activeOrders.length} orders, updated ${updated}`);
+  return { checked: activeOrders.length, updated };
 };
 
 let workerTimer: NodeJS.Timeout | null = null;

@@ -21,7 +21,7 @@ export interface CodecraftOrderStatusResponse {
   status: number;
   success: boolean;
   message: string;
-  data?: CodecraftOrderStatusData;
+  data?: CodecraftOrderStatusData | CodecraftOrderStatusData[];
 }
 
 class CodecraftClient {
