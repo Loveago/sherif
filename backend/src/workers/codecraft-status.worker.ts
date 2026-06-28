@@ -9,8 +9,10 @@ import { env } from '../config/env.js';
 const mapCodecraftStatusToOrderStatus = (orderStatus: string | null | undefined): OrderStatus | null => {
   const value = (orderStatus || '').toString().toLowerCase().trim();
   if (!value) return null;
-  if (value === 'successful' || value === 'completed' || value === 'delivered') return OrderStatus.SUCCESSFUL;
+  if (value === 'successful' || value === 'completed' || value === 'delivered' || value === 'crediting successful' || value === 'credit successful' || value === 'credited') return OrderStatus.SUCCESSFUL;
+  if (value.includes('successful') || value.includes('delivered') || value.includes('completed')) return OrderStatus.SUCCESSFUL;
   if (value === 'failed' || value === 'rejected' || value === 'error') return OrderStatus.FAILED;
+  if (value.includes('fail') || value.includes('reject') || value.includes('error')) return OrderStatus.FAILED;
   if (value === 'processing') return OrderStatus.PROCESSING;
   if (value === 'pending' || value === 'queued') return OrderStatus.PENDING;
   return null;
