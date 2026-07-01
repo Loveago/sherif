@@ -173,6 +173,7 @@ model User {
   afaRegistrations     AFARegistration[]
   rolePrices           RolePrice[]
   storefrontWallet     StorefrontWallet?
+}
 
 model Wallet {
   id                String              @id @default(cuid())
