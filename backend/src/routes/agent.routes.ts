@@ -1991,7 +1991,7 @@ agentRouter.get('/storefront/wallet', async (request, response, next) => {
 
 agentRouter.post('/storefront/wallet/withdraw', validate(storefrontWithdrawSchema), async (request, response, next) => {
   try {
-    const { amount, method, accountName, accountNumber, bankName } = request.body;
+    const { amount, method, accountName, accountNumber } = request.body;
 
     let wallet = await prisma.storefrontWallet.findUnique({
       where: { userId: request.auth!.userId },
@@ -2014,7 +2014,7 @@ agentRouter.post('/storefront/wallet/withdraw', validate(storefrontWithdrawSchem
       });
     }
 
-    const methodLabel = method === 'MOMO' ? 'MTN Mobile Money' : 'Bank Transfer';
+    const methodLabel = method === 'MTN_MOMO' ? 'MTN Mobile Money' : 'Telecel Cash';
 
     const result = await prisma.$transaction(async (tx) => {
       const balanceBefore = wallet!.availableBalance;
@@ -2045,7 +2045,6 @@ agentRouter.post('/storefront/wallet/withdraw', validate(storefrontWithdrawSchem
           method: methodLabel,
           accountName,
           accountNumber,
-          bankName: bankName || null,
           reference: generateReference('WDR'),
           status: 'PENDING',
           source: 'STOREFRONT_WALLET',

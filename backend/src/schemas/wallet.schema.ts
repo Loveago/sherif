@@ -24,10 +24,9 @@ export const withdrawSchema = z.object({
 export const storefrontWithdrawSchema = z.object({
   body: z.object({
     amount: z.coerce.number().positive(),
-    method: z.enum(['MOMO', 'BANK']),
+    method: z.enum(['MTN_MOMO', 'TELECEL_CASH']),
     accountName: z.string().min(2),
     accountNumber: z.string().min(5),
-    bankName: z.string().optional(),
   }),
   query: z.object({}).optional().default({}),
   params: z.object({}).optional().default({}),

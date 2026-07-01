@@ -40,7 +40,7 @@ export default function StorefrontPage() {
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
 
   const withdrawalMutation = useMutation({
-    mutationFn: (values: { amount: number; method: 'MOMO' | 'BANK'; accountNumber: string; accountName: string; bankName?: string }) =>
+    mutationFn: (values: { amount: number; method: 'MTN_MOMO' | 'TELECEL_CASH'; accountNumber: string; accountName: string }) =>
       apiRequest('/storefront/wallet/withdraw', { method: 'POST', body: JSON.stringify(values) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['storefront-wallet'] });
@@ -541,10 +541,9 @@ export default function StorefrontPage() {
                   }
                   withdrawalMutation.mutate({
                     amount,
-                    method: formData.get('method') as 'MOMO' | 'BANK',
+                    method: formData.get('method') as 'MTN_MOMO' | 'TELECEL_CASH',
                     accountNumber: formData.get('accountNumber') as string,
                     accountName: formData.get('accountName') as string,
-                    bankName: formData.get('bankName') as string | undefined,
                   });
                 }}>
                   <div>
@@ -554,8 +553,8 @@ export default function StorefrontPage() {
                   <div>
                     <label className="mb-1.5 block text-xs text-gray-400">Withdrawal Method</label>
                     <select name="method" className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white outline-none focus:border-violet-500">
-                      <option value="MOMO">MTN Mobile Money</option>
-                      <option value="BANK">Bank Transfer</option>
+                      <option value="MTN_MOMO">MTN Mobile Money</option>
+                      <option value="TELECEL_CASH">Telecel Cash</option>
                     </select>
                   </div>
                   <div>
@@ -565,10 +564,6 @@ export default function StorefrontPage() {
                   <div>
                     <label className="mb-1.5 block text-xs text-gray-400">Account Number / Phone</label>
                     <Input name="accountNumber" placeholder="0551234567 or account number" required />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs text-gray-400">Bank Name (if Bank Transfer)</label>
-                    <Input name="bankName" placeholder="e.g., GCB Bank" />
                   </div>
                   {withdrawError && (
                     <p className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
