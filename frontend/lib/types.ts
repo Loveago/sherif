@@ -22,6 +22,26 @@ export type Wallet = {
   transactions?: WalletTransaction[];
 };
 
+export type StorefrontWallet = {
+  id: string;
+  availableBalance: number;
+  pendingBalance: number;
+  currency: string;
+  transactions?: StorefrontWalletTransaction[];
+};
+
+export type StorefrontWalletTransaction = {
+  id: string;
+  type: string;
+  category: string;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  description: string;
+  reference: string;
+  createdAt: string;
+};
+
 export type WalletTransaction = {
   id: string;
   type: string;
@@ -129,6 +149,7 @@ export type Withdrawal = {
   bankName?: string | null;
   status: string;
   reference: string;
+  source?: 'MAIN_WALLET' | 'STOREFRONT_WALLET';
   createdAt: string;
 };
 

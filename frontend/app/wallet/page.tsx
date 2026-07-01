@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/api';
 import type { Wallet, Withdrawal } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
-import { Wallet as WalletIcon, ArrowUpRight, ArrowDownLeft, CreditCard, Smartphone, MessageCircle, Copy, CheckCircle } from 'lucide-react';
+import { Wallet as WalletIcon, ArrowUpRight, ArrowDownLeft, CreditCard, Smartphone, MessageCircle, Copy, CheckCircle, Lock, Store } from 'lucide-react';
 
 type FundFormValues = { amount: number; method: 'PAYSTACK' | 'MTN_MOMO' };
 type WithdrawFormValues = { amount: number; method: 'MTN Mobile Money' | 'Bank Transfer'; accountName: string; accountNumber: string; bankName?: string };
@@ -239,30 +239,19 @@ export default function WalletPage() {
 
             {/* Withdraw Form */}
             {activeTab === 'withdraw' && (
-              <form className="mt-4 space-y-3" onSubmit={withdrawForm.handleSubmit((values) => withdrawMutation.mutate(values))}>
-                <div>
-                  <label className="mb-1.5 block text-xs text-gray-400">Amount (GHS)</label>
-                  <Input type="number" step="0.01" {...withdrawForm.register('amount', { valueAsNumber: true })} />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs text-gray-400">Method</label>
-                  <Select {...withdrawForm.register('method')}>
-                    <option value="MTN Mobile Money" className="bg-gray-900">MTN Mobile Money</option>
-                    <option value="Bank Transfer" className="bg-gray-900">Bank Transfer</option>
-                  </Select>
-                </div>
-                <Input placeholder="Account Name" {...withdrawForm.register('accountName')} />
-                <Input placeholder="Account Number" {...withdrawForm.register('accountNumber')} />
-                <Input placeholder="Bank Name" {...withdrawForm.register('bankName')} />
-                {withdrawError && (
-                  <p className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
-                    {withdrawError}
+              <div className="mt-4 space-y-3">
+                <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-center">
+                  <Lock className="mx-auto h-8 w-8 text-amber-400" />
+                  <h3 className="mt-2 text-sm font-bold text-white">Main Wallet Withdrawals Locked</h3>
+                  <p className="mt-1 text-xs text-gray-400 leading-relaxed">
+                    Withdrawals from the main wallet are currently disabled. Storefront commissions are deposited into your storefront wallet, where withdrawals are available.
                   </p>
-                )}
-                <Button type="submit" className="w-full" variant="secondary" disabled={withdrawMutation.isPending}>
-                  {withdrawMutation.isPending ? 'Submitting...' : 'Request Withdrawal'}
-                </Button>
-              </form>
+                  <Link href="/storefront" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-violet-500">
+                    <Store className="h-4 w-4" />
+                    Go to Storefront Wallet
+                  </Link>
+                </div>
+              </div>
             )}
           </GlassCard>
 

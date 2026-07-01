@@ -402,6 +402,71 @@ adminRouter.post('/withdrawals/:id/paid', async (request, response, next) => {
   }
 });
 
+adminRouter.post('/withdrawals/:id/reject', async (request, response, next) => {
+  try {
+    const existing = await prisma.withdrawal.findUnique({
+      where: { id: request.params.id },
+    });
+
+    if (!existing) {
+      return response.status(404).json({ success: false, message: 'Withdrawal not found' });
+    }
+
+    if (existing.status === 'PAID' || existing.status === 'APPROVED') {
+      return response.status(400).json({ success: false, message: 'Cannot reject a paid or approved withdrawal' });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const updated = await tx.withdrawal.update({
+        where: { id: request.params.id },
+        data: { status: 'REJECTED' },
+      });
+
+      if (existing.source === 'STOREFRONT_WALLET') {
+        const sfWallet = await tx.storefrontWallet.findUnique({
+          where: { userId: existing.userId },
+        });
+
+        if (sfWallet) {
+          const balanceBefore = sfWallet.availableBalance;
+          const balanceAfter = toDecimal(balanceBefore.toNumber() + existing.amount.toNumber());
+
+          await tx.storefrontWallet.update({
+            where: { id: sfWallet.id },
+            data: { availableBalance: balanceAfter },
+          });
+
+          await tx.storefrontWalletTransaction.create({
+            data: {
+              walletId: sfWallet.id,
+              type: WalletTransactionType.CREDIT,
+              category: WalletTransactionCategory.REFUND,
+              amount: existing.amount,
+              balanceBefore,
+              balanceAfter,
+              description: `Refund for rejected withdrawal ${existing.reference}`,
+              reference: generateReference('SWAL'),
+            },
+          });
+        }
+      }
+
+      return updated;
+    });
+
+    await createNotification(
+      existing.userId,
+      'Withdrawal rejected',
+      `Your withdrawal of GHS ${existing.amount.toFixed(2)} has been rejected. Funds returned to your ${existing.source === 'STOREFRONT_WALLET' ? 'storefront wallet' : 'account'}.`,
+      'WITHDRAWAL',
+    );
+
+    return response.json(createSuccessResponse(result, 'Withdrawal rejected and funds refunded'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
 adminRouter.get('/complaints', async (_request, response, next) => {
   try {
     const complaints = await prisma.complaint.findMany({

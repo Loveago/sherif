@@ -21,6 +21,8 @@ async function main() {
   await prisma.order.deleteMany();
   await prisma.orderBatch.deleteMany();
   await prisma.walletTransaction.deleteMany();
+  await prisma.storefrontWalletTransaction.deleteMany();
+  await prisma.storefrontWallet.deleteMany();
   await prisma.storefront.deleteMany();
   await prisma.wallet.deleteMany();
   await prisma.announcement.deleteMany();
@@ -87,8 +89,14 @@ async function main() {
           conversionRate: money(28.4),
         },
       },
+      storefrontWallet: {
+        create: {
+          availableBalance: money(320.50),
+          pendingBalance: money(0),
+        },
+      },
     },
-    include: { wallet: true, storefront: true },
+    include: { wallet: true, storefront: true, storefrontWallet: true },
   });
 
   const admin = await prisma.user.create({
@@ -380,6 +388,7 @@ async function main() {
       accountNumber: '0551234567',
       status: WithdrawalStatus.PENDING,
       reference: 'WDR-DEMO-001',
+      source: 'STOREFRONT_WALLET',
     },
   });
 

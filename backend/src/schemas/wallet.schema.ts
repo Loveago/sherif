@@ -20,3 +20,15 @@ export const withdrawSchema = z.object({
   query: z.object({}).optional().default({}),
   params: z.object({}).optional().default({}),
 });
+
+export const storefrontWithdrawSchema = z.object({
+  body: z.object({
+    amount: z.coerce.number().positive(),
+    method: z.enum(['MOMO', 'BANK']),
+    accountName: z.string().min(2),
+    accountNumber: z.string().min(5),
+    bankName: z.string().optional(),
+  }),
+  query: z.object({}).optional().default({}),
+  params: z.object({}).optional().default({}),
+});

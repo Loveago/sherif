@@ -7,7 +7,7 @@ const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
 export async function maybeCreditStorefrontCommission(orderId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { product: true, user: { include: { wallet: true } }, commission: true },
+    include: { product: true, user: { include: { wallet: true, storefrontWallet: true } }, commission: true },
   });
 
   if (!order) {
@@ -17,11 +17,6 @@ export async function maybeCreditStorefrontCommission(orderId: string) {
 
   if (order.status !== 'SUCCESSFUL') {
     console.log('[Commission] Order not SUCCESSFUL:', order.status);
-    return;
-  }
-
-  if (!order.user.wallet) {
-    console.log('[Commission] No wallet for user:', order.userId);
     return;
   }
 
@@ -45,7 +40,18 @@ export async function maybeCreditStorefrontCommission(orderId: string) {
     return;
   }
 
-  const wallet = order.user.wallet;
+  let storefrontWallet = order.user.storefrontWallet;
+
+  if (!storefrontWallet) {
+    storefrontWallet = await prisma.storefrontWallet.create({
+      data: {
+        userId: order.userId,
+        availableBalance: toDecimal(0),
+        pendingBalance: toDecimal(0),
+      },
+    });
+    console.log('[Commission] Created storefront wallet for user:', order.userId);
+  }
 
   try {
     await prisma.$transaction([
@@ -57,27 +63,27 @@ export async function maybeCreditStorefrontCommission(orderId: string) {
           source: 'Storefront Commission',
         },
       }),
-      prisma.wallet.update({
-        where: { id: wallet.id },
+      prisma.storefrontWallet.update({
+        where: { id: storefrontWallet.id },
         data: {
-          availableBalance: toDecimal(wallet.availableBalance.toNumber() + commissionAmount),
+          availableBalance: toDecimal(storefrontWallet.availableBalance.toNumber() + commissionAmount),
         },
       }),
-      prisma.walletTransaction.create({
+      prisma.storefrontWalletTransaction.create({
         data: {
-          walletId: wallet.id,
+          walletId: storefrontWallet.id,
           type: WalletTransactionType.CREDIT,
           category: WalletTransactionCategory.COMMISSION,
           amount: toDecimal(commissionAmount),
-          balanceBefore: wallet.availableBalance,
-          balanceAfter: toDecimal(wallet.availableBalance.toNumber() + commissionAmount),
+          balanceBefore: storefrontWallet.availableBalance,
+          balanceAfter: toDecimal(storefrontWallet.availableBalance.toNumber() + commissionAmount),
           description: `Commission for ${order.product.name}`,
-          reference: generateReference('WAL'),
+          reference: generateReference('SWAL'),
         },
       }),
     ]);
 
-    console.log('[Commission] Credited', commissionAmount, 'to wallet', wallet.id, 'for order', orderId);
+    console.log('[Commission] Credited', commissionAmount, 'to storefront wallet', storefrontWallet.id, 'for order', orderId);
   } catch (err) {
     console.error('[Commission] Failed to credit commission for order', orderId, err);
   }

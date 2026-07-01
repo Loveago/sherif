@@ -13,9 +13,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import type { Storefront, Order, Withdrawal, Product } from '@/lib/types';
+import type { Storefront, Order, Withdrawal, Product, StorefrontWallet } from '@/lib/types';
 import { sortProductsBySize, sortNetworksByPriority } from '@/lib/product-sorting';
-import { Store, Eye, BarChart3, Users, TrendingUp, Copy, Check, Wallet, ArrowUpRight, Package, Clock, AlertCircle, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { Store, Eye, BarChart3, Users, TrendingUp, Copy, Check, Wallet, ArrowUpRight, ArrowDownLeft, Package, Clock, AlertCircle, Plus, Trash2, ChevronDown, Lock } from 'lucide-react';
 
 export default function StorefrontPage() {
   const queryClient = useQueryClient();
@@ -26,7 +26,8 @@ export default function StorefrontPage() {
 
   const { data: storefront } = useQuery({ queryKey: ['storefront'], queryFn: () => apiRequest<Storefront>('/storefront/me') });
   const { data: orders } = useQuery({ queryKey: ['storefront-orders'], queryFn: () => apiRequest<Order[]>('/storefront/orders') });
-  const { data: withdrawals } = useQuery({ queryKey: ['withdrawals'], queryFn: () => apiRequest<Withdrawal[]>('/withdrawals') });
+  const { data: storefrontWallet } = useQuery({ queryKey: ['storefront-wallet'], queryFn: () => apiRequest<StorefrontWallet>('/storefront/wallet') });
+  const { data: withdrawals = [] } = useQuery({ queryKey: ['storefront-withdrawals'], queryFn: () => apiRequest<Withdrawal[]>('/withdrawals?source=STOREFRONT_WALLET') });
   const { data: products } = useQuery({ queryKey: ['storefront-products'], queryFn: () => apiRequest<Product[]>('/storefront/products') });
 
   const form = useForm<Storefront>({ values: storefront });
@@ -36,12 +37,18 @@ export default function StorefrontPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['storefront'] }),
   });
 
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+
   const withdrawalMutation = useMutation({
     mutationFn: (values: { amount: number; method: 'MOMO' | 'BANK'; accountNumber: string; accountName: string; bankName?: string }) =>
-      apiRequest('/withdrawals', { method: 'POST', body: JSON.stringify(values) }),
+      apiRequest('/storefront/wallet/withdraw', { method: 'POST', body: JSON.stringify(values) }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['withdrawals'] });
-      alert('Withdrawal request submitted successfully');
+      queryClient.invalidateQueries({ queryKey: ['storefront-wallet'] });
+      queryClient.invalidateQueries({ queryKey: ['storefront-withdrawals'] });
+      setWithdrawError(null);
+    },
+    onError: (error: any) => {
+      setWithdrawError(error?.message || 'Withdrawal failed. Please try again.');
     },
   });
 
@@ -397,38 +404,118 @@ export default function StorefrontPage() {
 
           {/* Wallet Tab */}
           {activeTab === 'wallet' && (
-            <div className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
-              <GlassCard className="p-6">
-                <h3 className="text-lg font-semibold text-white mb-6">Storefront Wallet</h3>
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-gray-800 bg-gray-900/30 p-6">
-                    <p className="text-sm text-gray-400">Commission Balance</p>
-                    <p className="mt-2 text-4xl font-bold text-violet-400">GHS {Number(0).toFixed(2)}</p>
-                    <p className="mt-1 text-xs text-gray-500">Earnings from storefront sales</p>
+            <div className="space-y-5">
+              <div className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
+                <GlassCard className="p-6">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600/20 text-violet-400">
+                      <Wallet className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">Storefront Wallet</h3>
+                      <p className="text-sm text-gray-400">Commission earnings from storefront sales</p>
+                    </div>
                   </div>
-                  <div className="rounded-xl border border-gray-800 bg-gray-900/30 p-6">
-                    <p className="text-sm text-gray-400">Pending Commissions</p>
-                    <p className="mt-2 text-2xl font-bold text-white">GHS {Number(0).toFixed(2)}</p>
-                    <p className="mt-1 text-xs text-gray-500">Waiting for order completion</p>
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-gray-800 bg-gray-900/30 p-6">
+                      <p className="text-sm text-gray-400">Available Balance</p>
+                      <p className="mt-2 text-4xl font-bold text-violet-400">{formatCurrency(Number(storefrontWallet?.availableBalance ?? 0))}</p>
+                      <p className="mt-1 text-xs text-gray-500">Withdrawable earnings from storefront sales</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="rounded-xl border border-gray-800 bg-gray-900/30 p-4">
+                        <p className="text-xs text-gray-400">Pending Balance</p>
+                        <p className="mt-1 text-xl font-bold text-white">{formatCurrency(Number(storefrontWallet?.pendingBalance ?? 0))}</p>
+                      </div>
+                      <div className="rounded-xl border border-gray-800 bg-gray-900/30 p-4">
+                        <p className="text-xs text-gray-400">Total Withdrawn</p>
+                        <p className="mt-1 text-xl font-bold text-white">
+                          {formatCurrency(
+                            withdrawals
+                              .filter((w) => w.status === 'PAID')
+                              .reduce((sum, w) => sum + Number(w.amount), 0)
+                          )}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </GlassCard>
+                  <div className="mt-6 rounded-xl border border-violet-500/20 bg-violet-600/10 p-4">
+                    <p className="text-sm text-gray-300">
+                      <span className="font-semibold text-violet-400">Tip:</span> Commissions from successful storefront orders are automatically credited here. Use the Withdrawals tab to request a payout.
+                    </p>
+                  </div>
+                </GlassCard>
 
-              <GlassCard className="p-6">
-                <h3 className="text-base font-semibold text-white mb-4">Commission Breakdown</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900/30 p-3">
-                    <span className="text-sm text-gray-400">Today</span>
-                    <span className="font-semibold text-white">GHS 0.00</span>
+                <GlassCard className="p-6">
+                  <h3 className="text-base font-semibold text-white mb-4">Commission Breakdown</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900/30 p-3">
+                      <span className="text-sm text-gray-400">Total Commissions</span>
+                      <span className="font-semibold text-white">
+                        {formatCurrency(
+                          (storefrontWallet?.transactions ?? [])
+                            .filter((t) => t.category === 'COMMISSION')
+                            .reduce((sum, t) => sum + Number(t.amount), 0)
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900/30 p-3">
+                      <span className="text-sm text-gray-400">Total Withdrawals</span>
+                      <span className="font-semibold text-white">
+                        {formatCurrency(
+                          (storefrontWallet?.transactions ?? [])
+                            .filter((t) => t.category === 'WITHDRAWAL')
+                            .reduce((sum, t) => sum + Number(t.amount), 0)
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900/30 p-3">
+                      <span className="text-sm text-gray-400">Pending Withdrawals</span>
+                      <span className="font-semibold text-white">
+                        {formatCurrency(
+                          withdrawals
+                            .filter((w) => w.status === 'PENDING' || w.status === 'APPROVED')
+                            .reduce((sum, w) => sum + Number(w.amount), 0)
+                        )}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900/30 p-3">
-                    <span className="text-sm text-gray-400">This Week</span>
-                    <span className="font-semibold text-white">GHS 0.00</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900/30 p-3">
-                    <span className="text-sm text-gray-400">This Month</span>
-                    <span className="font-semibold text-white">GHS 0.00</span>
-                  </div>
+                </GlassCard>
+              </div>
+
+              {/* Transaction History */}
+              <GlassCard className="p-5">
+                <h3 className="text-base font-semibold text-white mb-4">Transaction History</h3>
+                <div className="space-y-2">
+                  {(storefrontWallet?.transactions ?? []).map((tx) => (
+                    <div
+                      key={tx.id}
+                      className="flex items-center justify-between rounded-xl border border-gray-800 bg-gray-900/50 px-4 py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                          tx.type === 'CREDIT' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                        }`}>
+                          {tx.type === 'CREDIT' ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-white">{tx.description}</p>
+                          <p className="text-xs text-gray-500">{tx.reference}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-sm font-medium ${
+                          tx.type === 'CREDIT' ? 'text-emerald-400' : 'text-rose-400'
+                        }`}>
+                          {tx.type === 'CREDIT' ? '+' : '-'}{formatCurrency(Number(tx.amount))}
+                        </p>
+                        <p className="text-xs text-gray-500">{new Date(tx.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {(!storefrontWallet?.transactions || storefrontWallet.transactions.length === 0) && (
+                    <p className="py-8 text-center text-sm text-gray-500">No transactions yet</p>
+                  )}
                 </div>
               </GlassCard>
             </div>
@@ -438,12 +525,22 @@ export default function StorefrontPage() {
           {activeTab === 'withdrawals' && (
             <div className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
               <GlassCard className="p-6">
-                <h3 className="text-lg font-semibold text-white mb-6">Request Withdrawal</h3>
+                <div className="mb-6 rounded-xl border border-violet-500/20 bg-violet-600/10 p-4">
+                  <p className="text-xs text-gray-400">Available for Withdrawal</p>
+                  <p className="mt-1 text-2xl font-bold text-violet-400">{formatCurrency(Number(storefrontWallet?.availableBalance ?? 0))}</p>
+                </div>
+                <h3 className="text-lg font-semibold text-white mb-4">Request Withdrawal</h3>
                 <form className="space-y-4" onSubmit={(e) => {
                   e.preventDefault();
+                  setWithdrawError(null);
                   const formData = new FormData(e.currentTarget);
+                  const amount = Number(formData.get('amount'));
+                  if (amount > Number(storefrontWallet?.availableBalance ?? 0)) {
+                    setWithdrawError('Amount exceeds available balance');
+                    return;
+                  }
                   withdrawalMutation.mutate({
-                    amount: Number(formData.get('amount')),
+                    amount,
                     method: formData.get('method') as 'MOMO' | 'BANK',
                     accountNumber: formData.get('accountNumber') as string,
                     accountName: formData.get('accountName') as string,
@@ -473,6 +570,11 @@ export default function StorefrontPage() {
                     <label className="mb-1.5 block text-xs text-gray-400">Bank Name (if Bank Transfer)</label>
                     <Input name="bankName" placeholder="e.g., GCB Bank" />
                   </div>
+                  {withdrawError && (
+                    <p className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
+                      {withdrawError}
+                    </p>
+                  )}
                   <Button type="submit" className="w-full gap-2" disabled={withdrawalMutation.isPending}>
                     <ArrowUpRight className="h-4 w-4" />
                     {withdrawalMutation.isPending ? 'Processing...' : 'Request Withdrawal'}

@@ -42,6 +42,7 @@ export default function AdminOperationsPage() {
   const resolveComplaint = useMutation({ mutationFn: (id: string) => apiRequest(`/admin/complaints/${id}/resolve`, { method: 'POST' }), onSuccess: refresh });
   const approveWithdrawal = useMutation({ mutationFn: (id: string) => apiRequest(`/admin/withdrawals/${id}/approve`, { method: 'POST' }), onSuccess: refresh });
   const markWithdrawalPaid = useMutation({ mutationFn: (id: string) => apiRequest(`/admin/withdrawals/${id}/paid`, { method: 'POST' }), onSuccess: refresh });
+  const rejectWithdrawal = useMutation({ mutationFn: (id: string) => apiRequest(`/admin/withdrawals/${id}/reject`, { method: 'POST' }), onSuccess: refresh });
   const activateProvider = useMutation({ mutationFn: (id: string) => apiRequest(`/admin/providers/${id}/activate`, { method: 'POST' }), onSuccess: refresh });
   const createAnnouncement = useMutation({
     mutationFn: (values: AnnouncementForm) => apiRequest('/admin/announcements', { method: 'POST', body: JSON.stringify(values) }),
@@ -98,15 +99,23 @@ export default function AdminOperationsPage() {
           />
           <DataTableCard
             title="Withdrawals"
-            columns={['Reference', 'User', 'Amount', 'Status', 'Actions']}
+            columns={['Reference', 'User', 'Amount', 'Source', 'Status', 'Actions']}
             rows={(withdrawalsQuery.data ?? []).map((withdrawal) => [
               withdrawal.reference,
               withdrawal.user.email,
               String(withdrawal.amount),
+              withdrawal.source === 'STOREFRONT_WALLET' ? 'Storefront' : 'Main',
               withdrawal.status,
               <div key={`${withdrawal.id}-actions`} className="flex gap-3 text-sm">
-                <button className="text-amber-300" onClick={() => approveWithdrawal.mutate(withdrawal.id)}>Approve</button>
-                <button className="text-emerald-300" onClick={() => markWithdrawalPaid.mutate(withdrawal.id)}>Paid</button>
+                {withdrawal.status === 'PENDING' && (
+                  <button className="text-amber-300" onClick={() => approveWithdrawal.mutate(withdrawal.id)}>Approve</button>
+                )}
+                {withdrawal.status !== 'PAID' && withdrawal.status !== 'REJECTED' && (
+                  <button className="text-emerald-300" onClick={() => markWithdrawalPaid.mutate(withdrawal.id)}>Paid</button>
+                )}
+                {withdrawal.status === 'PENDING' && (
+                  <button className="text-rose-300" onClick={() => rejectWithdrawal.mutate(withdrawal.id)}>Reject</button>
+                )}
               </div>,
             ])}
           />

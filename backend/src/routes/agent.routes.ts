@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { createSuccessResponse } from '../utils/response.js';
-import { fundWalletSchema, withdrawSchema } from '../schemas/wallet.schema.js';
+import { fundWalletSchema, withdrawSchema, storefrontWithdrawSchema } from '../schemas/wallet.schema.js';
 import {
   createOrderSchema,
   initializeStorefrontCheckoutSchema,
@@ -747,40 +747,10 @@ agentRouter.get('/wallet', async (request, response, next) => {
 
 agentRouter.post('/wallet/withdraw', validate(withdrawSchema), async (request, response, next) => {
   try {
-    const wallet = await getWalletByUserId(request.auth!.userId);
-
-    const result = await prisma.$transaction(async (tx) => {
-      await createWalletTransaction(
-        wallet.id,
-        request.body.amount,
-        WalletTransactionType.DEBIT,
-        WalletTransactionCategory.WITHDRAWAL,
-        `Withdrawal request via ${request.body.method}`,
-        tx,
-      );
-
-      return tx.withdrawal.create({
-        data: {
-          userId: request.auth!.userId,
-          amount: toDecimal(request.body.amount),
-          method: request.body.method,
-          accountName: request.body.accountName,
-          accountNumber: request.body.accountNumber,
-          bankName: request.body.bankName,
-          reference: generateReference('WDR'),
-          status: 'PENDING',
-        },
-      });
+    return response.status(403).json({
+      success: false,
+      message: 'Withdrawals from the main wallet are currently locked. Please use your storefront wallet for withdrawals.',
     });
-
-    await createNotification(
-      request.auth!.userId,
-      'Withdrawal requested',
-      `Your withdrawal of GHS ${request.body.amount.toFixed(2)} is pending review.`,
-      'WITHDRAWAL',
-    );
-
-    return response.status(201).json(createSuccessResponse(result, 'Withdrawal requested'));
   } catch (error) {
     return next(error);
   }
@@ -1670,8 +1640,13 @@ agentRouter.get('/afa-registrations/paystack/verify', async (request, response, 
 
 agentRouter.get('/withdrawals', async (request, response, next) => {
   try {
+    const source = request.query.source as string | undefined;
+    const where: Record<string, unknown> = { userId: request.auth!.userId };
+    if (source === 'STOREFRONT_WALLET' || source === 'MAIN_WALLET') {
+      where.source = source;
+    }
     const withdrawals = await prisma.withdrawal.findMany({
-      where: { userId: request.auth!.userId },
+      where,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -1978,6 +1953,114 @@ agentRouter.delete('/storefront/products/:productId', async (request, response, 
     });
 
     return response.json(createSuccessResponse(null, 'Product removed from storefront'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ─── Storefront Wallet ──────────────────────────────────────────────
+
+agentRouter.get('/storefront/wallet', async (request, response, next) => {
+  try {
+    let wallet = await prisma.storefrontWallet.findUnique({
+      where: { userId: request.auth!.userId },
+      include: {
+        transactions: {
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        },
+      },
+    });
+
+    if (!wallet) {
+      wallet = await prisma.storefrontWallet.create({
+        data: {
+          userId: request.auth!.userId,
+          availableBalance: toDecimal(0),
+          pendingBalance: toDecimal(0),
+        },
+        include: { transactions: true },
+      });
+    }
+
+    return response.json(createSuccessResponse(wallet));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.post('/storefront/wallet/withdraw', validate(storefrontWithdrawSchema), async (request, response, next) => {
+  try {
+    const { amount, method, accountName, accountNumber, bankName } = request.body;
+
+    let wallet = await prisma.storefrontWallet.findUnique({
+      where: { userId: request.auth!.userId },
+    });
+
+    if (!wallet) {
+      wallet = await prisma.storefrontWallet.create({
+        data: {
+          userId: request.auth!.userId,
+          availableBalance: toDecimal(0),
+          pendingBalance: toDecimal(0),
+        },
+      });
+    }
+
+    if (wallet.availableBalance.toNumber() < amount) {
+      return response.status(400).json({
+        success: false,
+        message: `Insufficient storefront wallet balance. Available: GHS ${wallet.availableBalance.toFixed(2)}`,
+      });
+    }
+
+    const methodLabel = method === 'MOMO' ? 'MTN Mobile Money' : 'Bank Transfer';
+
+    const result = await prisma.$transaction(async (tx) => {
+      const balanceBefore = wallet!.availableBalance;
+      const balanceAfter = toDecimal(balanceBefore.toNumber() - amount);
+
+      await tx.storefrontWallet.update({
+        where: { id: wallet!.id },
+        data: { availableBalance: balanceAfter },
+      });
+
+      await tx.storefrontWalletTransaction.create({
+        data: {
+          walletId: wallet!.id,
+          type: WalletTransactionType.DEBIT,
+          category: WalletTransactionCategory.WITHDRAWAL,
+          amount: toDecimal(amount),
+          balanceBefore,
+          balanceAfter,
+          description: `Withdrawal request via ${methodLabel}`,
+          reference: generateReference('SWAL'),
+        },
+      });
+
+      return tx.withdrawal.create({
+        data: {
+          userId: request.auth!.userId,
+          amount: toDecimal(amount),
+          method: methodLabel,
+          accountName,
+          accountNumber,
+          bankName: bankName || null,
+          reference: generateReference('WDR'),
+          status: 'PENDING',
+          source: 'STOREFRONT_WALLET',
+        },
+      });
+    });
+
+    await createNotification(
+      request.auth!.userId,
+      'Storefront withdrawal requested',
+      `Your withdrawal of GHS ${amount.toFixed(2)} from your storefront wallet is pending review.`,
+      'WITHDRAWAL',
+    );
+
+    return response.status(201).json(createSuccessResponse(result, 'Withdrawal requested from storefront wallet'));
   } catch (error) {
     return next(error);
   }
