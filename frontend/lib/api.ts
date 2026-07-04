@@ -9,7 +9,11 @@ type ApiEnvelope<T> = {
 };
 
 export class ApiError extends Error {
-  constructor(message: string, public readonly status?: number) {
+  constructor(
+    message: string,
+    public readonly status?: number,
+    public readonly errors?: unknown,
+  ) {
     super(message);
   }
 }
@@ -41,7 +45,9 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   }
 
   if (!response.ok) {
-    throw new ApiError(payload && 'message' in payload ? payload.message || 'Request failed' : 'Request failed', response.status);
+    const message = payload && 'message' in payload ? payload.message || 'Request failed' : 'Request failed';
+    const errors = payload && 'errors' in payload ? (payload as { errors?: unknown }).errors : undefined;
+    throw new ApiError(message, response.status, errors);
   }
 
   return (payload as ApiEnvelope<T>).data;

@@ -41,7 +41,14 @@ export default function StorefrontPage() {
       queryClient.invalidateQueries({ queryKey: ['storefront'] });
     },
     onError: (error: any) => {
-      setStorefrontError(error?.message || 'Failed to update storefront. Please try again.');
+      let message = error?.message || 'Failed to update storefront. Please try again.';
+      if (error?.errors?.fieldErrors) {
+        const fieldMessages = Object.values(error.errors.fieldErrors).flat();
+        if (fieldMessages.length > 0) {
+          message = fieldMessages.join(', ');
+        }
+      }
+      setStorefrontError(message);
     },
   });
 
