@@ -190,7 +190,7 @@ export default function StorefrontPage() {
                     </div>
                   )}
                   <div className="md:col-span-2">
-                    <Button className="w-full" disabled={mutation.isPending}>{mutation.isPending ? 'Saving...' : 'Save Changes'}</Button>
+                    <Button type="submit" className="w-full" disabled={mutation.isPending}>{mutation.isPending ? 'Saving...' : 'Save Changes'}</Button>
                   </div>
                 </form>
               </GlassCard>
