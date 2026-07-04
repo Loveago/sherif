@@ -15,7 +15,7 @@ import {
   pastePreviewSchema,
 } from '../schemas/orders.schema.js';
 import { createComplaintSchema } from '../schemas/complaints.schema.js';
-import { updateStorefrontSchema } from '../schemas/storefront.schema.js';
+import { updateStorefrontSchema, RESERVED_SLUGS } from '../schemas/storefront.schema.js';
 import { updateProfileSchema, changePasswordSchema } from '../schemas/auth.schema.js';
 import bcrypt from 'bcryptjs';
 import { createWalletTransaction, getWalletByUserId } from '../services/wallet.service.js';
@@ -1789,6 +1789,29 @@ agentRouter.get('/storefront/orders', async (request, response, next) => {
 
 agentRouter.put('/storefront/me', validate(updateStorefrontSchema), async (request, response, next) => {
   try {
+    const { slug: newSlug, ...rest } = request.body;
+
+    if (newSlug !== undefined) {
+      const existing = await prisma.storefront.findUnique({ where: { userId: request.auth!.userId } });
+      if (existing && existing.slug === newSlug) {
+        // No change needed, skip slug update
+        const storefront = await prisma.storefront.update({
+          where: { userId: request.auth!.userId },
+          data: rest,
+        });
+        return response.json(createSuccessResponse(storefront, 'Storefront updated'));
+      }
+
+      if (RESERVED_SLUGS.includes(newSlug)) {
+        return response.status(400).json({ success: false, message: 'This URL is reserved and cannot be used' });
+      }
+
+      const slugTaken = await prisma.storefront.findUnique({ where: { slug: newSlug } });
+      if (slugTaken) {
+        return response.status(400).json({ success: false, message: 'This storefront URL is already taken' });
+      }
+    }
+
     const storefront = await prisma.storefront.update({
       where: { userId: request.auth!.userId },
       data: request.body,

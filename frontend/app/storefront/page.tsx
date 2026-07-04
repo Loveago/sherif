@@ -15,7 +15,7 @@ import { apiRequest } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import type { Storefront, Order, Withdrawal, Product, StorefrontWallet } from '@/lib/types';
 import { sortProductsBySize, sortNetworksByPriority } from '@/lib/product-sorting';
-import { Store, Eye, BarChart3, Users, TrendingUp, Copy, Check, Wallet, ArrowUpRight, ArrowDownLeft, Package, Clock, AlertCircle, Plus, Trash2, ChevronDown, Lock } from 'lucide-react';
+import { Store, Eye, BarChart3, Users, TrendingUp, Copy, Check, Wallet, ArrowUpRight, ArrowDownLeft, Package, Clock, AlertCircle, Plus, Trash2, ChevronDown } from 'lucide-react';
 
 export default function StorefrontPage() {
   const queryClient = useQueryClient();
@@ -32,9 +32,17 @@ export default function StorefrontPage() {
 
   const form = useForm<Storefront>({ values: storefront });
 
+  const [storefrontError, setStorefrontError] = useState<string | null>(null);
+
   const mutation = useMutation({
     mutationFn: (values: Partial<Storefront>) => apiRequest('/storefront/me', { method: 'PUT', body: JSON.stringify(values) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['storefront'] }),
+    onSuccess: () => {
+      setStorefrontError(null);
+      queryClient.invalidateQueries({ queryKey: ['storefront'] });
+    },
+    onError: (error: any) => {
+      setStorefrontError(error?.message || 'Failed to update storefront. Please try again.');
+    },
   });
 
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
@@ -100,14 +108,29 @@ export default function StorefrontPage() {
                 <h3 className="text-lg font-semibold text-white">Storefront Settings</h3>
                 <form className="mt-6 grid gap-4 md:grid-cols-2" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
                   <div className="md:col-span-2">
-                    <label className="mb-1.5 block text-xs text-gray-400">Storefront Slug</label>
-                    <div className="flex gap-2">
-                      <Input value={storefront?.slug || ''} readOnly className="bg-gray-900/50" />
+                    <label className="mb-1.5 block text-xs text-gray-400">Storefront URL</label>
+                    <div className="flex items-stretch gap-2">
+                      <div className="flex items-center rounded-lg border border-gray-800 bg-gray-900/50 px-3 text-sm text-gray-500">
+                        {typeof window !== 'undefined' ? `${window.location.origin}/store/` : '/store/'}
+                      </div>
+                      <Input {...form.register('slug')} className="flex-1" placeholder="your-store-url" />
                       <Button type="button" size="sm" onClick={copySlug} className="gap-2">
                         {copiedSlug ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       </Button>
                     </div>
-                    <p className="mt-1 text-xs text-gray-500">Your unique storefront URL</p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <p className="text-xs text-gray-500">Customize your storefront URL (3-30 chars, lowercase letters, numbers, and hyphens only)</p>
+                      {storefront?.slug && (
+                        <button
+                          type="button"
+                          onClick={copySlug}
+                          className="inline-flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300"
+                        >
+                          {copiedSlug ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          {copiedSlug ? 'Copied!' : 'Copy full URL'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="md:col-span-2">
                     <label className="mb-1.5 block text-xs text-gray-400">Display Name</label>
@@ -153,6 +176,12 @@ export default function StorefrontPage() {
                     <label className="mb-1.5 block text-xs text-gray-400">SEO Description</label>
                     <Textarea rows={3} {...form.register('seoDescription')} />
                   </div>
+                  {storefrontError && (
+                    <div className="md:col-span-2 flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-900/20 px-4 py-3 text-sm text-red-400">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      {storefrontError}
+                    </div>
+                  )}
                   <div className="md:col-span-2">
                     <Button className="w-full" disabled={mutation.isPending}>{mutation.isPending ? 'Saving...' : 'Save Changes'}</Button>
                   </div>
@@ -172,9 +201,19 @@ export default function StorefrontPage() {
                   </div>
                   <p className="mt-4 text-sm text-gray-400">{storefront?.description}</p>
                   {storefront?.slug && (
-                    <Link href={`/store/${storefront.slug}`} className="mt-4 inline-flex items-center gap-2 text-sm text-violet-400 hover:text-violet-300">
-                      <Eye className="h-4 w-4" /> Open Public Storefront
-                    </Link>
+                    <div className="mt-4 flex items-center gap-3">
+                      <Link href={`/store/${storefront.slug}`} className="inline-flex items-center gap-2 text-sm text-violet-400 hover:text-violet-300">
+                        <Eye className="h-4 w-4" /> Open Public Storefront
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={copySlug}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-800 bg-gray-900/50 px-3 py-1.5 text-xs text-gray-400 transition-colors hover:border-violet-500/50 hover:text-violet-400"
+                      >
+                        {copiedSlug ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        {copiedSlug ? 'Copied!' : 'Copy Link'}
+                      </button>
+                    </div>
                   )}
                 </GlassCard>
 
