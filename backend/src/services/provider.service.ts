@@ -45,7 +45,11 @@ export const isInsufficientBalanceError = (message: string | null | undefined): 
 
 const isAtBigTimeProduct = (name: string, description: string): boolean => {
   const haystack = `${name} ${description}`.toLowerCase();
-  return haystack.includes('bigtime') || haystack.includes('big time');
+  return (
+    haystack.includes('bigtime') ||
+    haystack.includes('big time') ||
+    haystack.includes('big-time')
+  );
 };
 
 export const fulfillOrderWithProvider = async (orderId: string) => {
@@ -224,10 +228,16 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
         ? await codecraftClient.createBigTimeOrder(order.phoneNumber, gig, codecraftNetwork === 'AT' ? 'AT' : 'MTN')
         : await codecraftClient.createRegularOrder(order.phoneNumber, gig, codecraftNetwork);
 
-      const externalReference = createResponse.reference_id;
-      const providerReference = createResponse.reference_id || generateReference('PRV');
+      const externalReference = createResponse.reference_id || createResponse.referenceId;
+      if (!externalReference) {
+        throw new Error('CodeCraft did not return a reference_id for the order');
+      }
+      const providerReference = externalReference || generateReference('PRV');
 
-      const status = createResponse.status === 200 ? 'PROCESSING' as const : 'FAILED' as const;
+      const statusCode = Number(createResponse.status);
+      const status = statusCode === 200 || createResponse.status === '200' || createResponse.status === 'success'
+        ? 'PROCESSING' as const
+        : 'FAILED' as const;
 
       const responsePayload = {
         providerReference,

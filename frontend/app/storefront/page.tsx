@@ -92,7 +92,7 @@ export default function StorefrontPage() {
       <DashboardShell title="Storefront" description="Manage your storefront, products, orders, wallet and withdrawals.">
         <div className="space-y-5">
           {/* Tabs */}
-          <div className="flex gap-2 overflow-x-auto border-b border-gray-800 whitespace-nowrap">
+          <div className="flex gap-2 border-b border-gray-800">
             {(['settings', 'products', 'orders', 'wallet', 'withdrawals'] as const).map((tab) => (
               <button
                 key={tab}
@@ -116,23 +116,22 @@ export default function StorefrontPage() {
                 <form className="mt-6 grid gap-4 md:grid-cols-2" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
                   <div className="md:col-span-2">
                     <label className="mb-1.5 block text-xs text-gray-400">Storefront URL</label>
-                    <div className="flex flex-col gap-2 md:flex-row md:items-stretch">
-                      <div className="flex items-center overflow-hidden text-ellipsis whitespace-nowrap rounded-lg border border-gray-800 bg-gray-900/50 px-3 py-2 text-sm text-gray-500 md:py-0">
+                    <div className="flex items-stretch gap-2">
+                      <div className="flex items-center rounded-lg border border-gray-800 bg-gray-900/50 px-3 text-sm text-gray-500">
                         {typeof window !== 'undefined' ? `${window.location.origin}/store/` : '/store/'}
                       </div>
-                      <Input {...form.register('slug')} className="w-full md:flex-1" placeholder="your-store-url" />
-                      <Button type="button" size="sm" onClick={copySlug} className="w-full justify-center gap-2 md:w-auto">
+                      <Input {...form.register('slug')} className="flex-1" placeholder="your-store-url" />
+                      <Button type="button" size="sm" onClick={copySlug} className="gap-2">
                         {copiedSlug ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                        <span className="md:hidden">{copiedSlug ? 'Copied!' : 'Copy URL'}</span>
                       </Button>
                     </div>
-                    <div className="mt-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+                    <div className="mt-2 flex items-center gap-2">
                       <p className="text-xs text-gray-500">Customize your storefront URL (3-30 chars, lowercase letters, numbers, and hyphens only)</p>
                       {storefront?.slug && (
                         <button
                           type="button"
                           onClick={copySlug}
-                          className="inline-flex items-center gap-1 self-start text-xs text-violet-400 hover:text-violet-300 sm:self-auto"
+                          className="inline-flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300"
                         >
                           {copiedSlug ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                           {copiedSlug ? 'Copied!' : 'Copy full URL'}
@@ -209,14 +208,14 @@ export default function StorefrontPage() {
                   </div>
                   <p className="mt-4 text-sm text-gray-400">{storefront?.description}</p>
                   {storefront?.slug && (
-                    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+                    <div className="mt-4 flex items-center gap-3">
                       <Link href={`/store/${storefront.slug}`} className="inline-flex items-center gap-2 text-sm text-violet-400 hover:text-violet-300">
                         <Eye className="h-4 w-4" /> Open Public Storefront
                       </Link>
                       <button
                         type="button"
                         onClick={copySlug}
-                        className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-800 bg-gray-900/50 px-3 py-1.5 text-xs text-gray-400 transition-colors hover:border-violet-500/50 hover:text-violet-400 sm:self-auto"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-800 bg-gray-900/50 px-3 py-1.5 text-xs text-gray-400 transition-colors hover:border-violet-500/50 hover:text-violet-400"
                       >
                         {copiedSlug ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                         {copiedSlug ? 'Copied!' : 'Copy Link'}
@@ -416,7 +415,7 @@ export default function StorefrontPage() {
                     return (
                       <div
                         key={order.id}
-                        className="flex flex-col gap-3 rounded-xl border border-gray-800 bg-gray-900/30 p-4 sm:flex-row sm:items-center sm:justify-between"
+                        className="flex items-center justify-between rounded-xl border border-gray-800 bg-gray-900/30 p-4"
                       >
                         <div className="flex-1">
                           <p className="font-medium text-white">{order.product.name}</p>
@@ -424,10 +423,10 @@ export default function StorefrontPage() {
                             {order.phoneNumber} • {new Date(order.createdAt).toLocaleDateString()}
                           </p>
                         </div>
-                        <div className="flex items-center gap-4 sm:gap-4">
-                          <div className="text-left sm:text-right">
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
                             <p className="font-semibold text-white">{formatCurrency(order.amount)}</p>
-                            <div className="mt-1 flex items-center gap-2 sm:justify-end">
+                            <div className="mt-1 flex items-center justify-end gap-2">
                               <Badge value={order.status} />
                               <Badge variant={isPaid ? 'success' : 'secondary'}>
                                 {isPaid ? 'Paid' : 'Unpaid'}

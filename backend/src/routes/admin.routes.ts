@@ -12,6 +12,8 @@ import { maybeCreditStorefrontCommission } from '../services/commission.service.
 import { exportToCSV, exportToExcel } from '../services/export.service.js';
 import { shankClient } from '../services/shank.service.js';
 import { pollOrderStatuses } from '../workers/shank-status.worker.js';
+import { pollCodecraftOrderStatuses } from '../workers/codecraft-status.worker.js';
+import { codecraftClient } from '../services/codecraft.service.js';
 import { normalizeDataSize } from '../utils/shank-mapping.js';
 import {
   getReconcilerStatus,
@@ -416,13 +418,16 @@ adminRouter.post('/withdrawals/:id/reject', async (request, response, next) => {
       return response.status(400).json({ success: false, message: 'Cannot reject a paid or approved withdrawal' });
     }
 
+    // `source` is WithdrawalSource in schema (MAIN_WALLET | STOREFRONT_WALLET)
+    const isStorefrontWallet = existing.source === 'STOREFRONT_WALLET';
+
     const result = await prisma.$transaction(async (tx) => {
       const updated = await tx.withdrawal.update({
         where: { id: request.params.id },
         data: { status: 'REJECTED' },
       });
 
-      if (existing.source === 'STOREFRONT_WALLET') {
+      if (isStorefrontWallet) {
         const sfWallet = await tx.storefrontWallet.findUnique({
           where: { userId: existing.userId },
         });
@@ -457,7 +462,7 @@ adminRouter.post('/withdrawals/:id/reject', async (request, response, next) => {
     await createNotification(
       existing.userId,
       'Withdrawal rejected',
-      `Your withdrawal of GHS ${existing.amount.toFixed(2)} has been rejected. Funds returned to your ${existing.source === 'STOREFRONT_WALLET' ? 'storefront wallet' : 'account'}.`,
+      `Your withdrawal of GHS ${existing.amount.toFixed(2)} has been rejected. Funds returned to your ${isStorefrontWallet ? 'storefront wallet' : 'account'}.`,
       'WITHDRAWAL',
     );
 
@@ -1479,6 +1484,20 @@ adminRouter.post('/shank/poll-now', async (_request, response, next) => {
   try {
     const result = await pollOrderStatuses();
     return response.json(createSuccessResponse(result, `Checked ${result.checked} orders, updated ${result.updated}`));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/codecraft/poll-now', async (_request, response, next) => {
+  try {
+    if (!codecraftClient.isConfigured()) {
+      return response.status(400).json({ success: false, message: 'CODECRAFT_API_KEY not configured' });
+    }
+    const result = await pollCodecraftOrderStatuses();
+    return response.json(
+      createSuccessResponse(result, `Checked ${result.checked} orders, updated ${result.updated}`),
+    );
   } catch (error) {
     return next(error);
   }

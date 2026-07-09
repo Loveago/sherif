@@ -6,19 +6,164 @@ import { createWalletTransaction } from '../services/wallet.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
 import { env } from '../config/env.js';
 
+const isAtBigTimeProduct = (name: string, description: string): boolean => {
+  const haystack = `${name} ${description}`.toLowerCase();
+  return (
+    haystack.includes('bigtime') ||
+    haystack.includes('big time') ||
+    haystack.includes('big-time')
+  );
+};
+
+/**
+ * Extract a human-readable order status string from CodeCraft status payloads.
+ * The API is inconsistent: docs show `order_status`, but live responses may use
+ * `status`, nested objects, or arrays.
+ */
+const extractCodecraftOrderStatus = (payload: unknown): string | null => {
+  if (!payload || typeof payload !== 'object') return null;
+
+  const root = payload as Record<string, unknown>;
+
+  // Prefer nested data when present
+  let data: unknown = root.data !== undefined ? root.data : root;
+  if (Array.isArray(data)) {
+    data = data[0];
+  }
+  if (!data || typeof data !== 'object') {
+    // Some responses put the status at the top level only
+    data = root;
+  }
+
+  const obj = data as Record<string, unknown>;
+  const candidates = [
+    obj.order_status,
+    obj.orderStatus,
+    obj.OrderStatus,
+    obj.Order_Status,
+    obj.delivery_status,
+    obj.deliveryStatus,
+    obj.api_status,
+    obj.apiStatus,
+    // Avoid bare top-level numeric `status` (often HTTP/API code 200)
+    typeof obj.status === 'string' ? obj.status : null,
+    typeof obj.Status === 'string' ? obj.Status : null,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate === null || candidate === undefined) continue;
+    const text = String(candidate).trim();
+    if (!text) continue;
+    // Ignore pure HTTP-like success codes that are not order delivery states
+    if (/^\d+$/.test(text)) continue;
+    return text;
+  }
+
+  return null;
+};
+
 const mapCodecraftStatusToOrderStatus = (orderStatus: string | null | undefined): OrderStatus | null => {
   const value = (orderStatus || '').toString().toLowerCase().trim();
   if (!value) return null;
-  if (value === 'successful' || value === 'completed' || value === 'delivered' || value === 'crediting successful' || value === 'credit successful' || value === 'credited') return OrderStatus.SUCCESSFUL;
-  if (value.includes('successful') || value.includes('delivered') || value.includes('completed')) return OrderStatus.SUCCESSFUL;
-  if (value === 'failed' || value === 'rejected' || value === 'error') return OrderStatus.FAILED;
-  if (value.includes('fail') || value.includes('reject') || value.includes('error')) return OrderStatus.FAILED;
-  if (value === 'processing') return OrderStatus.PROCESSING;
-  if (value === 'pending' || value === 'queued') return OrderStatus.PENDING;
+
+  // Normalize separators so "crediting-successful" / "credit_successful" still match
+  const normalized = value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Terminal success — include bare "success" because CodeCraft often returns that
+  const successExact = new Set([
+    'successful',
+    'success',
+    'completed',
+    'complete',
+    'delivered',
+    'delivery successful',
+    'crediting successful',
+    'credit successful',
+    'credited successfully',
+    'credited',
+    'processed',
+    'done',
+    'ok',
+  ]);
+  if (successExact.has(normalized)) return OrderStatus.SUCCESSFUL;
+  if (
+    normalized.includes('successful') ||
+    normalized.includes('delivered') ||
+    normalized.includes('completed') ||
+    normalized.includes('credited') ||
+    normalized === 'success' ||
+    normalized.includes('processed')
+  ) {
+    return OrderStatus.SUCCESSFUL;
+  }
+
+  // Terminal failure
+  const failExact = new Set(['failed', 'fail', 'rejected', 'error', 'cancelled', 'canceled', 'declined']);
+  if (failExact.has(normalized)) return OrderStatus.FAILED;
+  if (
+    normalized.includes('fail') ||
+    normalized.includes('reject') ||
+    normalized.includes('error') ||
+    normalized.includes('cancel') ||
+    normalized.includes('decline')
+  ) {
+    return OrderStatus.FAILED;
+  }
+
+  // In-progress
+  if (
+    normalized === 'processing' ||
+    normalized === 'in progress' ||
+    normalized === 'in-progress' ||
+    normalized.includes('processing') ||
+    normalized.includes('crediting')
+  ) {
+    return OrderStatus.PROCESSING;
+  }
+
+  if (normalized === 'pending' || normalized === 'queued' || normalized === 'queue' || normalized === 'waiting') {
+    return OrderStatus.PENDING;
+  }
+
   return null;
 };
 
 const STALE_ORDER_MS = 5 * 60 * 60 * 1000; // 5 hours
+
+const fetchCodecraftStatus = async (externalRef: string, preferBigTime: boolean) => {
+  const primary = preferBigTime
+    ? () => codecraftClient.getBigTimeOrderStatus(externalRef)
+    : () => codecraftClient.getRegularOrderStatus(externalRef);
+  const secondary = preferBigTime
+    ? () => codecraftClient.getRegularOrderStatus(externalRef)
+    : () => codecraftClient.getBigTimeOrderStatus(externalRef);
+
+  try {
+    const response = await primary();
+    const statusText = extractCodecraftOrderStatus(response);
+    if (statusText || response?.data) {
+      return { response, statusText, endpoint: preferBigTime ? 'big_time' : 'regular' as const };
+    }
+  } catch (error) {
+    console.warn(
+      `[CodecraftWorker] Primary status endpoint failed for ${externalRef}:`,
+      codecraftClient.getErrorMessage(error),
+    );
+  }
+
+  // Fallback: wrong package type may have been used (bigtime vs regular)
+  try {
+    const response = await secondary();
+    const statusText = extractCodecraftOrderStatus(response);
+    return { response, statusText, endpoint: preferBigTime ? 'regular' : 'big_time' as const };
+  } catch (error) {
+    console.warn(
+      `[CodecraftWorker] Fallback status endpoint failed for ${externalRef}:`,
+      codecraftClient.getErrorMessage(error),
+    );
+    throw error;
+  }
+};
 
 export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; updated: number }> => {
   if (!codecraftClient.isConfigured()) {
@@ -39,6 +184,8 @@ export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; u
       product: { include: { network: true } },
       user: { include: { wallet: true } },
     },
+    // Prefer freshest open orders so a backlog of stuck rows doesn't starve new ones
+    orderBy: { createdAt: 'desc' },
     take: 50,
   });
 
@@ -59,6 +206,10 @@ export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; u
     console.log(`[CodecraftWorker] Skipping ${skippedCount} orders older than 5 hours`);
   }
 
+  if (activeOrders.length === 0) {
+    return { checked: 0, updated: 0 };
+  }
+
   const externalRefs = [...new Set(activeOrders.map((o) => o.externalReference!))];
 
   let updated = 0;
@@ -73,43 +224,59 @@ export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; u
       const sample = ordersForRef[0];
       const networkCode = sample.product.network.code.toUpperCase();
       const isAt = networkCode === 'AIRTELTIGO';
-      const isBigTime = isAt && (sample.product.name + ' ' + sample.product.description).toLowerCase().includes('bigtime');
+      const preferBigTime = isAt && isAtBigTimeProduct(sample.product.name, sample.product.description);
 
-      const statusResponse = isBigTime
-        ? await codecraftClient.getBigTimeOrderStatus(externalRef)
-        : await codecraftClient.getRegularOrderStatus(externalRef);
+      const { response: statusResponse, statusText, endpoint } = await fetchCodecraftStatus(
+        externalRef,
+        preferBigTime,
+      );
 
-      console.log(`[CodecraftWorker] Raw status response for ${externalRef}:`, JSON.stringify(statusResponse));
+      console.log(
+        `[CodecraftWorker] Raw status response for ${externalRef} via ${endpoint}:`,
+        JSON.stringify(statusResponse),
+      );
 
-      if (!statusResponse.data) {
-        console.log(`[CodecraftWorker] No data in response for ${externalRef}, skipping`);
+      const newStatus = mapCodecraftStatusToOrderStatus(statusText);
+      console.log(
+        `[CodecraftWorker] Mapped status "${statusText ?? ''}" -> ${newStatus} for ${externalRef}`,
+      );
+
+      if (!statusText) {
+        console.log(`[CodecraftWorker] No order status field found for ${externalRef}, skipping`);
         continue;
       }
 
-      // Handle data as either an object or an array (API may return either)
-      const dataObj = Array.isArray(statusResponse.data)
-        ? statusResponse.data[0]
-        : statusResponse.data;
-
-      if (!dataObj) {
-        console.log(`[CodecraftWorker] Empty data array for ${externalRef}, skipping`);
-        continue;
-      }
-
-      const newStatus = mapCodecraftStatusToOrderStatus(dataObj.order_status);
-      console.log(`[CodecraftWorker] Mapped status "${dataObj.order_status}" -> ${newStatus} for ${externalRef}`);
       if (!newStatus) {
+        console.warn(
+          `[CodecraftWorker] Unmapped CodeCraft status "${statusText}" for ${externalRef} — not updating`,
+        );
         continue;
       }
 
       for (const order of ordersForRef) {
+        // Never downgrade a more advanced non-terminal status to an earlier one
         if (order.status === newStatus) {
+          continue;
+        }
+        if (
+          order.status === OrderStatus.PROCESSING &&
+          (newStatus === OrderStatus.PENDING)
+        ) {
           continue;
         }
 
         await prisma.$transaction(async (tx) => {
           await tx.order.update({
             where: { id: order.id },
+            data: { status: newStatus },
+          });
+
+          // Keep provider transaction rows in sync when present
+          await tx.providerTransaction.updateMany({
+            where: {
+              orderId: order.id,
+              status: { in: ['PENDING', 'PROCESSING'] },
+            },
             data: { status: newStatus },
           });
 
@@ -141,12 +308,14 @@ export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; u
           await maybeCreditStorefrontCommission(order.id);
         }
 
-        await createNotification(
-          order.userId,
-          newStatus === OrderStatus.SUCCESSFUL ? 'Order completed' : 'Order failed',
-          `${order.product.name} for ${order.phoneNumber} is now ${newStatus.toLowerCase()}.`,
-          'ORDER',
-        );
+        if (newStatus === OrderStatus.SUCCESSFUL || newStatus === OrderStatus.FAILED) {
+          await createNotification(
+            order.userId,
+            newStatus === OrderStatus.SUCCESSFUL ? 'Order completed' : 'Order failed',
+            `${order.product.name} for ${order.phoneNumber} is now ${newStatus.toLowerCase()}.`,
+            'ORDER',
+          );
+        }
 
         updated++;
       }
