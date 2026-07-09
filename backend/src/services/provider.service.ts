@@ -2,7 +2,14 @@ import { prisma } from '../lib/prisma.js';
 import { generateReference } from '../utils/refs.js';
 import { shankClient } from './shank.service.js';
 import { codecraftClient } from './codecraft.service.js';
-import { dataSizeToVolumeMb, mapNetworkCodeToShankId, normalizeDataSize } from '../utils/shank-mapping.js';
+import { dataSizeToVolumeMb, normalizeDataSize } from '../utils/shank-mapping.js';
+import {
+  isBigTimeProduct,
+  isCodecraftNetwork,
+  toCodecraftGig,
+  toCodecraftNetwork,
+  toCodecraftRecipient,
+} from '../utils/codecraft-mapping.js';
 
 const toJson = (value: unknown) => JSON.parse(JSON.stringify(value));
 
@@ -43,13 +50,29 @@ export const isInsufficientBalanceError = (message: string | null | undefined): 
   );
 };
 
-const isAtBigTimeProduct = (name: string, description: string): boolean => {
-  const haystack = `${name} ${description}`.toLowerCase();
-  return (
-    haystack.includes('bigtime') ||
-    haystack.includes('big time') ||
-    haystack.includes('big-time')
-  );
+const isCodecraftCreateSuccess = (createResponse: {
+  status?: number | string;
+  message?: string;
+  reference_id?: string;
+  referenceId?: string;
+}): boolean => {
+  const statusCode = Number(createResponse.status);
+  if (statusCode === 200) return true;
+
+  const statusText = String(createResponse.status ?? '').toLowerCase().trim();
+  if (statusText === '200' || statusText === 'success' || statusText === 'successful') return true;
+
+  const message = String(createResponse.message ?? '').toLowerCase();
+  if (message.includes('order recorded') || message.includes('successful')) return true;
+
+  // Some CodeCraft responses only return a reference without a useful status field
+  if (createResponse.reference_id || createResponse.referenceId) {
+    // Business error codes from docs: 100, 101, 102, 103, 500, 555
+    if ([100, 101, 102, 103, 500, 555].includes(statusCode)) return false;
+    if (!createResponse.status) return true;
+  }
+
+  return false;
 };
 
 export const fulfillOrderWithProvider = async (orderId: string) => {
@@ -88,6 +111,7 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
   };
 
   const networkCode = order.product.network.code.toUpperCase();
+  const codecraftNetwork = toCodecraftNetwork(networkCode);
 
   // When no external provider is configured, behave as instant success (mock)
   if (!shankClient.isConfigured() && !codecraftClient.isConfigured()) {
@@ -207,37 +231,71 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
   }
 
   // Telecel & AirtelTigo go through Codecraft
-  if (networkCode === 'TELECEL' || networkCode === 'AIRTELTIGO') {
+  if (isCodecraftNetwork(networkCode)) {
     if (!codecraftClient.isConfigured()) {
       throw new Error('CODECRAFT_API_KEY is not configured for Telecel/AirtelTigo orders');
     }
 
-    const isAt = networkCode === 'AIRTELTIGO';
-    const isBigTime = isAt && isAtBigTimeProduct(order.product.name, order.product.description);
+    if (!codecraftNetwork) {
+      throw new Error(`Cannot map network "${networkCode}" to a CodeCraft network`);
+    }
 
-    // Map internal networks to Codecraft network strings
-    const codecraftNetwork: 'MTN' | 'AT' | 'TELECEL' = isAt ? 'AT' : 'TELECEL';
+    // BigTime channel is for AT (AirtelTigo) products whose name/description/slug includes "bigtime"
+    const isBigTime =
+      codecraftNetwork === 'AT' &&
+      isBigTimeProduct(
+        order.product.name,
+        order.product.description,
+        order.product.slug,
+        order.product.dataSize,
+      );
 
-    // Derive Codecraft gig from our dataSize (e.g. 1GB -> "1", 500MB -> "500")
-    const normalized = normalizeDataSize(resolvedDataSize); // e.g. "1GB" or "500MB"
-    const digits = normalized.replace(/\D/g, '');
-    const gig = digits || resolvedDataSize;
+    // BigTime endpoint only accepts MTN | AT
+    const bigTimeNetwork: 'MTN' | 'AT' = 'AT';
+
+    const recipientNumber = toCodecraftRecipient(order.phoneNumber);
+    const gig = toCodecraftGig({
+      dataSize: order.product.dataSize || resolvedDataSize,
+      description: order.product.description,
+      name: order.product.name,
+    });
+
+    if (!gig) {
+      throw new Error(
+        `Cannot derive CodeCraft gig/package from product "${order.product.name}" (dataSize="${order.product.dataSize}", description="${order.product.description}")`,
+      );
+    }
+
+    console.log(
+      `[Provider] CodeCraft fulfill order=${order.receiptNumber} network=${codecraftNetwork} bigTime=${isBigTime} gig=${gig} phone=${recipientNumber}`,
+    );
 
     try {
       const createResponse = isBigTime
-        ? await codecraftClient.createBigTimeOrder(order.phoneNumber, gig, codecraftNetwork === 'AT' ? 'AT' : 'MTN')
-        : await codecraftClient.createRegularOrder(order.phoneNumber, gig, codecraftNetwork);
+        ? await codecraftClient.createBigTimeOrder(recipientNumber, gig, bigTimeNetwork)
+        : await codecraftClient.createRegularOrder(recipientNumber, gig, codecraftNetwork);
+
+      console.log(
+        `[Provider] CodeCraft create response for ${order.receiptNumber}:`,
+        JSON.stringify(createResponse),
+      );
 
       const externalReference = createResponse.reference_id || createResponse.referenceId;
       if (!externalReference) {
-        throw new Error('CodeCraft did not return a reference_id for the order');
+        throw new Error(
+          `CodeCraft did not return a reference_id for the order (status=${createResponse.status}, message=${createResponse.message || 'n/a'})`,
+        );
       }
-      const providerReference = externalReference || generateReference('PRV');
 
-      const statusCode = Number(createResponse.status);
-      const status = statusCode === 200 || createResponse.status === '200' || createResponse.status === 'success'
-        ? 'PROCESSING' as const
-        : 'FAILED' as const;
+      const providerReference = externalReference;
+      const ok = isCodecraftCreateSuccess(createResponse);
+      const status = ok ? ('PROCESSING' as const) : ('FAILED' as const);
+
+      if (!ok) {
+        console.error(
+          `[Provider] CodeCraft rejected order ${order.receiptNumber}: status=${createResponse.status} message=${createResponse.message || 'n/a'} bigTime=${isBigTime} gig=${gig}`,
+        );
+      }
 
       const responsePayload = {
         providerReference,
@@ -245,8 +303,9 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
         status,
         provider: 'CODECRAFT',
         isBigTime,
-        codecraftNetwork,
+        codecraftNetwork: isBigTime ? bigTimeNetwork : codecraftNetwork,
         gig,
+        recipientNumber,
         createResponse,
       };
 
@@ -254,7 +313,14 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
         data: {
           providerId: provider.id,
           orderId: order.id,
-          requestPayload: toJson({ ...requestPayloadBase, codecraftNetwork, gig, isBigTime }),
+          requestPayload: toJson({
+            ...requestPayloadBase,
+            codecraftNetwork: isBigTime ? bigTimeNetwork : codecraftNetwork,
+            gig,
+            isBigTime,
+            recipientNumber,
+            endpoint: isBigTime ? 'special.php' : 'initiate.php',
+          }),
           responsePayload: toJson(responsePayload),
           status,
         },
@@ -268,7 +334,10 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
       return { providerReference, externalReference, status };
     } catch (error) {
       const errorMessage = codecraftClient.getErrorMessage(error);
-      console.error('[Provider] Codecraft API error:', errorMessage);
+      console.error(
+        `[Provider] Codecraft API error for ${order.receiptNumber} (bigTime=${isBigTime}, gig=${gig}, network=${codecraftNetwork}):`,
+        errorMessage,
+      );
 
       const failPayload = {
         providerReference: generateReference('PRV'),
@@ -277,15 +346,23 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
         error: errorMessage,
         provider: 'CODECRAFT',
         isBigTime,
-        codecraftNetwork,
+        codecraftNetwork: isBigTime ? bigTimeNetwork : codecraftNetwork,
         gig,
+        recipientNumber,
       };
 
       await prisma.providerTransaction.create({
         data: {
           providerId: provider.id,
           orderId: order.id,
-          requestPayload: toJson({ ...requestPayloadBase, codecraftNetwork, gig, isBigTime }),
+          requestPayload: toJson({
+            ...requestPayloadBase,
+            codecraftNetwork: isBigTime ? bigTimeNetwork : codecraftNetwork,
+            gig,
+            isBigTime,
+            recipientNumber,
+            endpoint: isBigTime ? 'special.php' : 'initiate.php',
+          }),
           responsePayload: toJson(failPayload),
           status: 'FAILED',
         },

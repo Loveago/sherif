@@ -1,7 +1,12 @@
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { z } from 'zod';
 
-dotenv.config();
+// Load backend/.env even when process is started from the monorepo root
+const backendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+dotenv.config({ path: path.join(backendDir, '.env') });
+dotenv.config(); // fallback to CWD .env
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

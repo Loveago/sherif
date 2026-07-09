@@ -5,15 +5,7 @@ import { createNotification } from '../services/notification.service.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
 import { env } from '../config/env.js';
-
-const isAtBigTimeProduct = (name: string, description: string): boolean => {
-  const haystack = `${name} ${description}`.toLowerCase();
-  return (
-    haystack.includes('bigtime') ||
-    haystack.includes('big time') ||
-    haystack.includes('big-time')
-  );
-};
+import { isBigTimeProduct, toCodecraftNetwork } from '../utils/codecraft-mapping.js';
 
 /**
  * Extract a human-readable order status string from CodeCraft status payloads.
@@ -176,7 +168,8 @@ export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; u
       externalReference: { not: null },
       product: {
         network: {
-          code: { in: ['TELECEL', 'AIRTELTIGO'] },
+          // Include common AT aliases so status polling still works if network code was renamed
+          code: { in: ['TELECEL', 'AIRTELTIGO', 'AT', 'AIRTEL', 'TIGO', 'VODAFONE'] },
         },
       },
     },
@@ -223,8 +216,15 @@ export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; u
 
       const sample = ordersForRef[0];
       const networkCode = sample.product.network.code.toUpperCase();
-      const isAt = networkCode === 'AIRTELTIGO';
-      const preferBigTime = isAt && isAtBigTimeProduct(sample.product.name, sample.product.description);
+      const mapped = toCodecraftNetwork(networkCode);
+      const preferBigTime =
+        mapped === 'AT' &&
+        isBigTimeProduct(
+          sample.product.name,
+          sample.product.description,
+          sample.product.slug,
+          sample.product.dataSize,
+        );
 
       const { response: statusResponse, statusText, endpoint } = await fetchCodecraftStatus(
         externalRef,

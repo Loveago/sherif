@@ -152,7 +152,11 @@ adminRouter.get('/products', async (_request, response, next) => {
 adminRouter.post('/products', validate(createProductSchema), async (request, response, next) => {
   try {
     const { rolePrices, promoPrice, showInShop, showForAgents, status, ...productData } = request.body;
-    const dataSize = normalizeDataSize(productData.description || productData.name);
+    // Prefer explicit size in description ("50GB"), then name ("AT BigTime 50GB")
+    const dataSize =
+      normalizeDataSize(productData.description || '') ||
+      normalizeDataSize(productData.name || '') ||
+      String(productData.description || productData.name || '').trim();
     const product = await prisma.product.create({
       data: {
         ...productData,
@@ -191,7 +195,10 @@ adminRouter.post('/products', validate(createProductSchema), async (request, res
 adminRouter.put('/products/:id', validate(createProductSchema), async (request, response, next) => {
   try {
     const { rolePrices, promoPrice, showInShop, showForAgents, status, id, ...productData } = request.body;
-    const dataSize = normalizeDataSize(productData.description || productData.name);
+    const dataSize =
+      normalizeDataSize(productData.description || '') ||
+      normalizeDataSize(productData.name || '') ||
+      String(productData.description || productData.name || '').trim();
     const product = await prisma.product.update({
       where: { id: String(request.params.id) },
       data: {

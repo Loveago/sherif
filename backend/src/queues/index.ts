@@ -28,7 +28,26 @@ export const processFulfillmentJob = async (orderId: string) => {
     data: { status: OrderStatus.PROCESSING },
   });
 
-  const result = await fulfillOrderWithProvider(orderId);
+  let result: {
+    providerReference?: string | null;
+    externalReference?: string | null;
+    status: string;
+    error?: string;
+  };
+
+  try {
+    result = await fulfillOrderWithProvider(orderId);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Provider fulfillment failed';
+    console.error(`[Fulfillment] Unhandled provider error for order ${orderId}:`, errorMessage);
+    result = {
+      providerReference: null,
+      externalReference: null,
+      status: 'FAILED',
+      error: errorMessage,
+    };
+  }
+
   const nextStatus: OrderStatus =
     result.status === 'SUCCESSFUL' ? OrderStatus.SUCCESSFUL :
     result.status === 'FAILED' ? OrderStatus.FAILED :
@@ -39,14 +58,14 @@ export const processFulfillmentJob = async (orderId: string) => {
       where: { id: orderId },
       data: {
         status: nextStatus,
-        providerReference: result.providerReference,
-        ...(result.externalReference && { externalReference: result.externalReference }),
+        ...(result.providerReference ? { providerReference: result.providerReference } : {}),
+        ...(result.externalReference ? { externalReference: result.externalReference } : {}),
       },
     });
 
     const isStorefrontOrder = order.source === 'STOREFRONT';
 
-    const failureMessage = (result as any).error as string | undefined;
+    const failureMessage = result.error;
     const isBalanceError = isInsufficientBalanceError(failureMessage);
 
     if (nextStatus === OrderStatus.FAILED && !isStorefrontOrder && !isBalanceError) {

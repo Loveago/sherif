@@ -86,18 +86,53 @@ class CodecraftClient {
   }
 
   private normalizeCreateResponse(data: CodecraftOrderCreateResponse): CodecraftOrderCreateResponse {
+    const nested =
+      data.data && typeof data.data === 'object' && !Array.isArray(data.data)
+        ? (data.data as Record<string, unknown>)
+        : null;
+
     const referenceId =
       data.reference_id ||
       data.referenceId ||
-      (data.data && typeof data.data === 'object'
-        ? ((data.data as any).reference_id || (data.data as any).referenceId)
+      (nested
+        ? String(nested.reference_id || nested.referenceId || nested.reference || '').trim() || undefined
         : undefined);
+
+    const rawStatus = data.status ?? (nested?.status as number | string | undefined);
+    const normalizedStatus =
+      typeof rawStatus === 'string' ? Number(rawStatus) || rawStatus : rawStatus;
 
     return {
       ...data,
       reference_id: referenceId || data.reference_id,
-      status: typeof data.status === 'string' ? Number(data.status) || data.status : data.status,
+      status: normalizedStatus as number | string,
+      message: data.message || (nested?.message as string | undefined) || data.message,
     };
+  }
+
+  private assertCreateAccepted(
+    data: CodecraftOrderCreateResponse,
+    endpoint: string,
+  ): CodecraftOrderCreateResponse {
+    const normalized = this.normalizeCreateResponse(data);
+    const statusCode = Number(normalized.status);
+    const failCodes = new Set([100, 101, 102, 103, 500, 555]);
+
+    if (failCodes.has(statusCode)) {
+      throw new Error(
+        `CodeCraft ${endpoint} rejected order (status=${normalized.status}): ${normalized.message || 'unknown error'}`,
+      );
+    }
+
+    if (!normalized.reference_id && !normalized.referenceId) {
+      // Some failures return HTTP 200 with only a message
+      const msg = (normalized.message || '').toLowerCase();
+      if (msg && !msg.includes('success') && !msg.includes('recorded')) {
+        throw new Error(`CodeCraft ${endpoint} did not accept order: ${normalized.message}`);
+      }
+    }
+
+    return normalized;
   }
 
   async createRegularOrder(
@@ -106,15 +141,14 @@ class CodecraftClient {
     network: 'MTN' | 'AT' | 'TELECEL',
   ): Promise<CodecraftOrderCreateResponse> {
     const client = this.getClient();
-    const { data } = await client.post<CodecraftOrderCreateResponse>(
-      '/initiate.php',
-      {
-        recipient_number: recipientNumber,
-        gig,
-        network,
-      },
-    );
-    return this.normalizeCreateResponse(data);
+    const payload = {
+      recipient_number: recipientNumber,
+      gig: String(gig),
+      network,
+    };
+    console.log('[Codecraft] POST /initiate.php', payload);
+    const { data } = await client.post<CodecraftOrderCreateResponse>('/initiate.php', payload);
+    return this.assertCreateAccepted(data, '/initiate.php');
   }
 
   async createBigTimeOrder(
@@ -123,15 +157,14 @@ class CodecraftClient {
     network: 'MTN' | 'AT',
   ): Promise<CodecraftOrderCreateResponse> {
     const client = this.getClient();
-    const { data } = await client.post<CodecraftOrderCreateResponse>(
-      '/special.php',
-      {
-        recipient_number: recipientNumber,
-        gig,
-        network,
-      },
-    );
-    return this.normalizeCreateResponse(data);
+    const payload = {
+      recipient_number: recipientNumber,
+      gig: String(gig),
+      network,
+    };
+    console.log('[Codecraft] POST /special.php', payload);
+    const { data } = await client.post<CodecraftOrderCreateResponse>('/special.php', payload);
+    return this.assertCreateAccepted(data, '/special.php');
   }
 
   async getRegularOrderStatus(referenceId: string): Promise<CodecraftOrderStatusResponse> {
