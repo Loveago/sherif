@@ -2,20 +2,22 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Product } from '@/lib/types';
 
+let nextCartItemId = 1;
+
 export interface CartItem {
+  cartItemId: number;
   productId: string;
   product: Product;
-  quantity: number;
   price: number;
   addedAt: string;
   phoneNumber?: string;
 }
 
-interface CartStore {
+export interface CartStore {
   items: CartItem[];
-  addItem: (product: Product, quantity: number, price: number, phoneNumber?: string) => void;
-  removeItem: (productId: string, phoneNumber?: string) => void;
-  updateQuantity: (productId: string, quantity: number, phoneNumber?: string) => void;
+  addItem: (product: Product, price: number) => number;
+  removeItem: (cartItemId: number) => void;
+  setPhoneNumber: (cartItemId: number, phoneNumber: string) => void;
   clearCart: () => void;
   getTotal: () => number;
   getItemCount: () => number;
@@ -26,57 +28,38 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
 
-      addItem: (product, quantity, price, phoneNumber) => {
-        set((state) => {
-          const existingItem = state.items.find(
-            (item) => item.productId === product.id && item.phoneNumber === phoneNumber
-          );
-
-          if (existingItem) {
-            return {
-              items: state.items.map((item) =>
-                item.productId === product.id && item.phoneNumber === phoneNumber
-                  ? { ...item, quantity: item.quantity + quantity }
-                  : item
-              ),
-            };
-          }
-
-          return {
-            items: [
-              ...state.items,
-              {
-                productId: product.id,
-                product,
-                quantity,
-                price,
-                addedAt: new Date().toISOString(),
-                phoneNumber,
-              },
-            ],
-          };
-        });
+      /**
+       * Adds ONE item to the cart. Each call creates a separate line item
+       * so the user can enter a unique phone number per recipient.
+       * Returns the new cartItemId.
+       */
+      addItem: (product, price) => {
+        const cartItemId = nextCartItemId++;
+        set((state) => ({
+          items: [
+            ...state.items,
+            {
+              cartItemId,
+              productId: product.id,
+              product,
+              price,
+              addedAt: new Date().toISOString(),
+            },
+          ],
+        }));
+        return cartItemId;
       },
 
-      removeItem: (productId, phoneNumber) => {
+      removeItem: (cartItemId) => {
         set((state) => ({
-          items: state.items.filter(
-            (item) => !(item.productId === productId && item.phoneNumber === phoneNumber)
-          ),
+          items: state.items.filter((item) => item.cartItemId !== cartItemId),
         }));
       },
 
-      updateQuantity: (productId, quantity, phoneNumber) => {
-        if (quantity <= 0) {
-          get().removeItem(productId, phoneNumber);
-          return;
-        }
-
+      setPhoneNumber: (cartItemId, phoneNumber) => {
         set((state) => ({
           items: state.items.map((item) =>
-            item.productId === productId && item.phoneNumber === phoneNumber
-              ? { ...item, quantity }
-              : item
+            item.cartItemId === cartItemId ? { ...item, phoneNumber } : item
           ),
         }));
       },
@@ -87,17 +70,40 @@ export const useCartStore = create<CartStore>()(
 
       getTotal: () => {
         const state = get();
-        return state.items.reduce((total, item) => total + item.price * item.quantity, 0);
+        return state.items.reduce((total, item) => total + item.price, 0);
       },
 
       getItemCount: () => {
-        const state = get();
-        return state.items.reduce((count, item) => count + item.quantity, 0);
+        return get().items.length;
       },
     }),
     {
       name: 'cart-store',
-      version: 1,
+      version: 2,
+      migrate: (persistedState: any, _version: number) => {
+        // Migration from v1 (old format with quantity/merge) to v2 (line items)
+        if (persistedState?.items?.length > 0 && persistedState.items[0].quantity !== undefined) {
+          const newItems = [];
+          let maxId = 0;
+          for (const old of persistedState.items) {
+            for (let i = 0; i < old.quantity; i++) {
+              const cartItemId = nextCartItemId++;
+              if (cartItemId > maxId) maxId = cartItemId;
+              newItems.push({
+                cartItemId,
+                productId: old.productId,
+                product: old.product,
+                price: old.price,
+                addedAt: old.addedAt,
+                phoneNumber: old.phoneNumber,
+              });
+            }
+          }
+          nextCartItemId = maxId + 1;
+          return { items: newItems };
+        }
+        return persistedState;
+      },
     }
   )
 );

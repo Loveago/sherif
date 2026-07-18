@@ -239,7 +239,7 @@ export default function BuyDataPage() {
                     className="w-full"
                     onClick={() => {
                       if (selectedProduct) {
-                        addItem(selectedProduct, 1, selectedProduct.sellingPrice);
+                        addItem(selectedProduct, selectedProduct.sellingPrice);
                         setAddedToCart(true);
                         setTimeout(() => setAddedToCart(false), 2000);
                       }

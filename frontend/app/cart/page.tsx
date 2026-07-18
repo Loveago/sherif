@@ -13,42 +13,35 @@ import { Badge } from '@/components/ui/badge';
 import { useCartStore } from '@/store/cart-store';
 import { apiRequest, ApiError } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import { Trash2, Plus, Minus, ShoppingBag, ArrowLeft, CheckCircle, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
+import { Trash2, ShoppingBag, ArrowLeft, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function CartPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { items, removeItem, updateQuantity, clearCart, getTotal, getItemCount } = useCartStore();
-  const [phoneInputs, setPhoneInputs] = useState<Record<string, string>>({});
+  const { items, removeItem, setPhoneNumber, clearCart, getTotal, getItemCount } = useCartStore();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // State to track which items need a phone number
-  const itemsNeedingPhone = items.filter((item) => !item.phoneNumber);
-
-  const getItemKey = (item: typeof items[0]) => `${item.productId}-${item.phoneNumber || 'none'}`;
+  const itemsNeedingPhone = items.filter((item) => !item.phoneNumber || item.phoneNumber.length < 10);
 
   const checkoutMutation = useMutation({
     mutationFn: async () => {
       setError(null);
       setSuccess(false);
 
-      // Validate phone numbers for items that need them
-      for (const item of itemsNeedingPhone) {
-        const phone = phoneInputs[getItemKey(item)]?.trim();
+      // Validate phone numbers
+      for (const item of items) {
+        const phone = (item.phoneNumber || '').trim();
         if (!phone || phone.length < 10) {
           throw new ApiError(`Please enter a valid phone number for "${item.product.name}"`, 400);
         }
       }
 
-      // Build orders array — each quantity becomes a separate order with its own receipt number
-      const orders: Array<{ productId: string; phoneNumber: string }> = [];
-      for (const item of items) {
-        const phone = item.phoneNumber || phoneInputs[getItemKey(item)]?.trim() || '';
-        for (let i = 0; i < item.quantity; i++) {
-          orders.push({ productId: item.productId, phoneNumber: phone });
-        }
-      }
+      // Each cart item = one order (one receipt number)
+      const orders = items.map((item) => ({
+        productId: item.productId,
+        phoneNumber: item.phoneNumber!.trim(),
+      }));
 
       return apiRequest('/orders/batch', {
         method: 'POST',
@@ -62,7 +55,6 @@ export default function CartPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['wallet'] });
 
-      // Auto-redirect to orders page after brief success display
       setTimeout(() => {
         router.push('/orders');
       }, 2000);
@@ -91,7 +83,6 @@ export default function CartPage() {
     );
   }
 
-  // Success state after checkout
   if (success) {
     return (
       <AuthGuard>
@@ -119,89 +110,47 @@ export default function CartPage() {
 
   return (
     <AuthGuard>
-      <DashboardShell title="Shopping Cart" description={`${getItemCount()} items in cart`}>
+      <DashboardShell title="Shopping Cart" description={`${getItemCount()} item${getItemCount() !== 1 ? 's' : ''} in cart`}>
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-4">
             {items.map((item) => (
-              <GlassCard key={getItemKey(item)} className="p-6">
+              <GlassCard key={item.cartItemId} className="p-6">
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-white">{item.product.name}</h3>
+                      <h3 className="text-lg font-semibold text-white truncate">{item.product.name}</h3>
                       <Badge value={item.product.network.code} />
                     </div>
                     <p className="text-sm text-gray-400 mb-1">{item.product.description}</p>
 
-                    {/* Phone number input for items that don't have one yet */}
-                    {!item.phoneNumber && (
-                      <div className="mb-3">
-                        <label className="mb-1 block text-xs text-gray-500">Recipient Phone Number *</label>
-                        <Input
-                          placeholder="055 123 4567"
-                          value={phoneInputs[getItemKey(item)] || ''}
-                          onChange={(e) =>
-                            setPhoneInputs((prev) => ({ ...prev, [getItemKey(item)]: e.target.value }))
-                          }
-                          className="max-w-xs"
-                        />
-                      </div>
-                    )}
-                    {item.phoneNumber && (
-                      <p className="text-xs text-gray-500 mb-3">
-                        Recipient: <span className="text-white font-medium">{item.phoneNumber}</span>
-                      </p>
-                    )}
-
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <p className="text-xs text-gray-500">Unit Price</p>
-                        <p className="text-lg font-semibold text-white">
-                          GHS {formatCurrency(item.price)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Subtotal</p>
-                        <p className="text-lg font-semibold text-violet-400">
-                          GHS {formatCurrency(item.price * item.quantity)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Quantity Controls */}
-                  <div className="flex flex-col items-end gap-4">
-                    <button
-                      onClick={() => removeItem(item.productId, item.phoneNumber)}
-                      className="text-gray-400 hover:text-red-400 transition"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
-
-                    <div className="flex items-center gap-2 bg-gray-900/50 rounded-lg p-1">
-                      <button
-                        onClick={() => updateQuantity(item.productId, item.quantity - 1, item.phoneNumber)}
-                        className="p-1 hover:bg-gray-800 rounded transition"
-                      >
-                        <Minus className="h-4 w-4 text-gray-400" />
-                      </button>
-                      <input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 1;
-                          updateQuantity(item.productId, Math.max(1, val), item.phoneNumber);
-                        }}
-                        className="w-12 text-center bg-transparent text-white outline-none"
+                    {/* Phone number input – each item gets its own */}
+                    <div className="mb-3">
+                      <label className="mb-1 block text-xs text-gray-500">Recipient Phone Number *</label>
+                      <Input
+                        placeholder="053 530 8873"
+                        value={item.phoneNumber || ''}
+                        onChange={(e) => setPhoneNumber(item.cartItemId, e.target.value)}
+                        className="max-w-xs"
                       />
-                      <button
-                        onClick={() => updateQuantity(item.productId, item.quantity + 1, item.phoneNumber)}
-                        className="p-1 hover:bg-gray-800 rounded transition"
-                      >
-                        <Plus className="h-4 w-4 text-gray-400" />
-                      </button>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-gray-500">Price</p>
+                      <p className="text-lg font-semibold text-white">
+                        GHS {formatCurrency(item.price)}
+                      </p>
                     </div>
                   </div>
+
+                  {/* Remove button */}
+                  <button
+                    onClick={() => removeItem(item.cartItemId)}
+                    className="shrink-0 text-gray-400 hover:text-red-400 transition p-2"
+                    title="Remove item"
+                  >
+                    <Trash2 className="h-5 w-5" />
+                  </button>
                 </div>
               </GlassCard>
             ))}
@@ -214,25 +163,21 @@ export default function CartPage() {
 
               <div className="space-y-3 mb-6 pb-6 border-b border-gray-700">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Items ({getItemCount()})</span>
+                  <span className="text-gray-400">Items</span>
                   <span className="text-white font-medium">{getItemCount()} order{getItemCount() !== 1 ? 's' : ''}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Subtotal</span>
+                  <span className="text-gray-400">Total</span>
                   <span className="text-white">GHS {formatCurrency(getTotal())}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Delivery</span>
                   <span className="text-white">Free</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Tax</span>
-                  <span className="text-white">GHS 0.00</span>
-                </div>
               </div>
 
               <div className="flex items-center justify-between mb-4 rounded-xl bg-violet-600/10 border border-violet-500/20 px-4 py-3">
-                <span className="text-sm font-semibold text-white">Total to pay</span>
+                <span className="text-sm font-semibold text-white">To pay</span>
                 <span className="text-xl font-bold text-violet-400">
                   GHS {formatCurrency(getTotal())}
                 </span>
@@ -251,7 +196,7 @@ export default function CartPage() {
                 <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
                   <p className="text-xs text-amber-300">
-                    Please enter recipient phone numbers for {itemsNeedingPhone.length} item{itemsNeedingPhone.length > 1 ? 's' : ''} above.
+                    Enter a phone number for each item above.
                   </p>
                 </div>
               )}
