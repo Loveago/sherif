@@ -14,14 +14,6 @@ export type User = {
   wallet?: Wallet | null;
 };
 
-export type Wallet = {
-  id: string;
-  availableBalance: number;
-  pendingBalance: number;
-  currency: string;
-  transactions?: WalletTransaction[];
-};
-
 export type StorefrontWallet = {
   id: string;
   availableBalance: number;
