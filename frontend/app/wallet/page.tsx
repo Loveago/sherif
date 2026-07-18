@@ -12,9 +12,9 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { apiRequest } from '@/lib/api';
-import type { Wallet, Withdrawal } from '@/lib/types';
+import type { Wallet, Withdrawal, Payment } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
-import { Wallet as WalletIcon, ArrowUpRight, ArrowDownLeft, CreditCard, Smartphone, MessageCircle, Copy, CheckCircle, Lock, Store } from 'lucide-react';
+import { Wallet as WalletIcon, ArrowUpRight, ArrowDownLeft, CreditCard, Smartphone, MessageCircle, Copy, CheckCircle, XCircle, Loader2, RefreshCw, Store, Lock, AlertTriangle } from 'lucide-react';
 
 type FundFormValues = { amount: number; method: 'PAYSTACK' | 'MTN_MOMO' };
 type WithdrawFormValues = { amount: number; method: 'MTN Mobile Money' | 'Bank Transfer'; accountName: string; accountNumber: string; bankName?: string };
@@ -62,6 +62,15 @@ export default function WalletPage() {
     },
     onError: (error: any) => {
       setFundError(error?.message || 'Failed to fund wallet. Please try again.');
+    },
+  });
+
+  const verifyPaymentMutation = useMutation({
+    mutationFn: (paymentId: string) =>
+      apiRequest(`/wallet/payments/${paymentId}/verify`, { method: 'POST' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wallet'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
     },
   });
 
@@ -325,6 +334,66 @@ export default function WalletPage() {
             </div>
           </GlassCard>
         </div>
+
+        {/* Pending / Failed Deposits – Manual Verify */}
+        {wallet?.pendingPayments && wallet.pendingPayments.length > 0 && (
+          <div className="mt-5">
+            <GlassCard className="p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="h-5 w-5 text-amber-400" />
+                <h3 className="text-base font-semibold text-white">Pending Deposits</h3>
+              </div>
+              <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+                If you were redirected to Paystack and your deposit did not credit automatically,
+                click <strong>Verify Payment</strong> below for the affected deposit. We will check with
+                Paystack and credit your wallet instantly if the payment was successful.
+              </p>
+              <div className="space-y-2">
+                {wallet.pendingPayments.map((payment: Payment) => (
+                  <div
+                    key={payment.id}
+                    className="flex items-center justify-between rounded-xl border border-gray-800 bg-gray-900/50 px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                        payment.status === 'PENDING'
+                          ? 'bg-amber-500/20 text-amber-400'
+                          : 'bg-rose-500/20 text-rose-400'
+                      }`}>
+                        {payment.status === 'PENDING'
+                          ? <Loader2 className="h-4 w-4" />
+                          : <XCircle className="h-4 w-4" />
+                        }
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-white">{formatCurrency(payment.amount)}</p>
+                          <Badge value={payment.status} />
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          Ref: {payment.reference} &middot; {new Date(payment.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={verifyPaymentMutation.isPending && verifyPaymentMutation.variables === payment.id}
+                      onClick={() => verifyPaymentMutation.mutate(payment.id)}
+                    >
+                      <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${
+                        verifyPaymentMutation.isPending && verifyPaymentMutation.variables === payment.id ? 'animate-spin' : ''
+                      }`} />
+                      {verifyPaymentMutation.isPending && verifyPaymentMutation.variables === payment.id
+                        ? 'Verifying...'
+                        : 'Verify Payment'}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          </div>
+        )}
       </DashboardShell>
     </AuthGuard>
   );

@@ -140,6 +140,25 @@ export type Commission = {
   order?: Order;
 };
 
+export type Payment = {
+  id: string;
+  amount: number;
+  method: string;
+  status: 'PENDING' | 'SUCCESSFUL' | 'FAILED';
+  reference: string;
+  providerRef: string | null;
+  createdAt: string;
+};
+
+export type Wallet = {
+  id: string;
+  availableBalance: number;
+  pendingBalance: number;
+  currency: string;
+  transactions?: WalletTransaction[];
+  pendingPayments?: Payment[];
+};
+
 export type Withdrawal = {
   id: string;
   amount: number;

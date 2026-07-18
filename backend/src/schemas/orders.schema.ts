@@ -38,7 +38,7 @@ export const batchOrderSchema = z.object({
     orders: z.array(
       z.object({
         productId: z.string().min(1),
-        phoneNumber: z.string().min(10).max(20),
+        phoneNumber: z.string().min(1).max(20),
       })
     ).min(1),
   }),

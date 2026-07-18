@@ -640,7 +640,8 @@ agentRouter.post('/wallet/paystack/initialize', validate(fundWalletSchema), asyn
       }
     );
 
-    await prisma.payment.create({
+    // Log the deposit immediately when user is redirected to Paystack
+    const payment = await prisma.payment.create({
       data: {
         userId: user.id,
         amount: toDecimal(request.body.amount),
@@ -651,7 +652,12 @@ agentRouter.post('/wallet/paystack/initialize', validate(fundWalletSchema), asyn
       },
     });
 
-    return response.json(createSuccessResponse(paystackResponse.data));
+    return response.json(createSuccessResponse({
+      authorization_url: paystackResponse.data.authorization_url,
+      access_code: paystackResponse.data.access_code,
+      reference: paystackResponse.data.reference,
+      paymentId: payment.id,
+    }));
   } catch (error) {
     return next(error);
   }
@@ -676,50 +682,131 @@ agentRouter.get('/wallet/paystack/verify', async (request, response, next) => {
       return response.json(createSuccessResponse({ status: 'SUCCESSFUL', amount: payment.amount }, 'Payment already verified'));
     }
 
-    const paystackResponse = await verifyPaystackPayment(reference);
-
-    if (!paystackResponse.status || paystackResponse.data.status !== 'success') {
-      await prisma.payment.update({
-        where: { id: payment.id },
-        data: { status: 'FAILED' },
-      });
-      return response.status(400).json({ success: false, message: 'Payment verification failed' });
-    }
-
-    const wallet = await getWalletByUserId(payment.userId);
-
-    await prisma.$transaction(async (tx) => {
-      await createWalletTransaction(
-        wallet.id,
-        payment.amount.toNumber(),
-        WalletTransactionType.CREDIT,
-        WalletTransactionCategory.FUNDING,
-        'Wallet funded via Paystack',
-        tx,
-      );
-    });
-
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: { status: 'SUCCESSFUL' },
-    });
-
-    await createNotification(
-      payment.userId,
-      'Wallet funded',
-      `Your wallet has been credited with GHS ${payment.amount.toFixed(2)}.`,
-      'WALLET',
-    );
-
-    await emitWebhookEvent('wallet.funded', {
-      userId: payment.userId,
-      amount: payment.amount.toNumber(),
-      reference: payment.reference,
-    });
-
-    return response.json(createSuccessResponse({ status: 'SUCCESSFUL', amount: payment.amount }, 'Wallet funded successfully'));
+    const result = await verifyAndCreditWallet(payment.id, reference);
+    return response.json(createSuccessResponse(result, 'Wallet funded successfully'));
   } catch (error) {
     return next(error);
+  }
+});
+
+/**
+ * Shared helper: verify a Paystack payment by reference and credit the wallet.
+ * Used by both the callback verification and manual re-verification endpoints.
+ */
+async function verifyAndCreditWallet(paymentId: string, paystackReference: string) {
+  const paystackResponse = await verifyPaystackPayment(paystackReference);
+
+  if (!paystackResponse.status || paystackResponse.data.status !== 'success') {
+    await prisma.payment.update({
+      where: { id: paymentId },
+      data: { status: 'FAILED' },
+    });
+    throw new Error('Payment verification failed with Paystack');
+  }
+
+  const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+  if (!payment) {
+    throw new Error('Payment record not found');
+  }
+
+  // Double-check it hasn't been credited already (race condition guard)
+  if (payment.status === 'SUCCESSFUL') {
+    return { status: 'SUCCESSFUL', amount: payment.amount };
+  }
+
+  const wallet = await getWalletByUserId(payment.userId);
+
+  await prisma.$transaction(async (tx) => {
+    await createWalletTransaction(
+      wallet.id,
+      payment.amount.toNumber(),
+      WalletTransactionType.CREDIT,
+      WalletTransactionCategory.FUNDING,
+      'Wallet funded via Paystack',
+      tx,
+    );
+  });
+
+  await prisma.payment.update({
+    where: { id: payment.id },
+    data: { status: 'SUCCESSFUL' },
+  });
+
+  await createNotification(
+    payment.userId,
+    'Wallet funded',
+    `Your wallet has been credited with GHS ${payment.amount.toFixed(2)}.`,
+    'WALLET',
+  );
+
+  await emitWebhookEvent('wallet.funded', {
+    userId: payment.userId,
+    amount: payment.amount.toNumber(),
+    reference: payment.reference,
+  });
+
+  return { status: 'SUCCESSFUL', amount: payment.amount };
+}
+
+/**
+ * GET /wallet/payments
+ * Returns all Paystack payment attempts for the current user (pending & failed)
+ * so the user can manually verify any that may have succeeded but weren't processed.
+ */
+agentRouter.get('/wallet/payments', async (request, response, next) => {
+  try {
+    const payments = await prisma.payment.findMany({
+      where: {
+        userId: request.auth!.userId,
+        method: 'PAYSTACK',
+        status: { in: ['PENDING', 'FAILED'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    return response.json(createSuccessResponse(payments));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * POST /wallet/payments/:paymentId/verify
+ * Manually re-verify a specific Paystack deposit that was left in PENDING/FAILED status.
+ * This allows users to recover from network/callback failures.
+ */
+agentRouter.post('/wallet/payments/:paymentId/verify', async (request, response, next) => {
+  try {
+    const { paymentId } = request.params;
+
+    const payment = await prisma.payment.findFirst({
+      where: {
+        id: paymentId,
+        userId: request.auth!.userId,
+        method: 'PAYSTACK',
+      },
+    });
+
+    if (!payment) {
+      return response.status(404).json({ success: false, message: 'Payment record not found' });
+    }
+
+    if (payment.status === 'SUCCESSFUL') {
+      return response.json(createSuccessResponse({ status: 'SUCCESSFUL', amount: payment.amount }, 'Payment already verified and credited'));
+    }
+
+    if (!payment.providerRef) {
+      return response.status(400).json({ success: false, message: 'Payment has no provider reference to verify against' });
+    }
+
+    const result = await verifyAndCreditWallet(payment.id, payment.providerRef);
+    return response.json(createSuccessResponse(result, 'Payment verified and wallet credited successfully'));
+  } catch (error: any) {
+    return response.status(400).json({
+      success: false,
+      message: error?.message || 'Payment verification failed. Please contact support if your account was debited.',
+    });
   }
 });
 
@@ -739,7 +826,21 @@ agentRouter.get('/wallet', async (request, response, next) => {
       return response.status(404).json({ success: false, message: 'Wallet not found' });
     }
 
-    return response.json(createSuccessResponse(wallet));
+    // Also fetch recent Paystack payment attempts (pending/failed) to surface on the wallet page
+    const pendingPayments = await prisma.payment.findMany({
+      where: {
+        userId: request.auth!.userId,
+        method: 'PAYSTACK',
+        status: { in: ['PENDING', 'FAILED'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    return response.json(createSuccessResponse({
+      ...wallet,
+      pendingPayments,
+    }));
   } catch (error) {
     return next(error);
   }

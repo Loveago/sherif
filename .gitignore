@@ -18,3 +18,4 @@ vercel.txt
 *.md
 !README.md
 !CHANGELOG.md
+.roo/mcp.json
