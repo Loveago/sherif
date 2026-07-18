@@ -58,7 +58,7 @@ function NetworkLogo({ code }: { code: string }) {
 
 export default function BuyDataPage() {
   const queryClient = useQueryClient();
-  const { addItem } = useCartStore();
+  const { addItem, setPhoneNumber } = useCartStore();
   const [selectedNetwork, setSelectedNetwork] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -238,8 +238,9 @@ export default function BuyDataPage() {
                     variant="secondary"
                     className="w-full"
                     onClick={() => {
-                      if (selectedProduct) {
-                        addItem(selectedProduct, selectedProduct.sellingPrice);
+                      if (selectedProduct && phoneNumber) {
+                        const cartItemId = addItem(selectedProduct, selectedProduct.sellingPrice);
+                        setPhoneNumber(cartItemId, phoneNumber);
                         setAddedToCart(true);
                         setTimeout(() => setAddedToCart(false), 2000);
                       }
