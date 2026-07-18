@@ -42,7 +42,7 @@ type PastePreviewResponse = {
 
 export default function BulkOrdersPage() {
   const queryClient = useQueryClient();
-  const { addItem } = useCartStore();
+  const { addItem, setPhoneNumber } = useCartStore();
   const [preview, setPreview] = useState<UploadResponse | null>(null);
   const [showPasteModal, setShowPasteModal] = useState(false);
   const [selectedNetwork, setSelectedNetwork] = useState('');
@@ -104,7 +104,9 @@ export default function BulkOrdersPage() {
         networkId: selectedNetwork,
         network: networks.find((n) => n.id === selectedNetwork) || { id: selectedNetwork, name: 'Unknown', code: 'UNK', color: '#666' },
       };
-      addItem(product, 1, r.amount!, r.phoneNumber);
+      const cartItemId = addItem(product, r.amount!);
+      // Set the phone number directly so the user doesn't need to re-enter it
+      setPhoneNumber(cartItemId, r.phoneNumber);
     });
     setShowPasteModal(false);
     setPastePreview(null);
