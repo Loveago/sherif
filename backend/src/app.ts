@@ -10,6 +10,9 @@ import { apiRouter } from './routes/index.js';
 
 export const app = express();
 
+// Behind Nginx / Cloudflare / any reverse proxy so express-rate-limit can read X-Forwarded-For
+app.set('trust proxy', 1);
+
 app.use(
   helmet({
     crossOriginResourcePolicy: false,

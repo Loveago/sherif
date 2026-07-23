@@ -28,59 +28,97 @@ export const extractCodecraftOrderStatus = (payload: unknown): string | null => 
 
   const root = payload as Record<string, unknown>;
 
-  // Prefer nested data when present
-  let data: unknown = root.data !== undefined ? root.data : root;
-  if (Array.isArray(data)) {
-    // Prefer the first object entry that looks like an order row
-    data = data.find((entry) => entry && typeof entry === 'object') ?? data[0];
-  }
-  if (!data || typeof data !== 'object') {
-    // Some responses put the status at the top level only
-    data = root;
-  }
-
-  const obj = data as Record<string, unknown>;
-  const candidates = [
-    obj.order_status,
-    obj.orderStatus,
-    obj.OrderStatus,
-    obj.Order_Status,
-    obj.delivery_status,
-    obj.deliveryStatus,
-    obj.api_status,
-    obj.apiStatus,
-    obj.message,
-    // Avoid bare top-level numeric `status` (often HTTP/API code 200)
-    typeof obj.status === 'string' ? obj.status : null,
-    typeof obj.Status === 'string' ? obj.Status : null,
+  // Live CodeCraft status responses nest the order under `order_details`
+  // (docs historically used `data`). Prefer the richest nested object first.
+  const nestedCandidates: unknown[] = [
+    root.order_details,
+    root.orderDetails,
+    root.OrderDetails,
+    root.data,
+    root.order,
+    root.result,
+    root,
   ];
 
-  for (const candidate of candidates) {
-    if (candidate === null || candidate === undefined) continue;
-    const text = String(candidate).trim();
-    if (!text) continue;
-    // Ignore pure HTTP-like success codes that are not order delivery states
-    if (/^\d+$/.test(text)) continue;
-    // Ignore generic API envelope messages that are not delivery states
-    const lower = text.toLowerCase();
-    if (lower === 'order found' || lower === 'order not found') continue;
-    // Envelope-level "Successful" without a dedicated order_status field is ambiguous
-    if (
-      (lower === 'successful' || lower === 'success') &&
-      obj.order_status == null &&
-      obj.orderStatus == null &&
-      obj.delivery_status == null &&
-      obj.deliveryStatus == null &&
-      obj.api_status == null
-    ) {
+  const objectsToScan: Record<string, unknown>[] = [];
+
+  for (const candidate of nestedCandidates) {
+    if (!candidate) continue;
+    if (Array.isArray(candidate)) {
+      for (const entry of candidate) {
+        if (entry && typeof entry === 'object') {
+          objectsToScan.push(entry as Record<string, unknown>);
+        }
+      }
       continue;
     }
-    return text;
+    if (typeof candidate === 'object') {
+      objectsToScan.push(candidate as Record<string, unknown>);
+    }
+  }
+
+  // Always include root last so nested delivery fields win over envelope "status":"success"
+  if (!objectsToScan.includes(root)) {
+    objectsToScan.push(root);
+  }
+
+  for (const obj of objectsToScan) {
+    const hasDedicatedStatusField =
+      obj.order_status != null ||
+      obj.orderStatus != null ||
+      obj.OrderStatus != null ||
+      obj.Order_Status != null ||
+      obj.delivery_status != null ||
+      obj.deliveryStatus != null ||
+      obj.api_status != null ||
+      obj.apiStatus != null;
+
+    const candidates = [
+      obj.order_status,
+      obj.orderStatus,
+      obj.OrderStatus,
+      obj.Order_Status,
+      obj.delivery_status,
+      obj.deliveryStatus,
+      obj.api_status,
+      obj.apiStatus,
+      // Only treat bare `status` as delivery state when it is not a pure envelope flag
+      // or when a dedicated delivery field is present on this same object.
+      typeof obj.status === 'string' ? obj.status : null,
+      typeof obj.Status === 'string' ? obj.Status : null,
+      obj.message,
+    ];
+
+    for (const candidate of candidates) {
+      if (candidate === null || candidate === undefined) continue;
+      const text = String(candidate).trim();
+      if (!text) continue;
+      // Ignore pure HTTP-like success codes that are not order delivery states
+      if (/^\d+$/.test(text)) continue;
+
+      const lower = text.toLowerCase();
+      if (lower === 'order found' || lower === 'order not found') continue;
+
+      // Envelope-level "success"/"successful" without a dedicated order status field
+      // means the API call worked, not that the bundle was delivered.
+      if (
+        (lower === 'successful' || lower === 'success') &&
+        !hasDedicatedStatusField &&
+        obj === root
+      ) {
+        continue;
+      }
+
+      return text;
+    }
   }
 
   // As a last resort, if nested data is a plain string treat it as the status
   if (typeof root.data === 'string' && root.data.trim()) {
     return root.data.trim();
+  }
+  if (typeof root.order_details === 'string' && root.order_details.trim()) {
+    return root.order_details.trim();
   }
 
   return null;
@@ -93,7 +131,7 @@ export const mapCodecraftStatusToOrderStatus = (orderStatus: string | null | und
   // Normalize separators so "crediting-successful" / "credit_successful" still match
   const normalized = value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
 
-  // Terminal success — include bare "success" because CodeCraft often returns that
+  // Terminal success — live CodeCraft returns "Delivered"; docs also use "successful"
   const successExact = new Set([
     'successful',
     'success',

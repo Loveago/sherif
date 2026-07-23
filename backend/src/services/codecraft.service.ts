@@ -27,7 +27,10 @@ export interface CodecraftOrderStatusResponse {
   status?: number | string;
   success?: boolean | string;
   message?: string;
+  // Docs used `data`; live API returns `order_details`
   data?: CodecraftOrderStatusData | CodecraftOrderStatusData[] | string | null;
+  order_details?: CodecraftOrderStatusData | CodecraftOrderStatusData[] | string | null;
+  orderDetails?: CodecraftOrderStatusData | CodecraftOrderStatusData[] | string | null;
   order_status?: string;
   [key: string]: unknown;
 }
