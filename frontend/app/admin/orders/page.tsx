@@ -49,6 +49,12 @@ export default function AdminOrdersPage() {
       if (sourceFilter) params.set('source', sourceFilter);
       return apiRequest<Order[]>(`/admin/orders?${params.toString()}`);
     },
+    refetchInterval: (query) => {
+      const list = query.state.data as Order[] | undefined;
+      const hasOpen = list?.some((o) => o.status === 'PENDING' || o.status === 'PROCESSING');
+      return hasOpen ? 20000 : false;
+    },
+    refetchOnWindowFocus: true,
   });
 
   const updateOrderStatusMutation = useMutation({

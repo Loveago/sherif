@@ -140,8 +140,48 @@ class ShankClient {
 
   async getOrderStatus(reference: string): Promise<ShankOrderStatusResponse> {
     const client = this.getClient();
-    const { data } = await client.get<ShankOrderStatusResponse>(`/orders/${encodeURIComponent(reference)}`);
-    return data;
+    const { data } = await client.get<any>(`/orders/${encodeURIComponent(reference)}`);
+
+    // Normalize inconsistent provider envelopes so the worker always sees items[]
+    if (data && typeof data === 'object') {
+      const items =
+        Array.isArray(data.items)
+          ? data.items
+          : Array.isArray(data.data)
+            ? data.data
+            : Array.isArray(data.orders)
+              ? data.orders
+              : Array.isArray(data)
+                ? data
+                : null;
+
+      if (items) {
+        return {
+          reference: String(data.reference || reference),
+          items: items.map((item: any) => ({
+            id: Number(item?.id) || 0,
+            beneficiary_number: String(
+              item?.beneficiary_number || item?.msisdn || item?.phone || item?.beneficiary || '',
+            ),
+            order_reference: String(
+              item?.order_reference || item?.order_code || item?.reference || '',
+            ),
+            status: item?.status ?? item?.order_status ?? 0,
+            api_status: String(item?.api_status || item?.delivery_status || item?.status_text || ''),
+            api_source: String(item?.api_source || ''),
+            volume: String(item?.volume || item?.volume_mb || ''),
+            network: String(item?.network || ''),
+            price: Number(item?.price) || 0,
+            created_at: String(item?.created_at || ''),
+          })),
+        };
+      }
+    }
+
+    return {
+      reference: String((data as any)?.reference || reference),
+      items: [],
+    };
   }
 
   async fetchTransactions(): Promise<unknown[]> {

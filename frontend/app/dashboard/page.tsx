@@ -23,6 +23,9 @@ export default function DashboardPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => apiRequest<DashboardResponse>('/dashboard'),
+    // Refresh while recent orders may still be settling at providers
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
   });
 
   return (

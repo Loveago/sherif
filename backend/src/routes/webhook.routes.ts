@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import crypto from 'crypto';
 import { OrderStatus, WalletTransactionCategory, WalletTransactionType } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { createSuccessResponse } from '../utils/response.js';
 import { createNotification } from '../services/notification.service.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
+import { mapShankStatusToOrderStatus } from '../workers/shank-status.worker.js';
+import type { ShankOrderStatusItem } from '../services/shank.service.js';
 
 export const webhookRouter = Router();
 
@@ -71,6 +72,7 @@ webhookRouter.post('/webhooks/shank/orders-processed', async (request, response,
 
       const order = await prisma.order.findFirst({
         where: {
+          status: { in: [OrderStatus.PENDING, OrderStatus.PROCESSING] },
           OR: [{ providerReference: orderCode }, { externalReference: orderCode }],
         },
         include: { product: { include: { network: true } }, user: { include: { wallet: true } } },
@@ -78,81 +80,89 @@ webhookRouter.post('/webhooks/shank/orders-processed', async (request, response,
 
       if (!order) continue;
 
-      const rawApiStatus = (item.api_status || '').toString().toLowerCase().trim();
-      const rawStatus = (item.status ?? '').toString().toLowerCase().trim();
-      const apiStatus = rawStatus || rawApiStatus;
+      // Reuse the same mapping logic as the status worker
+      const statusItem = {
+        id: Number(item.id) || 0,
+        beneficiary_number: item.beneficiary_number || order.phoneNumber,
+        order_reference: item.order_reference || item.order_code || orderCode,
+        status: item.status,
+        api_status: item.api_status || '',
+        api_source: item.api_source || '',
+        volume: item.volume || '',
+        network: item.network || order.product.network.code,
+        price: Number(item.price) || 0,
+        created_at: item.created_at || new Date().toISOString(),
+      } as ShankOrderStatusItem;
 
-      let numericStatus: number | null = null;
-      if (typeof item.status === 'number') {
-        numericStatus = item.status;
-      } else {
-        const parsed = Number(item.status);
-        if (!Number.isNaN(parsed)) {
-          numericStatus = parsed;
-        }
-      }
-
-      let newStatus: OrderStatus | null = null;
-
-      if (numericStatus === 0) newStatus = OrderStatus.PENDING;
-      else if (numericStatus === 1) newStatus = OrderStatus.PROCESSING;
-      else if (numericStatus === 2) newStatus = OrderStatus.SUCCESSFUL;
-      else if (numericStatus === 3) newStatus = OrderStatus.FAILED;
-
-      if (!newStatus) {
-        if (apiStatus === 'processed' || apiStatus === 'delivered' || apiStatus === 'completed') {
-          newStatus = OrderStatus.SUCCESSFUL;
-        } else if (apiStatus === 'failed' || apiStatus === 'rejected' || apiStatus === 'error') {
-          newStatus = OrderStatus.FAILED;
-        } else if (apiStatus === 'processing') {
-          newStatus = OrderStatus.PROCESSING;
-        } else if (apiStatus === 'pending' || apiStatus === 'queued') {
-          newStatus = OrderStatus.PENDING;
-        }
-      }
+      const newStatus = mapShankStatusToOrderStatus(statusItem);
 
       if (!newStatus || newStatus === order.status) continue;
+      // Never downgrade PROCESSING → PENDING
+      if (order.status === OrderStatus.PROCESSING && newStatus === OrderStatus.PENDING) continue;
+
+      const isTerminal = newStatus === OrderStatus.SUCCESSFUL || newStatus === OrderStatus.FAILED;
+      let didUpdate = false;
 
       await prisma.$transaction(async (tx) => {
-        await tx.order.update({
-          where: { id: order.id },
+        const result = await tx.order.updateMany({
+          where: {
+            id: order.id,
+            status: { in: [OrderStatus.PENDING, OrderStatus.PROCESSING] },
+          },
+          data: { status: newStatus },
+        });
+        if (result.count === 0) return;
+        didUpdate = true;
+
+        await tx.providerTransaction.updateMany({
+          where: {
+            orderId: order.id,
+            status: { in: ['PENDING', 'PROCESSING'] },
+          },
           data: { status: newStatus },
         });
 
         const isStorefrontOrder = order.source === 'STOREFRONT';
 
         if (newStatus === OrderStatus.FAILED && order.user.wallet && !isStorefrontOrder) {
-          await createWalletTransaction(
-            order.user.wallet.id,
-            order.amount.toNumber(),
-            WalletTransactionType.CREDIT,
-            WalletTransactionCategory.REFUND,
-            `Automatic refund for failed order ${order.receiptNumber}`,
-            tx,
-          );
+          const existingRefund = await tx.refund.findUnique({ where: { orderId: order.id } });
+          if (!existingRefund) {
+            await createWalletTransaction(
+              order.user.wallet.id,
+              order.amount.toNumber(),
+              WalletTransactionType.CREDIT,
+              WalletTransactionCategory.REFUND,
+              `Automatic refund for failed order ${order.receiptNumber}`,
+              tx,
+            );
 
-          await tx.refund.create({
-            data: {
-              userId: order.userId,
-              orderId: order.id,
-              amount: order.amount,
-              reason: 'Automatic refund — Shank webhook reported delivery failure',
-              status: 'REFUNDED',
-            },
-          });
+            await tx.refund.create({
+              data: {
+                userId: order.userId,
+                orderId: order.id,
+                amount: order.amount,
+                reason: 'Automatic refund — Shank webhook reported delivery failure',
+                status: 'REFUNDED',
+              },
+            });
+          }
         }
       });
+
+      if (!didUpdate) continue;
 
       if (newStatus === OrderStatus.SUCCESSFUL) {
         await maybeCreditStorefrontCommission(order.id);
       }
 
-      await createNotification(
-        order.userId,
-        newStatus === OrderStatus.SUCCESSFUL ? 'Order completed' : 'Order failed',
-        `${order.product.name} for ${order.phoneNumber} is now ${newStatus.toLowerCase()}.`,
-        'ORDER',
-      );
+      if (isTerminal) {
+        await createNotification(
+          order.userId,
+          newStatus === OrderStatus.SUCCESSFUL ? 'Order completed' : 'Order failed',
+          `${order.product.name} for ${order.phoneNumber} is now ${newStatus.toLowerCase()}.`,
+          'ORDER',
+        );
+      }
     }
 
     return response.status(200).json({ received: true });

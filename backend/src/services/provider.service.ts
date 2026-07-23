@@ -190,7 +190,10 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
 
         await prisma.order.update({
           where: { id: orderId },
-          data: { externalReference },
+          data: {
+            externalReference,
+            providerReference,
+          },
         });
 
         return { providerReference, externalReference, status };
@@ -328,7 +331,10 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
 
       await prisma.order.update({
         where: { id: orderId },
-        data: { externalReference },
+        data: {
+          externalReference,
+          providerReference,
+        },
       });
 
       return { providerReference, externalReference, status };

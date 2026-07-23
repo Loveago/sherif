@@ -54,6 +54,7 @@ export const processFulfillmentJob = async (orderId: string) => {
     OrderStatus.PROCESSING;
 
   await prisma.$transaction(async (tx) => {
+    // Always persist provider refs when present so status workers can poll later
     await tx.order.update({
       where: { id: orderId },
       data: {
@@ -63,30 +64,49 @@ export const processFulfillmentJob = async (orderId: string) => {
       },
     });
 
+    // Keep open provider transaction rows aligned with the order (never reopen terminal rows)
+    await tx.providerTransaction.updateMany({
+      where: {
+        orderId,
+        status: { in: ['PENDING', 'PROCESSING'] },
+      },
+      data: {
+        status:
+          nextStatus === OrderStatus.FAILED
+            ? 'FAILED'
+            : nextStatus === OrderStatus.SUCCESSFUL
+              ? 'SUCCESSFUL'
+              : 'PROCESSING',
+      },
+    });
+
     const isStorefrontOrder = order.source === 'STOREFRONT';
 
     const failureMessage = result.error;
     const isBalanceError = isInsufficientBalanceError(failureMessage);
 
     if (nextStatus === OrderStatus.FAILED && !isStorefrontOrder && !isBalanceError) {
-      await createWalletTransaction(
-        wallet.id,
-        order.amount.toNumber(),
-        WalletTransactionType.CREDIT,
-        WalletTransactionCategory.REFUND,
-        `Automatic refund for failed order ${order.receiptNumber}`,
-        tx,
-      );
+      const existingRefund = await tx.refund.findUnique({ where: { orderId: order.id } });
+      if (!existingRefund) {
+        await createWalletTransaction(
+          wallet.id,
+          order.amount.toNumber(),
+          WalletTransactionType.CREDIT,
+          WalletTransactionCategory.REFUND,
+          `Automatic refund for failed order ${order.receiptNumber}`,
+          tx,
+        );
 
-      await tx.refund.create({
-        data: {
-          userId: order.userId,
-          orderId: order.id,
-          amount: order.amount,
-          reason: 'Automatic refund for failed provider fulfillment',
-          status: 'REFUNDED',
-        },
-      });
+        await tx.refund.create({
+          data: {
+            userId: order.userId,
+            orderId: order.id,
+            amount: order.amount,
+            reason: 'Automatic refund for failed provider fulfillment',
+            status: 'REFUNDED',
+          },
+        });
+      }
     }
 
     if (order.batchId) {

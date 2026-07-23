@@ -46,6 +46,13 @@ export default function OrdersPage() {
   const { data: orders = [] } = useQuery({
     queryKey: ['orders'],
     queryFn: () => apiRequest<Order[]>('/orders'),
+    // Keep order statuses fresh while provider workers settle deliveries
+    refetchInterval: (query) => {
+      const list = query.state.data as Order[] | undefined;
+      const hasOpen = list?.some((o) => o.status === 'PENDING' || o.status === 'PROCESSING');
+      return hasOpen ? 15000 : false;
+    },
+    refetchOnWindowFocus: true,
   });
 
   const cancelMutation = useMutation({
