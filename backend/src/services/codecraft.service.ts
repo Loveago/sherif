@@ -85,6 +85,14 @@ class CodecraftClient {
     return !!env.CODECRAFT_API_KEY?.trim();
   }
 
+  private getApiKey(): string {
+    const key = env.CODECRAFT_API_KEY?.trim();
+    if (!key) {
+      throw new Error('CODECRAFT_API_KEY is not configured');
+    }
+    return key;
+  }
+
   private normalizeCreateResponse(data: CodecraftOrderCreateResponse): CodecraftOrderCreateResponse {
     const nested =
       data.data && typeof data.data === 'object' && !Array.isArray(data.data)
@@ -167,33 +175,74 @@ class CodecraftClient {
     return this.assertCreateAccepted(data, '/special.php');
   }
 
-  async getRegularOrderStatus(referenceId: string): Promise<CodecraftOrderStatusResponse> {
+  /**
+   * Check order status.
+   *
+   * Live CodeCraft API (as of 2026-07) uses a single endpoint:
+   *   POST /response.php
+   *   body: { reference_id, agent_api }
+   *
+   * Docs still mention /response_regular.php and /response_big_time.php but those
+   * currently return HTML 404 pages, so we no longer call them.
+   */
+  async getOrderStatus(referenceId: string): Promise<CodecraftOrderStatusResponse> {
     const client = this.getClient();
-    const { data } = await client.get<CodecraftOrderStatusResponse>(
-      '/response_regular.php',
-      {
-        params: { reference_id: referenceId },
-      },
-    );
-    return typeof data === 'string' ? { message: data } : data;
+    const payload = {
+      reference_id: referenceId,
+      // Live API expects the key as "agent_api" in the JSON body (header alone is not enough)
+      agent_api: this.getApiKey(),
+    };
+
+    console.log('[Codecraft] POST /response.php', { reference_id: referenceId });
+    const { data } = await client.post<CodecraftOrderStatusResponse | string>('/response.php', payload);
+
+    if (typeof data === 'string') {
+      // HTML or plain text should surface as an error, not a fake success
+      const trimmed = data.trim();
+      if (trimmed.startsWith('<') || /404|not found/i.test(trimmed)) {
+        throw new Error(`CodeCraft status endpoint returned non-JSON response for ${referenceId}`);
+      }
+      return { message: data };
+    }
+
+    // Business-level error payloads still come back as HTTP 200
+    if (data && typeof data === 'object') {
+      const statusText = String((data as CodecraftOrderStatusResponse).status ?? '').toLowerCase();
+      const message = String((data as CodecraftOrderStatusResponse).message ?? '');
+      if (statusText === 'error' || statusText === 'failed') {
+        throw new Error(`CodeCraft status error for ${referenceId}: ${message || 'unknown error'}`);
+      }
+    }
+
+    return data as CodecraftOrderStatusResponse;
   }
 
+  /**
+   * @deprecated Prefer getOrderStatus(). Kept for compatibility with older call sites.
+   * Both regular and big-time now use the same live endpoint.
+   */
+  async getRegularOrderStatus(referenceId: string): Promise<CodecraftOrderStatusResponse> {
+    return this.getOrderStatus(referenceId);
+  }
+
+  /**
+   * @deprecated Prefer getOrderStatus(). Kept for compatibility with older call sites.
+   */
   async getBigTimeOrderStatus(referenceId: string): Promise<CodecraftOrderStatusResponse> {
-    const client = this.getClient();
-    const { data } = await client.get<CodecraftOrderStatusResponse>(
-      '/response_big_time.php',
-      {
-        params: { reference_id: referenceId },
-      },
-    );
-    return typeof data === 'string' ? { message: data } : data;
+    return this.getOrderStatus(referenceId);
   }
 
   getErrorMessage(error: unknown): string {
     if (error instanceof AxiosError && error.response?.data) {
       try {
         const anyData = error.response.data as any;
-        if (typeof anyData === 'string') return anyData;
+        if (typeof anyData === 'string') {
+          // Collapse noisy HTML 404 pages into a short message
+          if (anyData.includes('<!DOCTYPE') || anyData.includes('<html')) {
+            return `HTTP ${error.response.status}: HTML error page (endpoint missing or wrong)`;
+          }
+          return anyData.slice(0, 300);
+        }
         return anyData?.message || anyData?.error || error.message;
       } catch {
         return error.message;

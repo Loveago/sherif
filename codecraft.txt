@@ -115,14 +115,20 @@ S/N	Code	Meaning
 5	102	Agent not found
 6	103	Price not found
 7	555	Network not found
-Check Order Status – Regular Orders
-GET
-Endpoint: /response_regular.php
+Check Order Status (LIVE API — July 2026)
+POST
+Endpoint: /response.php
 
+IMPORTANT:
+- Docs previously listed GET /response_regular.php and GET /response_big_time.php
+  but those endpoints currently return HTML 404 pages.
+- Live status checks use a single POST endpoint for all package types.
+- Body must include agent_api (API key). Header alone is NOT enough for this endpoint.
 
 Payload:
 {
-  "reference_id": "API0552321442c5ddfe6"
+  "reference_id": "API0552321442c5ddfe6",
+  "agent_api": "YOUR_API_KEY"
 }
 
 Response:
@@ -141,32 +147,9 @@ Response:
   }
 }
 
-Copy
-Check Order Status – BigTime Orders
-GET
-Endpoint: /response_big_time.php
-
-
-Payload:
-{
-  "reference_id": "API0552321442c5ddfe6"
-}
-
-Response:
-{
-  "status": 200,
-  "success": true,
-  "message": "Order found",
-  "data": {
-    "beneficiary": "0554226398",
-    "gig": "50",
-    "network": "MTN",
-    "order_date": "Sunday, January 18, 2026",
-    "order_time": "23:21:44 PM",
-    "price": 40.0,
-    "order_status": "Pending"
-  }
-}
+Legacy docs (broken / 404 on live API):
+- GET /response_regular.php
+- GET /response_big_time.php
 
 Copy
 Code samples

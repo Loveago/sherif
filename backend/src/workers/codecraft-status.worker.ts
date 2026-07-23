@@ -186,39 +186,12 @@ const pickStatusPayloadForOrder = (
   return response;
 };
 
-const fetchCodecraftStatus = async (externalRef: string, preferBigTime: boolean) => {
-  const primary = preferBigTime
-    ? () => codecraftClient.getBigTimeOrderStatus(externalRef)
-    : () => codecraftClient.getRegularOrderStatus(externalRef);
-  const secondary = preferBigTime
-    ? () => codecraftClient.getRegularOrderStatus(externalRef)
-    : () => codecraftClient.getBigTimeOrderStatus(externalRef);
-
-  try {
-    const response = await primary();
-    const statusText = extractCodecraftOrderStatus(response);
-    if (statusText || (response && typeof response === 'object' && (response as any).data)) {
-      return { response, statusText, endpoint: preferBigTime ? 'big_time' : 'regular' as const };
-    }
-  } catch (error) {
-    console.warn(
-      `[CodecraftWorker] Primary status endpoint failed for ${externalRef}:`,
-      codecraftClient.getErrorMessage(error),
-    );
-  }
-
-  // Fallback: wrong package type may have been used (bigtime vs regular)
-  try {
-    const response = await secondary();
-    const statusText = extractCodecraftOrderStatus(response);
-    return { response, statusText, endpoint: preferBigTime ? 'regular' : 'big_time' as const };
-  } catch (error) {
-    console.warn(
-      `[CodecraftWorker] Fallback status endpoint failed for ${externalRef}:`,
-      codecraftClient.getErrorMessage(error),
-    );
-    throw error;
-  }
+const fetchCodecraftStatus = async (externalRef: string, _preferBigTime: boolean) => {
+  // Live CodeCraft API uses a single POST /response.php for all package types.
+  // Docs still list response_regular.php / response_big_time.php but those 404.
+  const response = await codecraftClient.getOrderStatus(externalRef);
+  const statusText = extractCodecraftOrderStatus(response);
+  return { response, statusText, endpoint: 'response' as const };
 };
 
 const applyOrderStatusUpdate = async (
