@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
-import { env } from '../config/env.js';
+import { getProviderCredentials } from './provider-credentials.service.js';
 
 export interface ShankNetwork {
   id: number;
@@ -62,38 +62,35 @@ export interface ShankErrorResponse {
 }
 
 class ShankClient {
-  private client: AxiosInstance | null = null;
-
-  private getClient(): AxiosInstance {
-    if (!this.client) {
-      if (!env.SHANK_API_KEY) {
-        throw new Error('SHANK_API_KEY is not configured');
-      }
-
-      this.client = axios.create({
-        baseURL: env.SHANK_API_BASE_URL,
-        headers: {
-          'x-api-key': env.SHANK_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        timeout: 30000,
-      });
+  private async getClient(): Promise<AxiosInstance> {
+    const credentials = await getProviderCredentials('shank');
+    if (!credentials.apiKey) {
+      throw new Error('Shank API key is not configured');
     }
-    return this.client;
+
+    return axios.create({
+      baseURL: credentials.baseUrl,
+      headers: {
+        'x-api-key': credentials.apiKey,
+        'Content-Type': 'application/json',
+      },
+      timeout: 30000,
+    });
   }
 
-  isConfigured(): boolean {
-    return !!env.SHANK_API_KEY;
+  async isConfigured(): Promise<boolean> {
+    const credentials = await getProviderCredentials('shank');
+    return Boolean(credentials.apiKey);
   }
 
   async fetchNetworks(): Promise<ShankNetwork[]> {
-    const client = this.getClient();
+    const client = await this.getClient();
     const { data } = await client.get<ShankNetwork[]>('/fetch-networks');
     return data;
   }
 
   async fetchDataPackages(): Promise<ShankDataPackage[]> {
-    const client = this.getClient();
+    const client = await this.getClient();
     const { data } = await client.get<ShankDataPackage[]>('/fetch-data-packages');
     return data;
   }
@@ -104,7 +101,7 @@ class ShankClient {
     volumeMb: number,
     idempotencyKey?: string,
   ): Promise<ShankOrderResponse> {
-    const client = this.getClient();
+    const client = await this.getClient();
     const { data } = await client.post<ShankOrderResponse>(
       '/orders',
       {
@@ -124,7 +121,7 @@ class ShankClient {
     recipients: Array<{ msisdn: string; volume_mb: number }>,
     idempotencyKey?: string,
   ): Promise<ShankOrderResponse> {
-    const client = this.getClient();
+    const client = await this.getClient();
     const { data } = await client.post<ShankOrderResponse>(
       '/orders/bulk',
       {
@@ -139,7 +136,7 @@ class ShankClient {
   }
 
   async getOrderStatus(reference: string): Promise<ShankOrderStatusResponse> {
-    const client = this.getClient();
+    const client = await this.getClient();
     const { data } = await client.get<any>(`/orders/${encodeURIComponent(reference)}`);
 
     // Normalize inconsistent provider envelopes so the worker always sees items[]
@@ -185,13 +182,13 @@ class ShankClient {
   }
 
   async fetchTransactions(): Promise<unknown[]> {
-    const client = this.getClient();
+    const client = await this.getClient();
     const { data } = await client.get<unknown[]>('/fetch-transactions');
     return data;
   }
 
   async fetchOtherNetworkTransaction(transactionId: string): Promise<unknown> {
-    const client = this.getClient();
+    const client = await this.getClient();
     const { data } = await client.post<unknown>('/fetch-other-network-transaction', {
       transaction_id: transactionId,
     });

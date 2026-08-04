@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
-import { env } from '../config/env.js';
+import { getProviderCredentials } from './provider-credentials.service.js';
 
 export interface CodecraftOrderCreateResponse {
   status: number | string;
@@ -36,64 +36,61 @@ export interface CodecraftOrderStatusResponse {
 }
 
 class CodecraftClient {
-  private client: AxiosInstance | null = null;
+  private async getClient(): Promise<AxiosInstance> {
+    const credentials = await getProviderCredentials('codecraft');
+    if (!credentials.apiKey) {
+      throw new Error('CodeCraft API key is not configured');
+    }
 
-  private getClient(): AxiosInstance {
-    if (!this.client) {
-      if (!env.CODECRAFT_API_KEY) {
-        throw new Error('CODECRAFT_API_KEY is not configured');
-      }
-
-      this.client = axios.create({
-        baseURL: env.CODECRAFT_API_BASE_URL,
-        headers: {
-          'x-api-key': env.CODECRAFT_API_KEY,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        timeout: 30000,
-        // Some PHP endpoints may return text/html content-type with JSON body
-        transformResponse: [
-          (rawData: string) => {
-            if (rawData == null || rawData === '') return rawData;
-            if (typeof rawData !== 'string') return rawData;
-            const trimmed = rawData.trim();
-            try {
-              return JSON.parse(trimmed);
-            } catch {
-              // Attempt to extract JSON object/array from surrounding HTML/text
-              const startObj = trimmed.indexOf('{');
-              const startArr = trimmed.indexOf('[');
-              let start = -1;
-              if (startObj >= 0 && startArr >= 0) start = Math.min(startObj, startArr);
-              else start = Math.max(startObj, startArr);
-              if (start >= 0) {
-                const candidate = trimmed.slice(start);
-                try {
-                  return JSON.parse(candidate);
-                } catch {
-                  return rawData;
-                }
+    return axios.create({
+      baseURL: credentials.baseUrl,
+      headers: {
+        'x-api-key': credentials.apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      timeout: 30000,
+      // Some PHP endpoints may return text/html content-type with JSON body
+      transformResponse: [
+        (rawData: string) => {
+          if (rawData == null || rawData === '') return rawData;
+          if (typeof rawData !== 'string') return rawData;
+          const trimmed = rawData.trim();
+          try {
+            return JSON.parse(trimmed);
+          } catch {
+            // Attempt to extract JSON object/array from surrounding HTML/text
+            const startObj = trimmed.indexOf('{');
+            const startArr = trimmed.indexOf('[');
+            let start = -1;
+            if (startObj >= 0 && startArr >= 0) start = Math.min(startObj, startArr);
+            else start = Math.max(startObj, startArr);
+            if (start >= 0) {
+              const candidate = trimmed.slice(start);
+              try {
+                return JSON.parse(candidate);
+              } catch {
+                return rawData;
               }
-              return rawData;
             }
-          },
-        ],
-      });
-    }
-    return this.client;
+            return rawData;
+          }
+        },
+      ],
+    });
   }
 
-  isConfigured(): boolean {
-    return !!env.CODECRAFT_API_KEY?.trim();
+  async isConfigured(): Promise<boolean> {
+    const credentials = await getProviderCredentials('codecraft');
+    return Boolean(credentials.apiKey);
   }
 
-  private getApiKey(): string {
-    const key = env.CODECRAFT_API_KEY?.trim();
-    if (!key) {
-      throw new Error('CODECRAFT_API_KEY is not configured');
+  private async getApiKey(): Promise<string> {
+    const credentials = await getProviderCredentials('codecraft');
+    if (!credentials.apiKey) {
+      throw new Error('CodeCraft API key is not configured');
     }
-    return key;
+    return credentials.apiKey;
   }
 
   private normalizeCreateResponse(data: CodecraftOrderCreateResponse): CodecraftOrderCreateResponse {
@@ -151,7 +148,7 @@ class CodecraftClient {
     gig: string,
     network: 'MTN' | 'AT' | 'TELECEL',
   ): Promise<CodecraftOrderCreateResponse> {
-    const client = this.getClient();
+    const client = await this.getClient();
     const payload = {
       recipient_number: recipientNumber,
       gig: String(gig),
@@ -167,7 +164,7 @@ class CodecraftClient {
     gig: string,
     network: 'MTN' | 'AT',
   ): Promise<CodecraftOrderCreateResponse> {
-    const client = this.getClient();
+    const client = await this.getClient();
     const payload = {
       recipient_number: recipientNumber,
       gig: String(gig),
@@ -189,11 +186,11 @@ class CodecraftClient {
    * currently return HTML 404 pages, so we no longer call them.
    */
   async getOrderStatus(referenceId: string): Promise<CodecraftOrderStatusResponse> {
-    const client = this.getClient();
+    const client = await this.getClient();
     const payload = {
       reference_id: referenceId,
       // Live API expects the key as "agent_api" in the JSON body (header alone is not enough)
-      agent_api: this.getApiKey(),
+      agent_api: await this.getApiKey(),
     };
 
     console.log('[Codecraft] POST /response.php', { reference_id: referenceId });

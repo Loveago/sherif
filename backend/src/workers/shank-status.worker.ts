@@ -252,7 +252,7 @@ const applyOrderStatusUpdate = async (
 };
 
 export const pollOrderStatuses = async (): Promise<{ checked: number; updated: number }> => {
-  if (!shankClient.isConfigured()) {
+  if (!(await shankClient.isConfigured())) {
     return { checked: 0, updated: 0 };
   }
 
@@ -362,11 +362,6 @@ export const pollOrderStatuses = async (): Promise<{ checked: number; updated: n
 let workerTimer: NodeJS.Timeout | null = null;
 
 export const startShankStatusWorker = () => {
-  if (!shankClient.isConfigured()) {
-    console.log('[ShankWorker] SHANK_API_KEY not set, status worker disabled');
-    return;
-  }
-
   if (workerTimer) {
     console.log('[ShankWorker] Already running');
     return;

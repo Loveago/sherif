@@ -3,7 +3,7 @@ import { Prisma, UserRole, OrderStatus, OrderSource, WalletTransactionCategory, 
 import { prisma } from '../lib/prisma.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { announcementSchema, createProductSchema, creditWalletSchema, updateSettingsSchema } from '../schemas/admin.schema.js';
+import { announcementSchema, createProductSchema, creditWalletSchema, updateProviderCredentialsSchema, updateSettingsSchema } from '../schemas/admin.schema.js';
 import { createSuccessResponse } from '../utils/response.js';
 import { generateReference } from '../utils/refs.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
@@ -22,6 +22,10 @@ import {
   reconcilerState,
 } from '../workers/payment-reconciler.worker.js';
 import { findPendingStorefrontOrders, reconcileSingleOrder } from '../services/reconciler.service.js';
+import {
+  getProviderCredentialSummaries,
+  saveProviderCredentials,
+} from '../services/provider-credentials.service.js';
 
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
 
@@ -591,6 +595,7 @@ adminRouter.get('/settings', async (_request, response, next) => {
         afaRegistrationFee: Number(map.afaRegistrationFee ?? 20),
         paystackPublicKey: map.paystackPublicKey || process.env.PAYSTACK_PUBLIC_KEY || '',
         paystackSecretKey: map.paystackSecretKey || process.env.PAYSTACK_SECRET_KEY || '',
+        providerCredentials: await getProviderCredentialSummaries(),
         catalog: {
           productsEnabled: map.productsEnabled !== 'false',
           mtnEnabled: map.productsMtnEnabled !== 'false',
@@ -619,6 +624,15 @@ adminRouter.put('/settings', validate(updateSettingsSchema), async (request, res
     );
 
     return response.json(createSuccessResponse({ updated: Object.keys(updates) }, 'Settings updated'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.put('/settings/providers/:provider', validate(updateProviderCredentialsSchema), async (request, response, next) => {
+  try {
+    await saveProviderCredentials(request.params.provider as 'shank' | 'codecraft', request.body);
+    return response.json(createSuccessResponse(await getProviderCredentialSummaries(), 'Provider credentials updated'));
   } catch (error) {
     return next(error);
   }
@@ -1436,7 +1450,7 @@ adminRouter.post('/afa-registrations/:id/reject', async (request, response, next
 
 adminRouter.get('/shank/networks', async (_request, response, next) => {
   try {
-    if (!shankClient.isConfigured()) {
+    if (!(await shankClient.isConfigured())) {
       return response.status(400).json({ success: false, message: 'SHANK_API_KEY not configured' });
     }
     const networks = await shankClient.fetchNetworks();
@@ -1448,7 +1462,7 @@ adminRouter.get('/shank/networks', async (_request, response, next) => {
 
 adminRouter.get('/shank/data-packages', async (_request, response, next) => {
   try {
-    if (!shankClient.isConfigured()) {
+    if (!(await shankClient.isConfigured())) {
       return response.status(400).json({ success: false, message: 'SHANK_API_KEY not configured' });
     }
     const packages = await shankClient.fetchDataPackages();
@@ -1460,7 +1474,7 @@ adminRouter.get('/shank/data-packages', async (_request, response, next) => {
 
 adminRouter.post('/shank/sync-networks', async (_request, response, next) => {
   try {
-    if (!shankClient.isConfigured()) {
+    if (!(await shankClient.isConfigured())) {
       return response.status(400).json({ success: false, message: 'SHANK_API_KEY not configured' });
     }
     const shankNetworks = await shankClient.fetchNetworks();
@@ -1498,7 +1512,7 @@ adminRouter.post('/shank/poll-now', async (_request, response, next) => {
 
 adminRouter.post('/codecraft/poll-now', async (_request, response, next) => {
   try {
-    if (!codecraftClient.isConfigured()) {
+    if (!(await codecraftClient.isConfigured())) {
       return response.status(400).json({ success: false, message: 'CODECRAFT_API_KEY not configured' });
     }
     const result = await pollCodecraftOrderStatuses();
@@ -1516,7 +1530,7 @@ adminRouter.post('/shank/transaction', async (request, response, next) => {
     if (!transactionId || typeof transactionId !== 'string') {
       return response.status(400).json({ success: false, message: 'transactionId is required' });
     }
-    if (!shankClient.isConfigured()) {
+    if (!(await shankClient.isConfigured())) {
       return response.status(400).json({ success: false, message: 'SHANK_API_KEY not configured' });
     }
     const transaction = await shankClient.fetchOtherNetworkTransaction(transactionId);

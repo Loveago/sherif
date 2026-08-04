@@ -61,3 +61,14 @@ export const updateSettingsSchema = z.object({
   query: z.object({}).optional().default({}),
   params: z.object({}).optional().default({}),
 });
+
+export const updateProviderCredentialsSchema = z.object({
+  body: z.object({
+    apiKey: z.string().trim().optional(),
+    baseUrl: z.string().trim().url(),
+  }),
+  query: z.object({}).optional().default({}),
+  params: z.object({
+    provider: z.enum(['shank', 'codecraft']),
+  }),
+});

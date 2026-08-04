@@ -327,7 +327,7 @@ const applyOrderStatusUpdate = async (
 };
 
 export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; updated: number }> => {
-  if (!codecraftClient.isConfigured()) {
+  if (!(await codecraftClient.isConfigured())) {
     return { checked: 0, updated: 0 };
   }
 
@@ -457,11 +457,6 @@ export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; u
 let workerTimer: NodeJS.Timeout | null = null;
 
 export const startCodecraftStatusWorker = () => {
-  if (!codecraftClient.isConfigured()) {
-    console.log('[CodecraftWorker] CODECRAFT_API_KEY not set, status worker disabled');
-    return;
-  }
-
   if (workerTimer) {
     console.log('[CodecraftWorker] Already running');
     return;

@@ -11,6 +11,13 @@ import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/lib/api';
 import { Smartphone, CheckCircle, MessageCircle, CreditCard, Key } from 'lucide-react';
 
+type ProviderCredentialSummary = {
+  configured: boolean;
+  apiKeyMasked: string;
+  baseUrl: string;
+  source: 'database' | 'environment' | 'none';
+};
+
 type AdminSettings = {
   platformFees: { withdrawalFee: number; serviceFee: number };
   commissionRules: { type: string; value: string | number }[];
@@ -22,6 +29,10 @@ type AdminSettings = {
   afaRegistrationFee: number;
   paystackPublicKey: string;
   paystackSecretKey: string;
+  providerCredentials: {
+    shank: ProviderCredentialSummary;
+    codecraft: ProviderCredentialSummary;
+  };
   catalog: {
     productsEnabled: boolean;
     mtnEnabled: boolean;
@@ -93,12 +104,43 @@ export default function AdminSettingsPage() {
     },
   });
 
+  const shankForm = useForm({
+    defaultValues: { apiKey: '', baseUrl: '' },
+    values: {
+      apiKey: '',
+      baseUrl: data?.providerCredentials?.shank.baseUrl ?? '',
+    },
+  });
+
+  const codecraftForm = useForm({
+    defaultValues: { apiKey: '', baseUrl: '' },
+    values: {
+      apiKey: '',
+      baseUrl: data?.providerCredentials?.codecraft.baseUrl ?? '',
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: (values: Record<string, string>) =>
       apiRequest('/admin/settings', { method: 'PUT', body: JSON.stringify(values) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
       queryClient.invalidateQueries({ queryKey: ['public-settings'] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    },
+  });
+
+  const providerMutation = useMutation({
+    mutationFn: ({ provider, values }: { provider: 'shank' | 'codecraft'; values: { apiKey: string; baseUrl: string } }) =>
+      apiRequest('/admin/settings/providers/' + provider, {
+        method: 'PUT',
+        body: JSON.stringify(values),
+      }),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
+      if (variables.provider === 'shank') shankForm.resetField('apiKey');
+      if (variables.provider === 'codecraft') codecraftForm.resetField('apiKey');
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     },
@@ -138,6 +180,14 @@ export default function AdminSettingsPage() {
       productsTelecelEnabled: String(values.telecelEnabled),
       productsAirteltigoEnabled: String(values.airteltigoEnabled),
     });
+  });
+
+  const onSaveShank = shankForm.handleSubmit((values) => {
+    providerMutation.mutate({ provider: 'shank', values });
+  });
+
+  const onSaveCodecraft = codecraftForm.handleSubmit((values) => {
+    providerMutation.mutate({ provider: 'codecraft', values });
   });
 
   return (
@@ -358,6 +408,69 @@ export default function AdminSettingsPage() {
                     </span>
                   ) : 'Save Paystack Keys'}
                 </Button>
+              </div>
+            </div>
+          </GlassCard>
+
+          {/* Data Provider API Keys */}
+          <GlassCard className="p-6 md:col-span-2 xl:col-span-3">
+            <div className="flex items-center gap-2">
+              <Key className="h-5 w-5 text-cyan-400" />
+              <p className="text-sm font-semibold text-white">Data Provider API Credentials</p>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Configure Shank and CodeCraft without editing environment files. Saved API keys are encrypted and take effect immediately. Leave an API key blank to keep the current key.
+            </p>
+
+            <div className="mt-5 grid gap-5 lg:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-white">Shank</p>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] ${data?.providerCredentials?.shank.configured ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'}`}>
+                    {data?.providerCredentials?.shank.configured ? `Configured via ${data.providerCredentials.shank.source}` : 'Not configured'}
+                  </span>
+                </div>
+                {data?.providerCredentials?.shank.apiKeyMasked && (
+                  <p className="mt-2 font-mono text-xs text-slate-400">Current key: {data.providerCredentials.shank.apiKeyMasked}</p>
+                )}
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <label className="mb-1.5 block text-xs text-gray-400">New API Key</label>
+                    <Input type="password" autoComplete="new-password" placeholder="Leave blank to keep current key" {...shankForm.register('apiKey')} />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs text-gray-400">API Base URL</label>
+                    <Input type="url" placeholder="https://agent.skanka5.com/api/v1" {...shankForm.register('baseUrl', { required: true })} />
+                  </div>
+                  <Button onClick={onSaveShank} disabled={providerMutation.isPending} className="w-full">
+                    {providerMutation.isPending && providerMutation.variables?.provider === 'shank' ? 'Saving...' : saved ? 'Saved' : 'Save Shank Credentials'}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-white">CodeCraft</p>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] ${data?.providerCredentials?.codecraft.configured ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'}`}>
+                    {data?.providerCredentials?.codecraft.configured ? `Configured via ${data.providerCredentials.codecraft.source}` : 'Not configured'}
+                  </span>
+                </div>
+                {data?.providerCredentials?.codecraft.apiKeyMasked && (
+                  <p className="mt-2 font-mono text-xs text-slate-400">Current key: {data.providerCredentials.codecraft.apiKeyMasked}</p>
+                )}
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <label className="mb-1.5 block text-xs text-gray-400">New API Key</label>
+                    <Input type="password" autoComplete="new-password" placeholder="Leave blank to keep current key" {...codecraftForm.register('apiKey')} />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs text-gray-400">API Base URL</label>
+                    <Input type="url" placeholder="https://api.codecraftnetwork.com/api" {...codecraftForm.register('baseUrl', { required: true })} />
+                  </div>
+                  <Button onClick={onSaveCodecraft} disabled={providerMutation.isPending} className="w-full">
+                    {providerMutation.isPending && providerMutation.variables?.provider === 'codecraft' ? 'Saving...' : saved ? 'Saved' : 'Save CodeCraft Credentials'}
+                  </Button>
+                </div>
               </div>
             </div>
           </GlassCard>

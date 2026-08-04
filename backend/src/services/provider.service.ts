@@ -113,8 +113,13 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
   const networkCode = order.product.network.code.toUpperCase();
   const codecraftNetwork = toCodecraftNetwork(networkCode);
 
+  const [shankConfigured, codecraftConfigured] = await Promise.all([
+    shankClient.isConfigured(),
+    codecraftClient.isConfigured(),
+  ]);
+
   // When no external provider is configured, behave as instant success (mock)
-  if (!shankClient.isConfigured() && !codecraftClient.isConfigured()) {
+  if (!shankConfigured && !codecraftConfigured) {
     console.warn('[Provider] No external provider API configured, using mock fulfillment');
     const mockResponsePayload = {
       providerReference: generateReference('PRV'),
@@ -137,7 +142,7 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
 
   // MTN stays on Shank as primary provider
   if (networkCode === 'MTN') {
-    if (!shankClient.isConfigured()) {
+    if (!shankConfigured) {
       throw new Error('SHANK_API_KEY is not configured for MTN orders');
     }
 
@@ -235,7 +240,7 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
 
   // Telecel & AirtelTigo go through Codecraft
   if (isCodecraftNetwork(networkCode)) {
-    if (!codecraftClient.isConfigured()) {
+    if (!codecraftConfigured) {
       throw new Error('CODECRAFT_API_KEY is not configured for Telecel/AirtelTigo orders');
     }
 
