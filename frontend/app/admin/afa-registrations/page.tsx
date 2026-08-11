@@ -18,6 +18,7 @@ import {
   MapPin,
   Briefcase,
   CreditCard,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface AFARegistration {
@@ -31,12 +32,14 @@ interface AFARegistration {
   status: string;
   notes: string;
   createdAt: string;
-  amountPaid: number;
+  approvedAt?: string | null;
+  paymentStatus: string;
+  amountPaid: number | null;
   user: {
     firstName: string;
     lastName: string;
     email: string;
-  };
+  } | null;
 }
 
 interface AFAStats {
@@ -46,11 +49,29 @@ interface AFAStats {
   rejected: number;
 }
 
+const safeDate = (value?: string | null) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString();
+};
+
+const safeAmount = (value: number | null | undefined) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '0.00';
+  return Number(value).toFixed(2);
+};
+
+const getStatusVariant = (status: string) => {
+  if (status === 'APPROVED') return 'success' as const;
+  if (status === 'REJECTED') return 'danger' as const;
+  return 'warning' as const;
+};
+
 export default function AdminAFARegistrationsPage() {
   const queryClient = useQueryClient();
   const [selectedRegistration, setSelectedRegistration] = useState<AFARegistration | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin-afa-registrations'],
     queryFn: () => apiRequest<{ registrations: AFARegistration[]; stats: AFAStats }>('/admin/afa-registrations'),
   });
@@ -85,8 +106,19 @@ export default function AdminAFARegistrationsPage() {
   return (
     <AuthGuard requiredRole="ADMIN">
       <DashboardShell mode="admin" title="AFA Registrations" description="Manage AFA registration applications.">
-        {isLoading || !data ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-20 text-gray-400">Loading registrations...</div>
+        ) : isError ? (
+          <GlassCard className="p-8">
+            <div className="flex flex-col items-center text-center">
+              <AlertTriangle className="h-12 w-12 text-rose-400 mb-4" />
+              <h3 className="text-lg font-semibold text-white mb-2">Could not load registrations</h3>
+              <p className="text-sm text-gray-400 mb-6 max-w-md">
+                {error instanceof Error ? error.message : 'An unexpected error occurred while loading AFA registrations.'}
+              </p>
+              <Button onClick={() => refetch()}>Try Again</Button>
+            </div>
+          </GlassCard>
         ) : (
           <div className="space-y-6">
             {/* Stats */}
@@ -140,51 +172,47 @@ export default function AdminAFARegistrationsPage() {
                 <p className="text-center text-gray-500 py-8">No paid AFA registrations yet.</p>
               ) : (
                 <div className="space-y-4">
-                  {registrations.map((registration) => (
-                    <div
-                      key={registration.id}
-                      onClick={() => setSelectedRegistration(registration)}
-                      className="cursor-pointer rounded-lg border border-gray-700/50 bg-gray-900/30 p-4 hover:bg-gray-800/40 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h4 className="font-medium text-white">{registration.fullName}</h4>
-                            <Badge
-                              variant={
-                                registration.status === 'APPROVED'
-                                  ? 'success'
-                                  : registration.status === 'REJECTED'
-                                    ? 'danger'
-                                    : 'warning'
-                              }
-                            >
-                              {registration.status}
-                            </Badge>
+                  {registrations.map((registration) => {
+                    const submittedBy = registration.user
+                      ? `${registration.user.firstName ?? ''} ${registration.user.lastName ?? ''}`.trim() || 'Unknown user'
+                      : 'Unknown user';
+                    const submittedEmail = registration.user?.email ?? '—';
+
+                    return (
+                      <div
+                        key={registration.id}
+                        onClick={() => setSelectedRegistration(registration)}
+                        className="cursor-pointer rounded-lg border border-gray-700/50 bg-gray-900/30 p-4 hover:bg-gray-800/40 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h4 className="font-medium text-white">{registration.fullName}</h4>
+                              <Badge variant={getStatusVariant(registration.status)}>{registration.status}</Badge>
+                            </div>
+                            <div className="grid gap-2 md:grid-cols-3 text-sm text-gray-400">
+                              <p className="flex items-center gap-1.5">
+                                <Phone className="h-3.5 w-3.5 text-gray-500" />
+                                {registration.phone}
+                              </p>
+                              <p className="flex items-center gap-1.5">
+                                <MapPin className="h-3.5 w-3.5 text-gray-500" />
+                                {registration.location}
+                              </p>
+                              <p className="flex items-center gap-1.5">
+                                <CreditCard className="h-3.5 w-3.5 text-gray-500" />
+                                GHS {safeAmount(registration.amountPaid)}
+                              </p>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2">
+                              Submitted by {submittedBy} ({submittedEmail}) on {safeDate(registration.createdAt) || 'unknown date'}
+                            </p>
                           </div>
-                          <div className="grid gap-2 md:grid-cols-3 text-sm text-gray-400">
-                            <p className="flex items-center gap-1.5">
-                              <Phone className="h-3.5 w-3.5 text-gray-500" />
-                              {registration.phone}
-                            </p>
-                            <p className="flex items-center gap-1.5">
-                              <MapPin className="h-3.5 w-3.5 text-gray-500" />
-                              {registration.location}
-                            </p>
-                            <p className="flex items-center gap-1.5">
-                              <CreditCard className="h-3.5 w-3.5 text-gray-500" />
-                              GHS {registration.amountPaid?.toFixed(2) ?? '0.00'}
-                            </p>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-2">
-                            Submitted by {registration.user.firstName} {registration.user.lastName} ({registration.user.email}) on{' '}
-                            {new Date(registration.createdAt).toLocaleDateString()}
-                          </p>
+                          <div className="ml-4">{statusIcons[registration.status] ?? <Clock className="h-5 w-5 text-gray-500" />}</div>
                         </div>
-                        <div className="ml-4">{statusIcons[registration.status]}</div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </GlassCard>
@@ -227,12 +255,16 @@ export default function AdminAFARegistrationsPage() {
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4 text-violet-400" />
                       <span className="text-gray-400">ID:</span>
-                      <span className="text-white">{selectedRegistration.idType} - {selectedRegistration.idNumber}</span>
+                      <span className="text-white">
+                        {selectedRegistration.idType === 'GHANA_CARD'
+                          ? `Ghana Card - ${selectedRegistration.idNumber}`
+                          : `${selectedRegistration.idType} - ${selectedRegistration.idNumber}`}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <CreditCard className="h-4 w-4 text-violet-400" />
                       <span className="text-gray-400">Amount Paid:</span>
-                      <span className="text-white font-medium">GHS {selectedRegistration.amountPaid?.toFixed(2) ?? '0.00'}</span>
+                      <span className="text-white font-medium">GHS {safeAmount(selectedRegistration.amountPaid)}</span>
                     </div>
                     {selectedRegistration.notes && (
                       <div className="rounded-lg border border-gray-700/50 bg-gray-900/50 p-3">

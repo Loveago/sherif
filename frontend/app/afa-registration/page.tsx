@@ -36,7 +36,6 @@ export default function AFARegistrationPage() {
     phone: '',
     location: '',
     occupation: '',
-    idType: '',
     idNumber: '',
     notes: '',
   });
@@ -55,7 +54,7 @@ export default function AFARegistrationPage() {
     mutationFn: (data: typeof formData) =>
       apiRequest<{ authorization_url: string; reference: string }>('/afa-registrations/paystack/initialize', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, idType: 'GHANA_CARD' }),
       }),
     onSuccess: (data) => {
       if (data.authorization_url) {
@@ -159,28 +158,20 @@ export default function AFARegistrationPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">ID Type</label>
-                  <select
-                    value={formData.idType}
-                    onChange={(e) => setFormData({ ...formData, idType: e.target.value })}
-                    className="w-full rounded-xl border border-gray-700/50 bg-slate-900/50 px-4 py-2.5 text-sm text-white outline-none transition-all duration-200 hover:border-gray-600/50 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:bg-slate-900/80"
-                  >
-                    <option value="">Select ID type</option>
-                    <option value="GHANA_CARD">Ghana Card</option>
-                    <option value="PASSPORT">Passport</option>
-                    <option value="DRIVERS_LICENSE">Driver's License</option>
-                    <option value="VOTERS_ID">Voter's ID</option>
-                  </select>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Ghana Card Number</label>
+                  <Input
+                    placeholder="GHA-000000000-0"
+                    value={formData.idNumber}
+                    onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">ID Number</label>
-                <Input
-                  placeholder="Your ID number"
-                  value={formData.idNumber}
-                  onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
-                />
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                <CreditCard className="h-4 w-4 text-emerald-400" />
+                <p className="text-xs text-emerald-300">
+                  Only the Ghana Card (National ID) is accepted for AFA registration.
+                </p>
               </div>
 
               <div>
@@ -205,11 +196,11 @@ export default function AFARegistrationPage() {
               <div className="flex gap-3">
                 <Button
                   onClick={() => {
-                    if (formData.fullName && formData.phone && formData.location) {
+                    if (formData.fullName && formData.phone && formData.location && formData.idNumber) {
                       submitMutation.mutate(formData);
                     }
                   }}
-                  disabled={submitMutation.isPending || !formData.fullName || !formData.phone || !formData.location}
+                  disabled={submitMutation.isPending || !formData.fullName || !formData.phone || !formData.location || !formData.idNumber}
                   className="flex-1"
                 >
                   {submitMutation.isPending ? 'Processing...' : `Pay GHS ${fee.toFixed(2)} & Submit`}
@@ -272,7 +263,7 @@ export default function AFARegistrationPage() {
                       <p>Phone: {registration.phone}</p>
                       <p>Location: {registration.location}</p>
                       <p>Occupation: {registration.occupation}</p>
-                      <p>ID: {registration.idType} - {registration.idNumber}</p>
+                      <p>Ghana Card: {registration.idNumber}</p>
                     </div>
                     {registration.notes && (
                       <p className="text-xs text-gray-500 mt-2">Notes: {registration.notes}</p>

@@ -1561,9 +1561,9 @@ agentRouter.get('/afa-registrations', async (request, response, next) => {
 
 agentRouter.post('/afa-registrations', async (request, response, next) => {
   try {
-    const { fullName, phone, location, occupation, idType, idNumber, notes } = request.body;
+    const { fullName, phone, location, occupation, idNumber, notes } = request.body;
 
-    if (!fullName || !phone || !location) {
+    if (!fullName || !phone || !location || !idNumber) {
       return response.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
@@ -1574,7 +1574,7 @@ agentRouter.post('/afa-registrations', async (request, response, next) => {
         phone,
         location,
         occupation,
-        idType,
+        idType: 'GHANA_CARD',
         idNumber,
         notes,
       },
@@ -1600,8 +1600,8 @@ agentRouter.post('/afa-registrations/paystack/initialize', async (request, respo
       return response.status(404).json({ success: false, message: 'User not found' });
     }
 
-    const { fullName, phone, location, occupation, idType, idNumber, notes } = request.body;
-    if (!fullName || !phone || !location) {
+    const { fullName, phone, location, occupation, idNumber, notes } = request.body;
+    if (!fullName || !phone || !location || !idNumber) {
       return response.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
@@ -1624,7 +1624,7 @@ agentRouter.post('/afa-registrations/paystack/initialize', async (request, respo
         phone,
         location,
         occupation,
-        idType,
+        idType: 'GHANA_CARD',
         idNumber,
         notes,
       }
@@ -1637,7 +1637,7 @@ agentRouter.post('/afa-registrations/paystack/initialize', async (request, respo
         phone,
         location,
         occupation,
-        idType,
+        idType: 'GHANA_CARD',
         idNumber,
         notes,
         paymentStatus: 'PENDING',
