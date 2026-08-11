@@ -45,6 +45,20 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   }
 
   if (!response.ok) {
+    // Global session handling: if the backend rejects our token (expired or invalid),
+    // clear the stale session and send the user back to the login page.
+    if (
+      response.status === 401 &&
+      token &&
+      !path.startsWith('/auth/login') &&
+      !path.startsWith('/auth/register')
+    ) {
+      useAuthStore.getState().clearAuth();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+
     const message = payload && 'message' in payload ? payload.message || 'Request failed' : 'Request failed';
     const errors = payload && 'errors' in payload ? (payload as { errors?: unknown }).errors : undefined;
     throw new ApiError(message, response.status, errors);
