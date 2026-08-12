@@ -53,6 +53,7 @@ const adminLinks: NavLink[] = [
   { href: '/admin/afa-registrations', label: 'AFA Registrations', icon: ClipboardList },
   { href: '/admin/reports', label: 'Reports', icon: Gauge },
   { href: '/admin/audit-logs', label: 'Audit Logs', icon: Bell },
+  { href: '/admin/withdrawals', label: 'Withdrawals', icon: Wallet },
   { href: '/admin/operations', label: 'Operations', icon: Bell },
   { href: '/admin/settings', label: 'System Settings', icon: Settings },
 ];

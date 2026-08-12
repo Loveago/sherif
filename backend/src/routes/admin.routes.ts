@@ -8,6 +8,7 @@ import { createSuccessResponse } from '../utils/response.js';
 import { generateReference } from '../utils/refs.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
 import { createNotification } from '../services/notification.service.js';
+import { createAuditLog } from '../services/audit.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
 import { exportToCSV, exportToExcel } from '../services/export.service.js';
 import { shankClient } from '../services/shank.service.js';
@@ -379,13 +380,71 @@ adminRouter.post('/refunds/:id/approve', async (request, response, next) => {
   }
 });
 
-adminRouter.get('/withdrawals', async (_request, response, next) => {
+adminRouter.get('/withdrawals', async (request, response, next) => {
   try {
-    const withdrawals = await prisma.withdrawal.findMany({
-      include: { user: true },
-      orderBy: { createdAt: 'desc' },
-    });
-    return response.json(createSuccessResponse(withdrawals));
+    const { status, source, search } = request.query;
+    const page = Math.max(Number(request.query.page) || 1, 1);
+    const limit = Math.min(Math.max(Number(request.query.limit) || 25, 1), 100);
+    const searchTerm = typeof search === 'string' ? search.trim() : '';
+
+    const where: Prisma.WithdrawalWhereInput = {
+      ...(status && ['PENDING', 'REVIEW', 'APPROVED', 'PAID', 'REJECTED'].includes(String(status))
+        ? { status: String(status) as any }
+        : {}),
+      ...(source && ['MAIN_WALLET', 'STOREFRONT_WALLET'].includes(String(source))
+        ? { source: String(source) as any }
+        : {}),
+      ...(searchTerm
+        ? {
+            OR: [
+              { reference: { contains: searchTerm, mode: 'insensitive' } },
+              { accountName: { contains: searchTerm, mode: 'insensitive' } },
+              { accountNumber: { contains: searchTerm } },
+              { user: { firstName: { contains: searchTerm, mode: 'insensitive' } } },
+              { user: { lastName: { contains: searchTerm, mode: 'insensitive' } } },
+              { user: { email: { contains: searchTerm, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [withdrawals, total, pendingSummary] = await Promise.all([
+      prisma.withdrawal.findMany({
+        where,
+        select: {
+          id: true,
+          createdAt: true,
+          updatedAt: true,
+          amount: true,
+          method: true,
+          accountName: true,
+          accountNumber: true,
+          bankName: true,
+          status: true,
+          reference: true,
+          source: true,
+          user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+        },
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.withdrawal.count({ where }),
+      prisma.withdrawal.aggregate({
+        where: { status: { in: ['PENDING', 'REVIEW', 'APPROVED'] } },
+        _count: true,
+        _sum: { amount: true },
+      }),
+    ]);
+
+    return response.json(createSuccessResponse({
+      withdrawals,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      summary: {
+        pendingCount: pendingSummary._count,
+        pendingAmount: pendingSummary._sum.amount ?? 0,
+      },
+    }));
   } catch (error) {
     return next(error);
   }
@@ -393,10 +452,29 @@ adminRouter.get('/withdrawals', async (_request, response, next) => {
 
 adminRouter.post('/withdrawals/:id/approve', async (request, response, next) => {
   try {
+    const existing = await prisma.withdrawal.findUnique({ where: { id: request.params.id } });
+    if (!existing) return response.status(404).json({ success: false, message: 'Withdrawal not found' });
+    if (!['PENDING', 'REVIEW'].includes(existing.status)) {
+      return response.status(400).json({ success: false, message: 'Only pending withdrawals can be approved' });
+    }
+
     const withdrawal = await prisma.withdrawal.update({
-      where: { id: request.params.id },
+      where: { id: existing.id },
       data: { status: 'APPROVED' },
     });
+
+    await createNotification(
+      existing.userId,
+      'Withdrawal approved',
+      `Your withdrawal of GHS ${existing.amount.toFixed(2)} has been approved and is ready for payment.`,
+      'WITHDRAWAL',
+    );
+    await createAuditLog(request.auth!.userId, 'WITHDRAWAL_APPROVED', 'Withdrawal', existing.id, {
+      reference: existing.reference,
+      amount: existing.amount.toNumber(),
+      source: existing.source,
+    });
+
     return response.json(createSuccessResponse(withdrawal, 'Withdrawal approved'));
   } catch (error) {
     return next(error);
@@ -405,10 +483,31 @@ adminRouter.post('/withdrawals/:id/approve', async (request, response, next) => 
 
 adminRouter.post('/withdrawals/:id/paid', async (request, response, next) => {
   try {
+    const existing = await prisma.withdrawal.findUnique({ where: { id: request.params.id } });
+    if (!existing) return response.status(404).json({ success: false, message: 'Withdrawal not found' });
+    if (existing.status !== 'APPROVED') {
+      return response.status(400).json({ success: false, message: 'Only approved withdrawals can be marked as paid' });
+    }
+
     const withdrawal = await prisma.withdrawal.update({
-      where: { id: request.params.id },
+      where: { id: existing.id },
       data: { status: 'PAID' },
     });
+
+    await createNotification(
+      existing.userId,
+      'Withdrawal paid',
+      `Your withdrawal of GHS ${existing.amount.toFixed(2)} has been paid to ${existing.accountName} at ${existing.accountNumber}.`,
+      'WITHDRAWAL',
+    );
+    await createAuditLog(request.auth!.userId, 'WITHDRAWAL_PAID', 'Withdrawal', existing.id, {
+      reference: existing.reference,
+      amount: existing.amount.toNumber(),
+      accountName: existing.accountName,
+      accountNumber: existing.accountNumber,
+      source: existing.source,
+    });
+
     return response.json(createSuccessResponse(withdrawal, 'Withdrawal marked as paid'));
   } catch (error) {
     return next(error);
@@ -425,8 +524,8 @@ adminRouter.post('/withdrawals/:id/reject', async (request, response, next) => {
       return response.status(404).json({ success: false, message: 'Withdrawal not found' });
     }
 
-    if (existing.status === 'PAID' || existing.status === 'APPROVED') {
-      return response.status(400).json({ success: false, message: 'Cannot reject a paid or approved withdrawal' });
+    if (!['PENDING', 'REVIEW'].includes(existing.status)) {
+      return response.status(400).json({ success: false, message: 'Only pending withdrawals can be rejected' });
     }
 
     // `source` is WithdrawalSource in schema (MAIN_WALLET | STOREFRONT_WALLET)
@@ -439,19 +538,13 @@ adminRouter.post('/withdrawals/:id/reject', async (request, response, next) => {
       });
 
       if (isStorefrontWallet) {
-        const sfWallet = await tx.storefrontWallet.findUnique({
-          where: { userId: existing.userId },
-        });
+        const sfWallet = await tx.storefrontWallet.findUnique({ where: { userId: existing.userId } });
 
         if (sfWallet) {
           const balanceBefore = sfWallet.availableBalance;
           const balanceAfter = toDecimal(balanceBefore.toNumber() + existing.amount.toNumber());
 
-          await tx.storefrontWallet.update({
-            where: { id: sfWallet.id },
-            data: { availableBalance: balanceAfter },
-          });
-
+          await tx.storefrontWallet.update({ where: { id: sfWallet.id }, data: { availableBalance: balanceAfter } });
           await tx.storefrontWalletTransaction.create({
             data: {
               walletId: sfWallet.id,
@@ -465,6 +558,18 @@ adminRouter.post('/withdrawals/:id/reject', async (request, response, next) => {
             },
           });
         }
+      } else {
+        const wallet = await tx.wallet.findUnique({ where: { userId: existing.userId } });
+        if (wallet) {
+          await createWalletTransaction(
+            wallet.id,
+            existing.amount.toNumber(),
+            WalletTransactionType.CREDIT,
+            WalletTransactionCategory.REFUND,
+            `Refund for rejected withdrawal ${existing.reference}`,
+            tx,
+          );
+        }
       }
 
       return updated;
@@ -476,6 +581,12 @@ adminRouter.post('/withdrawals/:id/reject', async (request, response, next) => {
       `Your withdrawal of GHS ${existing.amount.toFixed(2)} has been rejected. Funds returned to your ${isStorefrontWallet ? 'storefront wallet' : 'account'}.`,
       'WITHDRAWAL',
     );
+    await createAuditLog(request.auth!.userId, 'WITHDRAWAL_REJECTED', 'Withdrawal', existing.id, {
+      reference: existing.reference,
+      amount: existing.amount.toNumber(),
+      source: existing.source,
+      reason: request.body?.reason || null,
+    });
 
     return response.json(createSuccessResponse(result, 'Withdrawal rejected and funds refunded'));
   } catch (error) {

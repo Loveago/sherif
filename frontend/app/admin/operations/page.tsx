@@ -11,13 +11,19 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/api';
+import { formatCurrency } from '@/lib/utils';
 import type { Announcement, Complaint, Notification, Withdrawal } from '@/lib/types';
 
 type Refund = { id: string; amount: number; status: string; reason: string; order: { receiptNumber: string; product: { name: string } }; user: { email: string } };
 type Provider = { id: string; name: string; code: string; status: string; priority: number };
 type Payment = { id: string; amount: number; status: string; method: string; reference: string; user: { email: string } };
 type AdminComplaint = Complaint & { user: { email: string } };
-type AdminWithdrawal = Withdrawal & { user: { email: string } };
+type AdminWithdrawal = Withdrawal & { user: { firstName: string; lastName: string; email: string; phone: string } };
+type AdminWithdrawalsResponse = {
+  withdrawals: AdminWithdrawal[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+  summary: { pendingCount: number; pendingAmount: number };
+};
 type AnnouncementForm = { title: string; content: string; pinned: boolean; targetRole?: 'AGENT' | 'ADMIN' };
 
 export default function AdminOperationsPage() {
@@ -25,7 +31,7 @@ export default function AdminOperationsPage() {
   const announcementForm = useForm<AnnouncementForm>({ defaultValues: { pinned: false } as AnnouncementForm });
   const refundsQuery = useQuery({ queryKey: ['admin-refunds'], queryFn: () => apiRequest<Refund[]>('/admin/refunds') });
   const complaintsQuery = useQuery({ queryKey: ['admin-complaints'], queryFn: () => apiRequest<AdminComplaint[]>('/admin/complaints') });
-  const withdrawalsQuery = useQuery({ queryKey: ['admin-withdrawals'], queryFn: () => apiRequest<AdminWithdrawal[]>('/admin/withdrawals') });
+  const withdrawalsQuery = useQuery({ queryKey: ['admin-withdrawals'], queryFn: () => apiRequest<AdminWithdrawalsResponse>('/admin/withdrawals') });
   const providersQuery = useQuery({ queryKey: ['admin-providers'], queryFn: () => apiRequest<Provider[]>('/admin/providers') });
   const paymentsQuery = useQuery({ queryKey: ['admin-payments'], queryFn: () => apiRequest<Payment[]>('/admin/payments') });
   const announcementsQuery = useQuery({ queryKey: ['admin-announcements'], queryFn: () => apiRequest<Announcement[]>('/admin/announcements') });
@@ -99,21 +105,30 @@ export default function AdminOperationsPage() {
           />
           <DataTableCard
             title="Withdrawals"
-            columns={['Reference', 'User', 'Amount', 'Source', 'Status', 'Actions']}
-            rows={(withdrawalsQuery.data ?? []).map((withdrawal) => [
+            columns={['Reference', 'User', 'Amount', 'Method', 'Account Name', 'MoMo / Account No', 'Source', 'Status', 'Actions']}
+            rows={(withdrawalsQuery.data?.withdrawals ?? []).map((withdrawal) => [
               withdrawal.reference,
-              withdrawal.user.email,
-              String(withdrawal.amount),
+              <div key={`${withdrawal.id}-user`}>
+                <p className="text-sm text-gray-300">{withdrawal.user.firstName} {withdrawal.user.lastName}</p>
+                <p className="text-xs text-gray-500">{withdrawal.user.email}</p>
+              </div>,
+              formatCurrency(Number(withdrawal.amount)),
+              withdrawal.method,
+              withdrawal.accountName,
+              <div key={`${withdrawal.id}-account`} className="flex items-center gap-2">
+                <span className="font-mono">{withdrawal.accountNumber}</span>
+                {withdrawal.bankName && <span className="text-xs text-gray-500">({withdrawal.bankName})</span>}
+              </div>,
               withdrawal.source === 'STOREFRONT_WALLET' ? 'Storefront' : 'Main',
               withdrawal.status,
               <div key={`${withdrawal.id}-actions`} className="flex gap-3 text-sm">
-                {withdrawal.status === 'PENDING' && (
+                {(withdrawal.status === 'PENDING' || withdrawal.status === 'REVIEW') && (
                   <button className="text-amber-300" onClick={() => approveWithdrawal.mutate(withdrawal.id)}>Approve</button>
                 )}
-                {withdrawal.status !== 'PAID' && withdrawal.status !== 'REJECTED' && (
+                {withdrawal.status === 'APPROVED' && (
                   <button className="text-emerald-300" onClick={() => markWithdrawalPaid.mutate(withdrawal.id)}>Paid</button>
                 )}
-                {withdrawal.status === 'PENDING' && (
+                {(withdrawal.status === 'PENDING' || withdrawal.status === 'REVIEW') && (
                   <button className="text-rose-300" onClick={() => rejectWithdrawal.mutate(withdrawal.id)}>Reject</button>
                 )}
               </div>,
