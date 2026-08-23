@@ -13,8 +13,8 @@ import { maybeCreditStorefrontCommission } from '../services/commission.service.
 import { exportToCSV, exportToExcel } from '../services/export.service.js';
 import { shankClient } from '../services/shank.service.js';
 import { pollOrderStatuses } from '../workers/shank-status.worker.js';
-import { pollCodecraftOrderStatuses } from '../workers/codecraft-status.worker.js';
-import { codecraftClient } from '../services/codecraft.service.js';
+import { pollBundlePortalOrderStatuses } from '../workers/bundle-portal-status.worker.js';
+import { bundlePortalClient } from '../services/bundle-portal.service.js';
 import { normalizeDataSize } from '../utils/shank-mapping.js';
 import {
   getReconcilerStatus,
@@ -742,7 +742,7 @@ adminRouter.put('/settings', validate(updateSettingsSchema), async (request, res
 
 adminRouter.put('/settings/providers/:provider', validate(updateProviderCredentialsSchema), async (request, response, next) => {
   try {
-    await saveProviderCredentials(request.params.provider as 'shank' | 'codecraft', request.body);
+    await saveProviderCredentials(request.params.provider as 'shank' | 'bundleportal', request.body);
     return response.json(createSuccessResponse(await getProviderCredentialSummaries(), 'Provider credentials updated'));
   } catch (error) {
     return next(error);
@@ -1621,12 +1621,12 @@ adminRouter.post('/shank/poll-now', async (_request, response, next) => {
   }
 });
 
-adminRouter.post('/codecraft/poll-now', async (_request, response, next) => {
+adminRouter.post('/bundle-portal/poll-now', async (_request, response, next) => {
   try {
-    if (!(await codecraftClient.isConfigured())) {
-      return response.status(400).json({ success: false, message: 'CODECRAFT_API_KEY not configured' });
+    if (!(await bundlePortalClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'BUNDLE_PORTAL_API_KEY not configured' });
     }
-    const result = await pollCodecraftOrderStatuses();
+    const result = await pollBundlePortalOrderStatuses();
     return response.json(
       createSuccessResponse(result, `Checked ${result.checked} orders, updated ${result.updated}`),
     );

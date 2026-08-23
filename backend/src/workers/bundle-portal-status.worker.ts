@@ -1,11 +1,10 @@
 import { OrderStatus, WalletTransactionCategory, WalletTransactionType } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
-import { codecraftClient } from '../services/codecraft.service.js';
+import { bundlePortalClient, BundlePortalError } from '../services/bundle-portal.service.js';
 import { createNotification } from '../services/notification.service.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
 import { env } from '../config/env.js';
-import { isBigTimeProduct, toCodecraftNetwork } from '../utils/codecraft-mapping.js';
 import { phonesMatch } from '../utils/phone.js';
 
 /** Keep polling longer so slow provider deliveries still settle. */
@@ -15,12 +14,8 @@ const POLL_BATCH_SIZE = 80;
 /** Prevent overlapping poll cycles when a tick runs longer than the interval. */
 let isPolling = false;
 
-/**
- * Extract a human-readable order status string from CodeCraft status payloads.
- * The API is inconsistent: docs show `order_status`, but live responses may use
- * `status`, nested objects, or arrays.
- */
-export const extractCodecraftOrderStatus = (payload: unknown): string | null => {
+/** Extract the order status from a Bundle Portal response payload. */
+export const extractBundlePortalOrderStatus = (payload: unknown): string | null => {
   if (!payload || typeof payload !== 'object') {
     if (typeof payload === 'string' && payload.trim()) return payload.trim();
     return null;
@@ -28,8 +23,7 @@ export const extractCodecraftOrderStatus = (payload: unknown): string | null => 
 
   const root = payload as Record<string, unknown>;
 
-  // Live CodeCraft status responses nest the order under `order_details`
-  // (docs historically used `data`). Prefer the richest nested object first.
+  // Prefer the richest nested object first when the provider wraps the response.
   const nestedCandidates: unknown[] = [
     root.order_details,
     root.orderDetails,
@@ -124,14 +118,14 @@ export const extractCodecraftOrderStatus = (payload: unknown): string | null => 
   return null;
 };
 
-export const mapCodecraftStatusToOrderStatus = (orderStatus: string | null | undefined): OrderStatus | null => {
+export const mapBundlePortalStatusToOrderStatus = (orderStatus: string | null | undefined): OrderStatus | null => {
   const value = (orderStatus || '').toString().toLowerCase().trim();
   if (!value) return null;
 
   // Normalize separators so "crediting-successful" / "credit_successful" still match
   const normalized = value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
 
-  // Terminal success — live CodeCraft returns "Delivered"; docs also use "successful"
+  // Terminal success values, including the Bundle Portal API's "completed" state.
   const successExact = new Set([
     'successful',
     'success',
@@ -175,6 +169,7 @@ export const mapCodecraftStatusToOrderStatus = (orderStatus: string | null | und
   // In-progress
   if (
     normalized === 'processing' ||
+    normalized === 'cached' ||
     normalized === 'in progress' ||
     normalized === 'in-progress' ||
     normalized === 'accepted' ||
@@ -198,9 +193,7 @@ export const mapCodecraftStatusToOrderStatus = (orderStatus: string | null | und
   return null;
 };
 
-/**
- * When CodeCraft returns an array of order rows, pick the one for this beneficiary.
- */
+/** When a provider returns multiple order rows, pick the one for this beneficiary. */
 const pickStatusPayloadForOrder = (
   response: unknown,
   phoneNumber: string,
@@ -224,12 +217,10 @@ const pickStatusPayloadForOrder = (
   return response;
 };
 
-const fetchCodecraftStatus = async (externalRef: string, _preferBigTime: boolean) => {
-  // Live CodeCraft API uses a single POST /response.php for all package types.
-  // Docs still list response_regular.php / response_big_time.php but those 404.
-  const response = await codecraftClient.getOrderStatus(externalRef);
-  const statusText = extractCodecraftOrderStatus(response);
-  return { response, statusText, endpoint: 'response' as const };
+const fetchBundlePortalStatus = async (externalRef: string) => {
+  const response = await bundlePortalClient.checkStatus(externalRef);
+  const statusText = response.data?.status || null;
+  return { response, statusText, endpoint: 'bundle-portal-v1' as const };
 };
 
 const applyOrderStatusUpdate = async (
@@ -326,13 +317,13 @@ const applyOrderStatusUpdate = async (
   return true;
 };
 
-export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; updated: number }> => {
-  if (!(await codecraftClient.isConfigured())) {
+export const pollBundlePortalOrderStatuses = async (): Promise<{ checked: number; updated: number }> => {
+  if (!(await bundlePortalClient.isConfigured())) {
     return { checked: 0, updated: 0 };
   }
 
   if (isPolling) {
-    console.log('[CodecraftWorker] Previous poll still running — skipping this tick');
+    console.log('[BundlePortalWorker] Previous poll still running — skipping this tick');
     return { checked: 0, updated: 0 };
   }
 
@@ -371,7 +362,7 @@ export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; u
 
     const skippedCount = pendingOrders.length - activeOrders.length;
     if (skippedCount > 0) {
-      console.log(`[CodecraftWorker] Skipping ${skippedCount} orders older than 24 hours`);
+      console.log(`[BundlePortalWorker] Skipping ${skippedCount} orders older than 24 hours`);
     }
 
     if (activeOrders.length === 0) {
@@ -388,47 +379,34 @@ export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; u
           continue;
         }
 
-        const sample = ordersForRef[0];
-        const networkCode = sample.product.network.code.toUpperCase();
-        const mapped = toCodecraftNetwork(networkCode);
-        const preferBigTime =
-          mapped === 'AT' &&
-          isBigTimeProduct(
-            sample.product.name,
-            sample.product.description,
-            sample.product.slug,
-            sample.product.dataSize,
-          );
-
-        const { response: statusResponse, statusText: rawStatusText, endpoint } = await fetchCodecraftStatus(
+        const { response: statusResponse, statusText: rawStatusText, endpoint } = await fetchBundlePortalStatus(
           externalRef,
-          preferBigTime,
         );
 
         console.log(
-          `[CodecraftWorker] Raw status response for ${externalRef} via ${endpoint}:`,
+          `[BundlePortalWorker] Raw status response for ${externalRef} via ${endpoint}:`,
           JSON.stringify(statusResponse),
         );
 
         for (const order of ordersForRef) {
-          // If CodeCraft returns multiple rows, resolve the one for this phone
+          // If Bundle Portal returns multiple rows, resolve the one for this phone
           const scoped = pickStatusPayloadForOrder(statusResponse, order.phoneNumber);
           const statusText =
-            ordersForRef.length > 1 ? extractCodecraftOrderStatus(scoped) ?? rawStatusText : rawStatusText;
+            ordersForRef.length > 1 ? extractBundlePortalOrderStatus(scoped) ?? rawStatusText : rawStatusText;
 
-          const newStatus = mapCodecraftStatusToOrderStatus(statusText);
+          const newStatus = mapBundlePortalStatusToOrderStatus(statusText);
           console.log(
-            `[CodecraftWorker] ${order.receiptNumber} mapped status "${statusText ?? ''}" -> ${newStatus} for ${externalRef}`,
+            `[BundlePortalWorker] ${order.receiptNumber} mapped status "${statusText ?? ''}" -> ${newStatus} for ${externalRef}`,
           );
 
           if (!statusText) {
-            console.log(`[CodecraftWorker] No order status field found for ${externalRef}, skipping`);
+            console.log(`[BundlePortalWorker] No order status field found for ${externalRef}, skipping`);
             continue;
           }
 
           if (!newStatus) {
             console.warn(
-              `[CodecraftWorker] Unmapped CodeCraft status "${statusText}" for ${externalRef} — not updating`,
+              `[BundlePortalWorker] Unmapped Bundle Portal status "${statusText}" for ${externalRef} — not updating`,
             );
             continue;
           }
@@ -437,17 +415,34 @@ export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; u
           if (changed) {
             updated++;
             console.log(
-              `[CodecraftWorker] Updated ${order.receiptNumber} ${order.status} -> ${newStatus}`,
+              `[BundlePortalWorker] Updated ${order.receiptNumber} ${order.status} -> ${newStatus}`,
             );
           }
         }
       } catch (error) {
-        const errorMessage = codecraftClient.getErrorMessage(error);
-        console.error(`[CodecraftWorker] Error polling status for ${externalRef}:`, errorMessage);
+        const errorMessage = bundlePortalClient.getErrorMessage(error);
+
+        // A 404 "order not found" for a reference means the order was never created
+        // at Bundle Portal (e.g. a deferred placement that exhausted its retries).
+        // Resolve it as failed so the customer gets an automatic refund instead of
+        // leaving the order stuck in PROCESSING forever.
+        if (error instanceof BundlePortalError && error.status === 404) {
+          const missingOrders = activeOrders.filter((o) => o.externalReference === externalRef);
+          for (const order of missingOrders) {
+            const changed = await applyOrderStatusUpdate(order as any, OrderStatus.FAILED);
+            if (changed) {
+              updated++;
+              console.log(`[BundlePortalWorker] Marked ${order.receiptNumber} FAILED (order not found at Bundle Portal)`);
+            }
+          }
+          continue;
+        }
+
+        console.error(`[BundlePortalWorker] Error polling status for ${externalRef}:`, errorMessage);
       }
     }
 
-    console.log(`[CodecraftWorker] Checked ${activeOrders.length} orders, updated ${updated}`);
+    console.log(`[BundlePortalWorker] Checked ${activeOrders.length} orders, updated ${updated}`);
     return { checked: activeOrders.length, updated };
   } finally {
     isPolling = false;
@@ -456,32 +451,32 @@ export const pollCodecraftOrderStatuses = async (): Promise<{ checked: number; u
 
 let workerTimer: NodeJS.Timeout | null = null;
 
-export const startCodecraftStatusWorker = () => {
+export const startBundlePortalStatusWorker = () => {
   if (workerTimer) {
-    console.log('[CodecraftWorker] Already running');
+    console.log('[BundlePortalWorker] Already running');
     return;
   }
 
-  const intervalMs = env.CODECRAFT_WORKER_INTERVAL_MS;
+  const intervalMs = env.BUNDLE_PORTAL_WORKER_INTERVAL_MS;
 
   const tick = async () => {
     try {
-      await pollCodecraftOrderStatuses();
+      await pollBundlePortalOrderStatuses();
     } catch (error) {
-      console.error('[CodecraftWorker] Unexpected error during polling cycle:', error);
+      console.error('[BundlePortalWorker] Unexpected error during polling cycle:', error);
     }
   };
 
   workerTimer = setInterval(tick, intervalMs);
   setTimeout(tick, 5000);
 
-  console.log(`[CodecraftWorker] Started — polling every ${intervalMs}ms`);
+  console.log(`[BundlePortalWorker] Started — polling every ${intervalMs}ms`);
 };
 
-export const stopCodecraftStatusWorker = () => {
+export const stopBundlePortalStatusWorker = () => {
   if (workerTimer) {
     clearInterval(workerTimer);
     workerTimer = null;
-    console.log('[CodecraftWorker] Stopped');
+    console.log('[BundlePortalWorker] Stopped');
   }
 };

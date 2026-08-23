@@ -19,3 +19,5 @@ vercel.txt
 !README.md
 !CHANGELOG.md
 .roo/mcp.json
+bundle portal api.txt
+backend/.env.example

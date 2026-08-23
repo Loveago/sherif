@@ -31,7 +31,7 @@ type AdminSettings = {
   paystackSecretKey: string;
   providerCredentials: {
     shank: ProviderCredentialSummary;
-    codecraft: ProviderCredentialSummary;
+    bundleportal: ProviderCredentialSummary;
   };
   catalog: {
     productsEnabled: boolean;
@@ -112,11 +112,11 @@ export default function AdminSettingsPage() {
     },
   });
 
-  const codecraftForm = useForm({
+  const bundlePortalForm = useForm({
     defaultValues: { apiKey: '', baseUrl: '' },
     values: {
       apiKey: '',
-      baseUrl: data?.providerCredentials?.codecraft.baseUrl ?? '',
+      baseUrl: data?.providerCredentials?.bundleportal.baseUrl ?? 'https://api.bundleportal.com/v1',
     },
   });
 
@@ -132,7 +132,7 @@ export default function AdminSettingsPage() {
   });
 
   const providerMutation = useMutation({
-    mutationFn: ({ provider, values }: { provider: 'shank' | 'codecraft'; values: { apiKey: string; baseUrl: string } }) =>
+    mutationFn: ({ provider, values }: { provider: 'shank' | 'bundleportal'; values: { apiKey: string; baseUrl: string } }) =>
       apiRequest('/admin/settings/providers/' + provider, {
         method: 'PUT',
         body: JSON.stringify(values),
@@ -140,7 +140,7 @@ export default function AdminSettingsPage() {
     onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
       if (variables.provider === 'shank') shankForm.resetField('apiKey');
-      if (variables.provider === 'codecraft') codecraftForm.resetField('apiKey');
+      if (variables.provider === 'bundleportal') bundlePortalForm.resetField('apiKey');
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     },
@@ -186,8 +186,8 @@ export default function AdminSettingsPage() {
     providerMutation.mutate({ provider: 'shank', values });
   });
 
-  const onSaveCodecraft = codecraftForm.handleSubmit((values) => {
-    providerMutation.mutate({ provider: 'codecraft', values });
+  const onSaveBundlePortal = bundlePortalForm.handleSubmit((values) => {
+    providerMutation.mutate({ provider: 'bundleportal', values });
   });
 
   return (
@@ -419,7 +419,7 @@ export default function AdminSettingsPage() {
               <p className="text-sm font-semibold text-white">Data Provider API Credentials</p>
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              Configure Shank and CodeCraft without editing environment files. Saved API keys are encrypted and take effect immediately. Leave an API key blank to keep the current key.
+              Configure Shank and Bundle Portal without editing environment files. Saved API keys are encrypted and take effect immediately. Leave an API key blank to keep the current key.
             </p>
 
             <div className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -448,27 +448,27 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/[0.04] p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium text-white">CodeCraft</p>
-                  <span className={`rounded-full px-2.5 py-1 text-[11px] ${data?.providerCredentials?.codecraft.configured ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'}`}>
-                    {data?.providerCredentials?.codecraft.configured ? `Configured via ${data.providerCredentials.codecraft.source}` : 'Not configured'}
+                  <p className="text-sm font-medium text-white">Bundle Portal</p>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] ${data?.providerCredentials?.bundleportal.configured ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'}`}>
+                    {data?.providerCredentials?.bundleportal.configured ? `Configured via ${data.providerCredentials.bundleportal.source}` : 'Not configured'}
                   </span>
                 </div>
-                {data?.providerCredentials?.codecraft.apiKeyMasked && (
-                  <p className="mt-2 font-mono text-xs text-slate-400">Current key: {data.providerCredentials.codecraft.apiKeyMasked}</p>
+                {data?.providerCredentials?.bundleportal.apiKeyMasked && (
+                  <p className="mt-2 font-mono text-xs text-slate-400">Current key: {data.providerCredentials.bundleportal.apiKeyMasked}</p>
                 )}
                 <div className="mt-4 space-y-3">
                   <div>
-                    <label className="mb-1.5 block text-xs text-gray-400">New API Key</label>
-                    <Input type="password" autoComplete="new-password" placeholder="Leave blank to keep current key" {...codecraftForm.register('apiKey')} />
+                    <label className="mb-1.5 block text-xs text-gray-400">Bundle Portal API Key</label>
+                    <Input type="password" autoComplete="new-password" placeholder="bp_live_..." {...bundlePortalForm.register('apiKey')} />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs text-gray-400">API Base URL</label>
-                    <Input type="url" placeholder="https://api.codecraftnetwork.com/api" {...codecraftForm.register('baseUrl', { required: true })} />
+                    <label className="mb-1.5 block text-xs text-gray-400">API URL</label>
+                    <Input type="url" placeholder="https://api.bundleportal.com/v1" {...bundlePortalForm.register('baseUrl', { required: true })} />
                   </div>
-                  <Button onClick={onSaveCodecraft} disabled={providerMutation.isPending} className="w-full">
-                    {providerMutation.isPending && providerMutation.variables?.provider === 'codecraft' ? 'Saving...' : saved ? 'Saved' : 'Save CodeCraft Credentials'}
+                  <Button onClick={onSaveBundlePortal} disabled={providerMutation.isPending} className="w-full">
+                    {providerMutation.isPending && providerMutation.variables?.provider === 'bundleportal' ? 'Saving...' : saved ? 'Saved' : 'Save Bundle Portal Credentials'}
                   </Button>
                 </div>
               </div>

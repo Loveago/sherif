@@ -1,15 +1,17 @@
 import { prisma } from '../lib/prisma.js';
 import { generateReference } from '../utils/refs.js';
 import { shankClient } from './shank.service.js';
-import { codecraftClient } from './codecraft.service.js';
+import {
+  bundlePortalClient,
+  isRetryableBundlePortalError,
+  BundlePortalError,
+} from './bundle-portal.service.js';
 import { dataSizeToVolumeMb, normalizeDataSize } from '../utils/shank-mapping.js';
 import {
-  isBigTimeProduct,
-  isCodecraftNetwork,
-  toCodecraftGig,
-  toCodecraftNetwork,
-  toCodecraftRecipient,
-} from '../utils/codecraft-mapping.js';
+  isBundlePortalNetwork,
+  toProviderNetwork,
+  normalizeProviderRecipient,
+} from '../utils/provider-mapping.js';
 
 const toJson = (value: unknown) => JSON.parse(JSON.stringify(value));
 
@@ -50,31 +52,6 @@ export const isInsufficientBalanceError = (message: string | null | undefined): 
   );
 };
 
-const isCodecraftCreateSuccess = (createResponse: {
-  status?: number | string;
-  message?: string;
-  reference_id?: string;
-  referenceId?: string;
-}): boolean => {
-  const statusCode = Number(createResponse.status);
-  if (statusCode === 200) return true;
-
-  const statusText = String(createResponse.status ?? '').toLowerCase().trim();
-  if (statusText === '200' || statusText === 'success' || statusText === 'successful') return true;
-
-  const message = String(createResponse.message ?? '').toLowerCase();
-  if (message.includes('order recorded') || message.includes('successful')) return true;
-
-  // Some CodeCraft responses only return a reference without a useful status field
-  if (createResponse.reference_id || createResponse.referenceId) {
-    // Business error codes from docs: 100, 101, 102, 103, 500, 555
-    if ([100, 101, 102, 103, 500, 555].includes(statusCode)) return false;
-    if (!createResponse.status) return true;
-  }
-
-  return false;
-};
-
 export const fulfillOrderWithProvider = async (orderId: string) => {
   const provider = await prisma.provider.findFirst({
     where: { status: 'ACTIVE' },
@@ -111,15 +88,15 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
   };
 
   const networkCode = order.product.network.code.toUpperCase();
-  const codecraftNetwork = toCodecraftNetwork(networkCode);
+  const bundlePortalNetworkCode = toProviderNetwork(networkCode);
 
-  const [shankConfigured, codecraftConfigured] = await Promise.all([
+  const [shankConfigured, bundlePortalConfigured] = await Promise.all([
     shankClient.isConfigured(),
-    codecraftClient.isConfigured(),
+    bundlePortalClient.isConfigured(),
   ]);
 
   // When no external provider is configured, behave as instant success (mock)
-  if (!shankConfigured && !codecraftConfigured) {
+  if (!shankConfigured && !bundlePortalConfigured) {
     console.warn('[Provider] No external provider API configured, using mock fulfillment');
     const mockResponsePayload = {
       providerReference: generateReference('PRV'),
@@ -238,147 +215,155 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
     }
   }
 
-  // Telecel & AirtelTigo go through Codecraft
-  if (isCodecraftNetwork(networkCode)) {
-    if (!codecraftConfigured) {
-      throw new Error('CODECRAFT_API_KEY is not configured for Telecel/AirtelTigo orders');
+  // Telecel and AirtelTigo are fulfilled through Bundle Portal.
+  if (isBundlePortalNetwork(networkCode)) {
+    const bundlePortalConfigured = await bundlePortalClient.isConfigured();
+    if (!bundlePortalConfigured) {
+      throw new Error('BUNDLE_PORTAL_API_KEY is not configured for Telecel/AirtelTigo orders');
     }
 
-    if (!codecraftNetwork) {
-      throw new Error(`Cannot map network "${networkCode}" to a CodeCraft network`);
+    const bundlePortalNetwork = bundlePortalNetworkCode === 'AT' ? 'airteltigo' : 'telecel';
+    const recipientNumber = normalizeProviderRecipient(order.phoneNumber);
+    const normalizedSize = (order.product.dataSize || resolvedDataSize).toUpperCase().replace(/\s/g, '');
+    const gbMatch = normalizedSize.match(/(\d+(?:\.\d+)?)GB/);
+    const mbMatch = normalizedSize.match(/(\d+(?:\.\d+)?)MB/);
+    const packageSizeGb = gbMatch ? Number(gbMatch[1]) : mbMatch ? Number(mbMatch[1]) / 1000 : Number(normalizedSize);
+
+    if (!Number.isFinite(packageSizeGb) || packageSizeGb <= 0) {
+      throw new Error(`Cannot derive Bundle Portal package size from "${normalizedSize}"`);
     }
-
-    // BigTime channel is for AT (AirtelTigo) products whose name/description/slug includes "bigtime"
-    const isBigTime =
-      codecraftNetwork === 'AT' &&
-      isBigTimeProduct(
-        order.product.name,
-        order.product.description,
-        order.product.slug,
-        order.product.dataSize,
-      );
-
-    // BigTime endpoint only accepts MTN | AT
-    const bigTimeNetwork: 'MTN' | 'AT' = 'AT';
-
-    const recipientNumber = toCodecraftRecipient(order.phoneNumber);
-    const gig = toCodecraftGig({
-      dataSize: order.product.dataSize || resolvedDataSize,
-      description: order.product.description,
-      name: order.product.name,
-    });
-
-    if (!gig) {
-      throw new Error(
-        `Cannot derive CodeCraft gig/package from product "${order.product.name}" (dataSize="${order.product.dataSize}", description="${order.product.description}")`,
-      );
-    }
-
-    console.log(
-      `[Provider] CodeCraft fulfill order=${order.receiptNumber} network=${codecraftNetwork} bigTime=${isBigTime} gig=${gig} phone=${recipientNumber}`,
-    );
 
     try {
-      const createResponse = isBigTime
-        ? await codecraftClient.createBigTimeOrder(recipientNumber, gig, bigTimeNetwork)
-        : await codecraftClient.createRegularOrder(recipientNumber, gig, codecraftNetwork);
+      const verifyResponse = await bundlePortalClient.verifyNumber(bundlePortalNetwork, recipientNumber);
+      const verification = verifyResponse.data as {
+        allowed?: boolean;
+        can_order?: boolean;
+        allowlist_message?: string | null;
+        pending_order?: unknown;
+      } | undefined;
 
-      console.log(
-        `[Provider] CodeCraft create response for ${order.receiptNumber}:`,
-        JSON.stringify(createResponse),
-      );
-
-      const externalReference = createResponse.reference_id || createResponse.referenceId;
-      if (!externalReference) {
-        throw new Error(
-          `CodeCraft did not return a reference_id for the order (status=${createResponse.status}, message=${createResponse.message || 'n/a'})`,
+      // 403 not_allowlisted — number still pending approval. No order was created
+      // at Bundle Portal and retrying will not help, so this fails cleanly and the
+      // automatic refund simply reverses the wallet debit.
+      if (verification && verification.allowed === false) {
+        throw new BundlePortalError(
+          verification.allowlist_message ||
+            'Recipient is not yet approved for this network. Please try again later.',
+          'not_allowlisted',
         );
       }
+
+      // can_order false — an earlier order for this number is still in flight:
+      // defer, do not refund (retry-later semantics).
+      if (!verification?.can_order) {
+        throw new BundlePortalError(
+          verifyResponse.message || 'Recipient has a pending order and cannot order again yet.',
+          'pending_order',
+        );
+      }
+
+      // Retry transient placement errors (409/429/503 etc.) with bounded attempts.
+      // The order_id is idempotent, so a retry never double-charges.
+      const MAX_PLACE_ATTEMPTS = 3;
+      let createResponse: Awaited<ReturnType<typeof bundlePortalClient.placeOrder>> | undefined;
+      let lastError: unknown;
+
+      for (let attempt = 1; attempt <= MAX_PLACE_ATTEMPTS; attempt++) {
+        try {
+          createResponse = await bundlePortalClient.placeOrder(
+            bundlePortalNetwork,
+            recipientNumber,
+            packageSizeGb,
+            order.receiptNumber,
+          );
+          lastError = undefined;
+          break;
+        } catch (error) {
+          lastError = error;
+          const retryable = isRetryableBundlePortalError(error);
+          console.warn(
+            `[Provider] Bundle Portal placeOrder attempt ${attempt}/${MAX_PLACE_ATTEMPTS} failed:`,
+            bundlePortalClient.getErrorMessage(error),
+          );
+          if (!retryable) {
+            // Permanent rejection — surface immediately so the order fails cleanly.
+            throw error;
+          }
+          if (attempt < MAX_PLACE_ATTEMPTS) {
+            await new Promise((resolve) => setTimeout(resolve, 800 * attempt));
+          }
+        }
+      }
+
+      if (!createResponse) {
+        // All retries exhausted — defer to the status worker without refunding.
+        throw lastError;
+      }
+
+      const externalReference = createResponse.data?.reference || createResponse.data?.order_id;
+      if (!externalReference) throw new Error('Bundle Portal did not return an order reference');
 
       const providerReference = externalReference;
-      const ok = isCodecraftCreateSuccess(createResponse);
-      const status = ok ? ('PROCESSING' as const) : ('FAILED' as const);
-
-      if (!ok) {
-        console.error(
-          `[Provider] CodeCraft rejected order ${order.receiptNumber}: status=${createResponse.status} message=${createResponse.message || 'n/a'} bigTime=${isBigTime} gig=${gig}`,
-        );
-      }
-
-      const responsePayload = {
-        providerReference,
-        externalReference,
-        status,
-        provider: 'CODECRAFT',
-        isBigTime,
-        codecraftNetwork: isBigTime ? bigTimeNetwork : codecraftNetwork,
-        gig,
-        recipientNumber,
-        createResponse,
-      };
+      const status = createResponse.data?.status === 'completed' ? 'SUCCESSFUL' as const : 'PROCESSING' as const;
+      const responsePayload = { providerReference, externalReference, status, provider: 'BUNDLE_PORTAL', bundlePortalNetwork, packageSizeGb, createResponse };
 
       await prisma.providerTransaction.create({
         data: {
           providerId: provider.id,
           orderId: order.id,
-          requestPayload: toJson({
-            ...requestPayloadBase,
-            codecraftNetwork: isBigTime ? bigTimeNetwork : codecraftNetwork,
-            gig,
-            isBigTime,
-            recipientNumber,
-            endpoint: isBigTime ? 'special.php' : 'initiate.php',
-          }),
+          requestPayload: toJson({ ...requestPayloadBase, bundlePortalNetwork, packageSizeGb, recipientNumber, endpoint: '/v1' }),
           responsePayload: toJson(responsePayload),
           status,
         },
       });
-
-      await prisma.order.update({
-        where: { id: orderId },
-        data: {
-          externalReference,
-          providerReference,
-        },
-      });
-
+      await prisma.order.update({ where: { id: orderId }, data: { externalReference, providerReference } });
       return { providerReference, externalReference, status };
     } catch (error) {
-      const errorMessage = codecraftClient.getErrorMessage(error);
-      console.error(
-        `[Provider] Codecraft API error for ${order.receiptNumber} (bigTime=${isBigTime}, gig=${gig}, network=${codecraftNetwork}):`,
-        errorMessage,
-      );
+      const errorMessage = bundlePortalClient.getErrorMessage(error);
 
-      const failPayload = {
-        providerReference: generateReference('PRV'),
-        externalReference: null as string | null,
-        status: 'FAILED' as const,
-        error: errorMessage,
-        provider: 'CODECRAFT',
-        isBigTime,
-        codecraftNetwork: isBigTime ? bigTimeNetwork : codecraftNetwork,
-        gig,
-        recipientNumber,
-      };
+      // 409 pending_order / network_locked, 429, 503 order_capacity_busy and other
+      // retry-later codes mean "try again", not "permanent failure". The status worker
+      // keeps polling and the refund only happens if the provider eventually reports
+      // failed. We persist the receipt number because check_status accepts our own
+      // order_id as the order_reference, so the deferred order remains pollable.
+      if (isRetryableBundlePortalError(error)) {
+        const deferredPayload = {
+          providerReference: generateReference('PRV'),
+          externalReference: order.receiptNumber as string | null,
+          status: 'PROCESSING' as const,
+          error: errorMessage,
+          retryable: true,
+          provider: 'BUNDLE_PORTAL',
+          bundlePortalNetwork,
+          packageSizeGb,
+          recipientNumber,
+        };
+        await prisma.providerTransaction.create({
+          data: {
+            providerId: provider.id,
+            orderId: order.id,
+            requestPayload: toJson({ ...requestPayloadBase, bundlePortalNetwork, packageSizeGb, recipientNumber, endpoint: '/v1' }),
+            responsePayload: toJson(deferredPayload),
+            status: 'PROCESSING',
+          },
+        });
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { externalReference: order.receiptNumber },
+        });
+        return deferredPayload;
+      }
 
+      const failPayload = { providerReference: generateReference('PRV'), externalReference: null as string | null, status: 'FAILED' as const, error: errorMessage, provider: 'BUNDLE_PORTAL', bundlePortalNetwork, packageSizeGb, recipientNumber };
       await prisma.providerTransaction.create({
         data: {
           providerId: provider.id,
           orderId: order.id,
-          requestPayload: toJson({
-            ...requestPayloadBase,
-            codecraftNetwork: isBigTime ? bigTimeNetwork : codecraftNetwork,
-            gig,
-            isBigTime,
-            recipientNumber,
-            endpoint: isBigTime ? 'special.php' : 'initiate.php',
-          }),
+          requestPayload: toJson({ ...requestPayloadBase, bundlePortalNetwork, packageSizeGb, recipientNumber, endpoint: '/v1' }),
           responsePayload: toJson(failPayload),
           status: 'FAILED',
         },
       });
-
       return failPayload;
     }
   }

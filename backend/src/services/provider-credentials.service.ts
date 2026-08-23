@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { env } from '../config/env.js';
 import { prisma } from '../lib/prisma.js';
 
-export type ProviderCode = 'shank' | 'codecraft';
+export type ProviderCode = 'shank' | 'bundleportal';
 
 export interface ProviderCredentials {
   apiKey: string;
@@ -15,9 +15,9 @@ const PROVIDER_DEFAULTS: Record<ProviderCode, { apiKey?: string; baseUrl: string
     apiKey: env.SHANK_API_KEY,
     baseUrl: env.SHANK_API_BASE_URL,
   },
-  codecraft: {
-    apiKey: env.CODECRAFT_API_KEY,
-    baseUrl: env.CODECRAFT_API_BASE_URL,
+  bundleportal: {
+    apiKey: env.BUNDLE_PORTAL_API_KEY,
+    baseUrl: env.BUNDLE_PORTAL_API_BASE_URL,
   },
 };
 
@@ -88,9 +88,9 @@ export const getProviderCredentials = async (
 };
 
 export const getProviderCredentialSummaries = async () => {
-  const [shank, codecraft] = await Promise.all([
+  const [shank, bundleportal] = await Promise.all([
     getProviderCredentials('shank'),
-    getProviderCredentials('codecraft'),
+    getProviderCredentials('bundleportal'),
   ]);
 
   return {
@@ -100,11 +100,11 @@ export const getProviderCredentialSummaries = async () => {
       baseUrl: shank.baseUrl,
       source: shank.source,
     },
-    codecraft: {
-      configured: Boolean(codecraft.apiKey),
-      apiKeyMasked: maskApiKey(codecraft.apiKey),
-      baseUrl: codecraft.baseUrl,
-      source: codecraft.source,
+    bundleportal: {
+      configured: Boolean(bundleportal.apiKey),
+      apiKeyMasked: maskApiKey(bundleportal.apiKey),
+      baseUrl: bundleportal.baseUrl,
+      source: bundleportal.source,
     },
   };
 };

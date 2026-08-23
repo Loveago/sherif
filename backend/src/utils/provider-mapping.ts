@@ -1,6 +1,6 @@
 /**
- * Shared helpers for CodeCraft Network API routing.
- * Used by provider fulfillment and the CodeCraft status worker.
+ * Shared helpers for provider network routing and Ghanaian phone normalization.
+ * Telecel and AirtelTigo fulfillment is handled by Bundle Portal.
  */
 
 const BIG_TIME_PATTERNS = [
@@ -12,8 +12,7 @@ const BIG_TIME_PATTERNS = [
 ];
 
 /**
- * Detect whether a product should use CodeCraft BigTime (`/special.php`)
- * instead of the regular package endpoint (`/initiate.php`).
+ * Detect whether a product is a BigTime-style bundle.
  *
  * Matches on name, description and slug so admin product naming variants work,
  * e.g. "Airteltigo Bigtime", "AT Big Time 50GB", slug "airteltigo-bigtime-50".
@@ -33,10 +32,10 @@ export const isBigTimeProduct = (...parts: Array<string | null | undefined>): bo
 };
 
 /**
- * Normalize internal network codes to CodeCraft network strings.
+ * Normalize internal network codes to provider-neutral aliases.
  * Accepts common aliases so a mis-seeded / renamed network still routes.
  */
-export const toCodecraftNetwork = (
+export const toProviderNetwork = (
   networkCode: string,
 ): 'MTN' | 'AT' | 'TELECEL' | null => {
   const code = (networkCode || '').toUpperCase().replace(/[\s_-]+/g, '');
@@ -59,23 +58,23 @@ export const toCodecraftNetwork = (
 };
 
 /**
- * True when this network is fulfilled via CodeCraft (Telecel + AirtelTigo/AT).
+ * True when this network is fulfilled via Bundle Portal (Telecel + AirtelTigo/AT).
  */
-export const isCodecraftNetwork = (networkCode: string): boolean => {
-  const mapped = toCodecraftNetwork(networkCode);
+export const isBundlePortalNetwork = (networkCode: string): boolean => {
+  const mapped = toProviderNetwork(networkCode);
   return mapped === 'AT' || mapped === 'TELECEL';
 };
 
 /**
- * Derive the CodeCraft `gig` package value from product fields.
- * CodeCraft expects bare numbers: "1", "2", "50" (not "1GB").
+ * Derive a provider package size value from product fields.
+ * Provider package values use bare numeric sizes (for example, "1", "2", "50").
  *
  * Preference order:
  * 1. Explicit dataSize (e.g. "50GB", "500MB")
  * 2. Description / name digits (e.g. "50GB BigTime")
  * 3. Fallback to raw dataSize string
  */
-export const toCodecraftGig = (opts: {
+export const toProviderPackageSize = (opts: {
   dataSize?: string | null;
   description?: string | null;
   name?: string | null;
@@ -91,7 +90,7 @@ export const toCodecraftGig = (opts: {
     if (gbMatch) {
       const n = parseFloat(gbMatch[1]);
       if (Number.isFinite(n) && n > 0) {
-        // CodeCraft packages use whole numbers (1, 2, 50…). Keep decimals only if needed.
+        // Preserve fractional sizes when the product catalog requires them.
         return Number.isInteger(n) ? String(n) : String(n);
       }
     }
@@ -126,10 +125,10 @@ export const toCodecraftGig = (opts: {
 };
 
 /**
- * Normalize Ghana MSISDN to local 0XXXXXXXXX form used by CodeCraft examples.
+ * Normalize Ghana MSISDN to local 0XXXXXXXXX form accepted by provider APIs.
  * Accepts 233..., +233..., 0..., or bare 9-digit local numbers.
  */
-export const toCodecraftRecipient = (phone: string): string => {
+export const normalizeProviderRecipient = (phone: string): string => {
   const digits = (phone || '').replace(/\D/g, '');
   if (!digits) return phone;
 
