@@ -5,6 +5,7 @@ import {
   bundlePortalClient,
   isRetryableBundlePortalError,
   BundlePortalError,
+  type BundlePortalNetwork,
 } from './bundle-portal.service.js';
 import { dataSizeToVolumeMb, normalizeDataSize } from '../utils/shank-mapping.js';
 import {
@@ -52,6 +53,46 @@ export const isInsufficientBalanceError = (message: string | null | undefined): 
   );
 };
 
+export type MtnProviderChoice = 'shank' | 'bundleportal';
+
+/** AdminSettings key that controls which provider fulfills MTN orders. */
+export const MTN_PROVIDER_SETTING_KEY = 'mtnProvider';
+
+/**
+ * Read the admin-controlled MTN routing preference.
+ * Defaults to Shank; anything other than "bundleportal" falls back to Shank.
+ */
+export const resolveMtnProvider = async (): Promise<MtnProviderChoice> => {
+  const setting = await prisma.adminSettings.findUnique({ where: { key: MTN_PROVIDER_SETTING_KEY } });
+  return setting?.value === 'bundleportal' ? 'bundleportal' : 'shank';
+};
+
+/**
+ * Collect order IDs whose fulfillment went through Bundle Portal (marked in the
+ * ProviderTransaction response payload). Status workers use this so MTN orders are
+ * only polled by the worker that actually placed them, even if the admin routing
+ * toggle was flipped after the order was created.
+ */
+export const getBundlePortalFulfilledOrderIds = async (orderIds: string[]): Promise<Set<string>> => {
+  const fulfilled = new Set<string>();
+  if (orderIds.length === 0) return fulfilled;
+
+  const transactions = await prisma.providerTransaction.findMany({
+    where: { orderId: { in: orderIds } },
+    select: { orderId: true, responsePayload: true },
+  });
+
+  for (const tx of transactions) {
+    if (!tx.orderId) continue;
+    const payload = tx.responsePayload as Record<string, unknown> | null;
+    if (payload && typeof payload === 'object' && payload.provider === 'BUNDLE_PORTAL') {
+      fulfilled.add(tx.orderId);
+    }
+  }
+
+  return fulfilled;
+};
+
 export const fulfillOrderWithProvider = async (orderId: string) => {
   const provider = await prisma.provider.findFirst({
     where: { status: 'ACTIVE' },
@@ -90,6 +131,10 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
   const networkCode = order.product.network.code.toUpperCase();
   const bundlePortalNetworkCode = toProviderNetwork(networkCode);
 
+  // Admin toggle: MTN orders can be routed to Bundle Portal instead of Shank.
+  const useBundlePortalForMtn =
+    networkCode === 'MTN' && (await resolveMtnProvider()) === 'bundleportal';
+
   const [shankConfigured, bundlePortalConfigured] = await Promise.all([
     shankClient.isConfigured(),
     bundlePortalClient.isConfigured(),
@@ -117,8 +162,8 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
     return mockResponsePayload;
   }
 
-  // MTN stays on Shank as primary provider
-  if (networkCode === 'MTN') {
+  // MTN is fulfilled by Shank unless the admin routing toggle selects Bundle Portal
+  if (networkCode === 'MTN' && !useBundlePortalForMtn) {
     if (!shankConfigured) {
       throw new Error('SHANK_API_KEY is not configured for MTN orders');
     }
@@ -215,14 +260,20 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
     }
   }
 
-  // Telecel and AirtelTigo are fulfilled through Bundle Portal.
-  if (isBundlePortalNetwork(networkCode)) {
+  // Telecel and AirtelTigo are always fulfilled through Bundle Portal;
+  // MTN joins them when the admin routing toggle selects Bundle Portal.
+  if (isBundlePortalNetwork(networkCode) || useBundlePortalForMtn) {
     const bundlePortalConfigured = await bundlePortalClient.isConfigured();
     if (!bundlePortalConfigured) {
-      throw new Error('BUNDLE_PORTAL_API_KEY is not configured for Telecel/AirtelTigo orders');
+      throw new Error(`BUNDLE_PORTAL_API_KEY is not configured for ${networkCode} orders`);
     }
 
-    const bundlePortalNetwork = bundlePortalNetworkCode === 'AT' ? 'airteltigo' : 'telecel';
+    const bundlePortalNetwork: BundlePortalNetwork =
+      networkCode === 'MTN'
+        ? 'mtn'
+        : bundlePortalNetworkCode === 'AT'
+          ? 'airteltigo'
+          : 'telecel';
     const recipientNumber = normalizeProviderRecipient(order.phoneNumber);
     const normalizedSize = (order.product.dataSize || resolvedDataSize).toUpperCase().replace(/\s/g, '');
     const gbMatch = normalizedSize.match(/(\d+(?:\.\d+)?)GB/);

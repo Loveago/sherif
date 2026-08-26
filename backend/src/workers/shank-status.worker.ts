@@ -4,6 +4,7 @@ import { shankClient, ShankOrderStatusItem } from '../services/shank.service.js'
 import { createNotification } from '../services/notification.service.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
+import { getBundlePortalFulfilledOrderIds } from '../services/provider.service.js';
 import { env } from '../config/env.js';
 import { phonesMatch } from '../utils/phone.js';
 
@@ -303,7 +304,20 @@ export const pollOrderStatuses = async (): Promise<{ checked: number; updated: n
       return { checked: 0, updated: 0 };
     }
 
-    const externalRefs = [...new Set(activeOrders.map((o) => o.externalReference!))];
+    // MTN orders that were routed through Bundle Portal belong to the Bundle Portal
+    // status worker — never poll them against Shank (wrong reference space).
+    const bundlePortalOrderIds = await getBundlePortalFulfilledOrderIds(activeOrders.map((o) => o.id));
+    const shankOrders =
+      bundlePortalOrderIds.size > 0
+        ? activeOrders.filter((o) => !bundlePortalOrderIds.has(o.id))
+        : activeOrders;
+
+    if (shankOrders.length === 0) {
+      console.log('[ShankWorker] Candidate MTN orders are all Bundle Portal-fulfilled; nothing to poll');
+      return { checked: 0, updated: 0 };
+    }
+
+    const externalRefs = [...new Set(shankOrders.map((o) => o.externalReference!))];
     let updated = 0;
 
     for (const externalRef of externalRefs) {
@@ -317,7 +331,7 @@ export const pollOrderStatuses = async (): Promise<{ checked: number; updated: n
           continue;
         }
 
-        const ordersForRef = activeOrders.filter((o) => o.externalReference === externalRef);
+        const ordersForRef = shankOrders.filter((o) => o.externalReference === externalRef);
 
         for (const order of ordersForRef) {
           const matchingItem = pickMatchingStatusItem(items, order);
@@ -352,8 +366,8 @@ export const pollOrderStatuses = async (): Promise<{ checked: number; updated: n
       }
     }
 
-    console.log(`[ShankWorker] Checked ${activeOrders.length} orders, updated ${updated}`);
-    return { checked: activeOrders.length, updated };
+    console.log(`[ShankWorker] Checked ${shankOrders.length} orders, updated ${updated}`);
+    return { checked: shankOrders.length, updated };
   } finally {
     isPolling = false;
   }

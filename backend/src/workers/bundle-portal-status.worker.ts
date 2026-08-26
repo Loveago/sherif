@@ -4,6 +4,7 @@ import { bundlePortalClient, BundlePortalError } from '../services/bundle-portal
 import { createNotification } from '../services/notification.service.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
+import { getBundlePortalFulfilledOrderIds } from '../services/provider.service.js';
 import { env } from '../config/env.js';
 import { phonesMatch } from '../utils/phone.js';
 
@@ -335,8 +336,10 @@ export const pollBundlePortalOrderStatuses = async (): Promise<{ checked: number
         externalReference: { not: null },
         product: {
           network: {
-            // Include common AT aliases so status polling still works if network code was renamed
-            code: { in: ['TELECEL', 'AIRTELTIGO', 'AT', 'AIRTEL', 'TIGO', 'VODAFONE'] },
+            // Include common AT aliases so status polling still works if network code was renamed.
+            // MTN is included because the admin routing toggle can send MTN orders through
+            // Bundle Portal; those are filtered per-order below.
+            code: { in: ['TELECEL', 'AIRTELTIGO', 'AT', 'AIRTEL', 'TIGO', 'VODAFONE', 'MTN'] },
           },
         },
       },
@@ -369,12 +372,29 @@ export const pollBundlePortalOrderStatuses = async (): Promise<{ checked: number
       return { checked: 0, updated: 0 };
     }
 
-    const externalRefs = [...new Set(activeOrders.map((o) => o.externalReference!))];
+    // Only MTN orders that were actually placed through Bundle Portal may be polled here;
+    // Shank-placed MTN orders belong to the Shank status worker.
+    const mtnCandidates = activeOrders.filter((o) => o.product.network.code.toUpperCase() === 'MTN');
+    let eligibleOrders = activeOrders;
+    if (mtnCandidates.length > 0) {
+      const bundlePortalOrderIds = await getBundlePortalFulfilledOrderIds(
+        mtnCandidates.map((o) => o.id),
+      );
+      eligibleOrders = activeOrders.filter(
+        (o) => o.product.network.code.toUpperCase() !== 'MTN' || bundlePortalOrderIds.has(o.id),
+      );
+    }
+
+    if (eligibleOrders.length === 0) {
+      return { checked: 0, updated: 0 };
+    }
+
+    const externalRefs = [...new Set(eligibleOrders.map((o) => o.externalReference!))];
     let updated = 0;
 
     for (const externalRef of externalRefs) {
       try {
-        const ordersForRef = activeOrders.filter((o) => o.externalReference === externalRef);
+        const ordersForRef = eligibleOrders.filter((o) => o.externalReference === externalRef);
         if (ordersForRef.length === 0) {
           continue;
         }
@@ -427,7 +447,7 @@ export const pollBundlePortalOrderStatuses = async (): Promise<{ checked: number
         // Resolve it as failed so the customer gets an automatic refund instead of
         // leaving the order stuck in PROCESSING forever.
         if (error instanceof BundlePortalError && error.status === 404) {
-          const missingOrders = activeOrders.filter((o) => o.externalReference === externalRef);
+          const missingOrders = eligibleOrders.filter((o) => o.externalReference === externalRef);
           for (const order of missingOrders) {
             const changed = await applyOrderStatusUpdate(order as any, OrderStatus.FAILED);
             if (changed) {
@@ -442,8 +462,8 @@ export const pollBundlePortalOrderStatuses = async (): Promise<{ checked: number
       }
     }
 
-    console.log(`[BundlePortalWorker] Checked ${activeOrders.length} orders, updated ${updated}`);
-    return { checked: activeOrders.length, updated };
+    console.log(`[BundlePortalWorker] Checked ${eligibleOrders.length} orders, updated ${updated}`);
+    return { checked: eligibleOrders.length, updated };
   } finally {
     isPolling = false;
   }

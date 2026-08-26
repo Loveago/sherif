@@ -696,6 +696,7 @@ adminRouter.get('/settings', async (_request, response, next) => {
         providerStrategy: {
           mode: map.providerMode ?? 'priority-failover',
           activeProviderReference: map.activeProviderReference || generateReference('CFG'),
+          mtnProvider: map.mtnProvider === 'bundleportal' ? 'bundleportal' : 'shank',
         },
         momoSettings: {
           momoNumber: map.momoNumber || '',

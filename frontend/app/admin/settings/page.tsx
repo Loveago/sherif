@@ -9,7 +9,7 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/lib/api';
-import { Smartphone, CheckCircle, MessageCircle, CreditCard, Key } from 'lucide-react';
+import { Smartphone, CheckCircle, MessageCircle, CreditCard, Key, ArrowLeftRight } from 'lucide-react';
 
 type ProviderCredentialSummary = {
   configured: boolean;
@@ -23,7 +23,7 @@ type AdminSettings = {
   commissionRules: { type: string; value: string | number }[];
   paymentSettings: { paystackEnabled: boolean; momoEnabled: boolean };
   branding: { appName: string; theme: string };
-  providerStrategy: { mode: string; activeProviderReference: string };
+  providerStrategy: { mode: string; activeProviderReference: string; mtnProvider: 'shank' | 'bundleportal' };
   momoSettings: { momoNumber: string; momoName: string; momoEnabled: boolean };
   whatsappNumber: string;
   afaRegistrationFee: number;
@@ -120,6 +120,13 @@ export default function AdminSettingsPage() {
     },
   });
 
+  const mtnRoutingForm = useForm({
+    defaultValues: { mtnProvider: data?.providerStrategy?.mtnProvider ?? 'shank' },
+    values: {
+      mtnProvider: data?.providerStrategy?.mtnProvider ?? 'shank',
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: (values: Record<string, string>) =>
       apiRequest('/admin/settings', { method: 'PUT', body: JSON.stringify(values) }),
@@ -189,6 +196,18 @@ export default function AdminSettingsPage() {
   const onSaveBundlePortal = bundlePortalForm.handleSubmit((values) => {
     providerMutation.mutate({ provider: 'bundleportal', values });
   });
+
+  const onSaveMtnRouting = mtnRoutingForm.handleSubmit((values) => {
+    updateMutation.mutate({
+      mtnProvider: values.mtnProvider,
+    });
+  });
+
+  const mtnProviderOptions = [
+    { value: 'shank' as const, label: 'Shanka5', hint: 'Current default Shank fulfillment' },
+    { value: 'bundleportal' as const, label: 'Bundle Portal', hint: 'Same channel as Telecel / AT orders' },
+  ];
+  const selectedMtnProvider = mtnRoutingForm.watch('mtnProvider');
 
   return (
     <AuthGuard requiredRole="ADMIN">
@@ -407,6 +426,68 @@ export default function AdminSettingsPage() {
                       <CheckCircle className="h-4 w-4" /> Saved
                     </span>
                   ) : 'Save Paystack Keys'}
+                </Button>
+              </div>
+            </div>
+          </GlassCard>
+
+          {/* MTN Order Routing */}
+          <GlassCard className="p-6 md:col-span-2 xl:col-span-3">
+            <div className="flex items-center gap-2">
+              <ArrowLeftRight className="h-5 w-5 text-sky-400" />
+              <p className="text-sm font-semibold text-white">MTN Order Routing</p>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Choose which provider fulfills MTN data orders. Telecel and AirtelTigo always go through Bundle Portal.
+              Switching only affects new orders — in-flight orders keep the provider they were placed with.
+            </p>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <div className="md:col-span-2">
+                <label className="mb-1.5 block text-xs text-gray-400">Fulfill MTN orders via</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {mtnProviderOptions.map((option) => {
+                    const isSelected = selectedMtnProvider === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => mtnRoutingForm.setValue('mtnProvider', option.value)}
+                        className={`rounded-2xl border p-4 text-left transition-colors ${
+                          isSelected
+                            ? 'border-sky-400/60 bg-sky-500/15 text-white'
+                            : 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/25'
+                        }`}
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium">{option.label}</span>
+                          <span
+                            className={`h-4 w-4 rounded-full border ${
+                              isSelected ? 'border-sky-300 bg-sky-400' : 'border-white/30'
+                            }`}
+                          />
+                        </span>
+                        <span className="mt-1 block text-xs text-gray-500">{option.hint}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedMtnProvider === 'bundleportal' && !data?.providerCredentials?.bundleportal.configured && (
+                  <p className="mt-2 text-xs text-amber-300">
+                    Bundle Portal API key is not configured yet — save it below before switching MTN traffic.
+                  </p>
+                )}
+              </div>
+              <div className="flex items-end">
+                <Button
+                  onClick={onSaveMtnRouting}
+                  disabled={updateMutation.isPending}
+                  className="w-full"
+                >
+                  {updateMutation.isPending ? 'Saving...' : saved ? (
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle className="h-4 w-4" /> Saved
+                    </span>
+                  ) : 'Save MTN Routing'}
                 </Button>
               </div>
             </div>

@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { getProviderCredentials } from './provider-credentials.service.js';
 
-export type BundlePortalNetwork = 'telecel' | 'airteltigo';
+export type BundlePortalNetwork = 'telecel' | 'airteltigo' | 'mtn';
 
 export interface BundlePortalResponse<T = Record<string, unknown>> {
   success: boolean;
