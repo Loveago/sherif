@@ -362,7 +362,7 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
         data: {
           providerId: provider.id,
           orderId: order.id,
-          requestPayload: toJson({ ...requestPayloadBase, bundlePortalNetwork, packageSizeGb, recipientNumber, endpoint: '/v1' }),
+          requestPayload: toJson({ ...requestPayloadBase, bundlePortalNetwork, packageSizeGb, recipientNumber, endpoint: '/v2' }),
           responsePayload: toJson(responsePayload),
           status,
         },

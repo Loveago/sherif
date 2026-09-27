@@ -27,8 +27,9 @@ const envSchema = z.object({
   SHANK_API_BASE_URL: z.string().url().default('https://agent.skanka5.com/api/v1'),
   SHANK_WORKER_INTERVAL_MS: z.coerce.number().default(30000),
   BUNDLE_PORTAL_API_KEY: z.string().optional(),
-  BUNDLE_PORTAL_API_BASE_URL: z.string().url().default('https://api.bundleportal.com/v1'),
+  BUNDLE_PORTAL_API_BASE_URL: z.string().url().default('https://api.bundleportal.com/v2'),
   BUNDLE_PORTAL_WORKER_INTERVAL_MS: z.coerce.number().default(30000),
+  BUNDLE_PORTAL_WEBHOOK_SECRET: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

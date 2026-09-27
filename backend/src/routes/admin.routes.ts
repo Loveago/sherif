@@ -26,6 +26,8 @@ import { findPendingStorefrontOrders, reconcileSingleOrder } from '../services/r
 import {
   getProviderCredentialSummaries,
   saveProviderCredentials,
+  getBundlePortalWebhookSecret,
+  saveBundlePortalWebhookSecret,
 } from '../services/provider-credentials.service.js';
 
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
@@ -122,10 +124,23 @@ adminRouter.get('/dashboard', async (_request, response, next) => {
   }
 });
 
-adminRouter.get('/users', async (_request, response, next) => {
+adminRouter.get('/users', async (request, response, next) => {
   try {
+    const { search = '' } = request.query;
+    const query = String(search).trim();
+
     const users = await prisma.user.findMany({
-      where: { deletedAt: null },
+      where: {
+        deletedAt: null,
+        ...(query && {
+          OR: [
+            { firstName: { contains: query, mode: 'insensitive' } },
+            { lastName: { contains: query, mode: 'insensitive' } },
+            { email: { contains: query, mode: 'insensitive' } },
+            { phone: { contains: query, mode: 'insensitive' } },
+          ],
+        }),
+      },
       include: { wallet: true, storefront: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -282,49 +297,82 @@ adminRouter.post('/users/:id/suspend', async (request, response, next) => {
 
 adminRouter.post('/wallets/debit', validate(creditWalletSchema), async (request, response, next) => {
   try {
-    const wallet = await prisma.wallet.findUnique({ where: { userId: request.body.userId } });
+    let wallet = await prisma.wallet.findUnique({ where: { userId: request.body.userId } });
 
     if (!wallet) {
-      return response.status(404).json({ success: false, message: 'Wallet not found' });
+      const user = await prisma.user.findUnique({ where: { id: request.body.userId } });
+      if (!user) {
+        return response.status(404).json({ success: false, message: 'User not found' });
+      }
+      wallet = await prisma.wallet.create({ data: { userId: user.id, availableBalance: 0 } });
     }
 
-    await prisma.$transaction(async (tx) => {
-      await createWalletTransaction(
+    const numAmount = Number(request.body.amount);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const txResult = await createWalletTransaction(
         wallet.id,
-        request.body.amount,
+        numAmount,
         WalletTransactionType.DEBIT,
         WalletTransactionCategory.ADJUSTMENT,
-        request.body.description,
+        `Admin debit: ${request.body.description}`,
         tx,
       );
+
+      await createNotification(
+        request.body.userId,
+        'Wallet Debited',
+        `Your wallet has been debited with GHS ${numAmount.toFixed(2)}. Reason: ${request.body.description}`,
+        'WALLET',
+      );
+
+      return txResult;
     });
 
-    return response.json(createSuccessResponse({ userId: request.body.userId }, 'Wallet debited'));
+    return response.json(createSuccessResponse({ userId: request.body.userId, ...result }, 'Wallet debited successfully'));
   } catch (error) {
+    if (error instanceof Error && error.message === 'Insufficient wallet balance') {
+      return response.status(400).json({ success: false, message: 'User has insufficient wallet balance for this debit.' });
+    }
     return next(error);
   }
 });
 
 adminRouter.post('/wallets/credit', validate(creditWalletSchema), async (request, response, next) => {
   try {
-    const wallet = await prisma.wallet.findUnique({ where: { userId: request.body.userId } });
+    let wallet = await prisma.wallet.findUnique({ where: { userId: request.body.userId } });
 
     if (!wallet) {
-      return response.status(404).json({ success: false, message: 'Wallet not found' });
+      const user = await prisma.user.findUnique({ where: { id: request.body.userId } });
+      if (!user) {
+        return response.status(404).json({ success: false, message: 'User not found' });
+      }
+      wallet = await prisma.wallet.create({ data: { userId: user.id, availableBalance: 0 } });
     }
 
-    await prisma.$transaction(async (tx) => {
-      await createWalletTransaction(
+    const numAmount = Number(request.body.amount);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const txResult = await createWalletTransaction(
         wallet.id,
-        request.body.amount,
+        numAmount,
         WalletTransactionType.CREDIT,
         WalletTransactionCategory.ADJUSTMENT,
-        request.body.description,
+        `Admin credit: ${request.body.description}`,
         tx,
       );
+
+      await createNotification(
+        request.body.userId,
+        'Wallet Credited',
+        `Your wallet has been credited with GHS ${numAmount.toFixed(2)}. Reason: ${request.body.description}`,
+        'WALLET',
+      );
+
+      return txResult;
     });
 
-    return response.json(createSuccessResponse({ userId: request.body.userId }, 'Wallet credited'));
+    return response.json(createSuccessResponse({ userId: request.body.userId, ...result }, 'Wallet credited successfully'));
   } catch (error) {
     return next(error);
   }
@@ -1318,33 +1366,6 @@ adminRouter.get('/audit-logs', async (request, response, next) => {
   }
 });
 
-adminRouter.get('/users', async (request, response, next) => {
-  try {
-    const { search = '' } = request.query;
-
-    const users = await prisma.user.findMany({
-      where: {
-        deletedAt: null,
-        ...(search && {
-          OR: [
-            { firstName: { contains: String(search), mode: 'insensitive' } },
-            { lastName: { contains: String(search), mode: 'insensitive' } },
-            { email: { contains: String(search), mode: 'insensitive' } },
-          ],
-        }),
-      },
-      include: {
-        wallet: { select: { availableBalance: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return response.json(createSuccessResponse(users));
-  } catch (error) {
-    return next(error);
-  }
-});
-
 adminRouter.put('/users/:id', async (request, response, next) => {
   try {
     const { firstName, lastName, email, phone } = request.body;
@@ -1384,12 +1405,12 @@ adminRouter.post('/users/:id/wallet', async (request, response, next) => {
     const { amount, type, reason } = request.body;
 
     if (!amount || !type || !reason) {
-      return response.status(400).json({ success: false, message: 'Missing required fields' });
+      return response.status(400).json({ success: false, message: 'Missing required fields (amount, type, reason)' });
     }
 
     const numAmount = parseFloat(String(amount));
     if (isNaN(numAmount) || numAmount <= 0) {
-      return response.status(400).json({ success: false, message: 'Invalid amount' });
+      return response.status(400).json({ success: false, message: 'Amount must be greater than 0' });
     }
 
     const user = await prisma.user.findUnique({
@@ -1397,36 +1418,56 @@ adminRouter.post('/users/:id/wallet', async (request, response, next) => {
       include: { wallet: true },
     });
 
-    if (!user || !user.wallet) {
-      return response.status(404).json({ success: false, message: 'User or wallet not found' });
+    if (!user) {
+      return response.status(404).json({ success: false, message: 'User not found' });
     }
 
-    const walletId = user.wallet.id;
-    const transactionType = type === 'ADD' ? WalletTransactionType.CREDIT : WalletTransactionType.DEBIT;
+    let wallet = user.wallet;
+    if (!wallet) {
+      wallet = await prisma.wallet.create({
+        data: {
+          userId: user.id,
+          availableBalance: 0,
+        },
+      });
+    }
+
+    const typeStr = String(type).toUpperCase().trim();
+    const isCredit = ['ADD', 'CREDIT'].includes(typeStr);
+    const isDebit = ['REDUCE', 'DEBIT', 'SUBTRACT'].includes(typeStr);
+
+    if (!isCredit && !isDebit) {
+      return response.status(400).json({ success: false, message: 'Type must be CREDIT or DEBIT' });
+    }
+
+    const transactionType = isCredit ? WalletTransactionType.CREDIT : WalletTransactionType.DEBIT;
     const transactionCategory = WalletTransactionCategory.ADJUSTMENT;
 
     const result = await prisma.$transaction(async (tx) => {
       const { updatedWallet, transaction } = await createWalletTransaction(
-        walletId,
+        wallet.id,
         numAmount,
         transactionType,
         transactionCategory,
-        `Admin ${type === 'ADD' ? 'credit' : 'debit'}: ${reason}`,
+        `Admin manual ${isCredit ? 'credit' : 'debit'}: ${reason}`,
         tx,
       );
 
       await createNotification(
         user.id,
-        'Wallet Updated',
-        `Your wallet has been ${type === 'ADD' ? 'credited' : 'debited'} with GHS ${numAmount}. Reason: ${reason}`,
-        'WALLET'
+        `Wallet ${isCredit ? 'Credited' : 'Debited'}`,
+        `Your wallet has been ${isCredit ? 'credited' : 'debited'} with GHS ${numAmount.toFixed(2)}. Reason: ${reason}`,
+        'WALLET',
       );
 
       return { updatedWallet, transaction };
     });
 
-    return response.json(createSuccessResponse(result, 'Wallet updated successfully'));
+    return response.json(createSuccessResponse(result, `Wallet ${isCredit ? 'credited' : 'debited'} successfully`));
   } catch (error) {
+    if (error instanceof Error && error.message === 'Insufficient wallet balance') {
+      return response.status(400).json({ success: false, message: 'User has insufficient wallet balance for this debit.' });
+    }
     return next(error);
   }
 });
@@ -1633,6 +1674,103 @@ adminRouter.post('/bundle-portal/poll-now', async (_request, response, next) => 
     );
   } catch (error) {
     return next(error);
+  }
+});
+
+adminRouter.get('/bundle-portal/balance', async (_request, response, next) => {
+  try {
+    if (!(await bundlePortalClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'BUNDLE_PORTAL_API_KEY not configured' });
+    }
+    const res = await bundlePortalClient.checkBalance();
+    return response.json(createSuccessResponse(res.data, 'Wallet balance retrieved'));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: bundlePortalClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.get('/bundle-portal/bundles', async (request, response, next) => {
+  try {
+    if (!(await bundlePortalClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'BUNDLE_PORTAL_API_KEY not configured' });
+    }
+    const network = typeof request.query.network === 'string' ? request.query.network : undefined;
+    const res = await bundlePortalClient.getBundles(network);
+    return response.json(createSuccessResponse(res.data?.bundles ?? [], 'Bundles retrieved'));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: bundlePortalClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.get('/bundle-portal/transactions', async (request, response, next) => {
+  try {
+    if (!(await bundlePortalClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'BUNDLE_PORTAL_API_KEY not configured' });
+    }
+    const limit = Number(request.query.limit) || 20;
+    const offset = Number(request.query.offset) || 0;
+    const res = await bundlePortalClient.getTransactions(limit, offset);
+    return response.json(createSuccessResponse(res.data, 'Transactions retrieved'));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: bundlePortalClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.post('/bundle-portal/webhook/register', async (request, response, next) => {
+  try {
+    if (!(await bundlePortalClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'BUNDLE_PORTAL_API_KEY not configured' });
+    }
+    const { webhookUrl } = request.body;
+    if (!webhookUrl || typeof webhookUrl !== 'string') {
+      return response.status(400).json({ success: false, message: 'webhookUrl is required' });
+    }
+
+    const res = await bundlePortalClient.setWebhook(webhookUrl.trim());
+    if (res.data?.webhook_secret) {
+      await saveBundlePortalWebhookSecret(res.data.webhook_secret);
+    }
+
+    return response.json(createSuccessResponse(res.data, 'Webhook registered successfully with Bundle Portal'));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: bundlePortalClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.get('/bundle-portal/webhook', async (_request, response, next) => {
+  try {
+    if (!(await bundlePortalClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'BUNDLE_PORTAL_API_KEY not configured' });
+    }
+    const [res, secret] = await Promise.all([
+      bundlePortalClient.getWebhook().catch(() => null),
+      getBundlePortalWebhookSecret(),
+    ]);
+
+    return response.json(
+      createSuccessResponse({
+        registeredUrl: res?.data?.webhook_url ?? null,
+        hasSecretConfigured: Boolean(secret),
+      }),
+    );
+  } catch (error) {
+    return response.status(502).json({ success: false, message: bundlePortalClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.post('/bundle-portal/verify-number', async (request, response, next) => {
+  try {
+    if (!(await bundlePortalClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'BUNDLE_PORTAL_API_KEY not configured' });
+    }
+    const { network, recipient } = request.body;
+    if (!network || !recipient) {
+      return response.status(400).json({ success: false, message: 'network and recipient are required' });
+    }
+    const res = await bundlePortalClient.verifyNumber(network, recipient);
+    return response.json(createSuccessResponse(res.data));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: bundlePortalClient.getErrorMessage(error) });
   }
 });
 

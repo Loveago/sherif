@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Router } from 'express';
 import { OrderStatus, WalletTransactionCategory, WalletTransactionType } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
@@ -6,6 +7,11 @@ import { createNotification } from '../services/notification.service.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
 import { mapShankStatusToOrderStatus } from '../workers/shank-status.worker.js';
+import {
+  applyBundlePortalOrderStatusUpdate,
+  mapBundlePortalStatusToOrderStatus,
+} from '../workers/bundle-portal-status.worker.js';
+import { getBundlePortalWebhookSecret } from '../services/provider-credentials.service.js';
 import type { ShankOrderStatusItem } from '../services/shank.service.js';
 
 export const webhookRouter = Router();
@@ -169,4 +175,78 @@ webhookRouter.post('/webhooks/shank/orders-processed', async (request, response,
   } catch (error) {
     return next(error);
   }
+});
+
+webhookRouter.post('/webhooks/bundleportal', async (request, response, next) => {
+  try {
+    const rawBody = (request as any).rawBody || Buffer.from(JSON.stringify(request.body));
+    const signatureHeader = (request.headers['x-bundleportal-signature'] || '') as string;
+
+    const secret = await getBundlePortalWebhookSecret();
+    if (secret) {
+      const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+      const signatureBuf = Buffer.from(signatureHeader);
+      const expectedBuf = Buffer.from(expected);
+      if (
+        signatureBuf.length !== expectedBuf.length ||
+        !crypto.timingSafeEqual(signatureBuf, expectedBuf)
+      ) {
+        console.warn('[BundlePortalWebhook] Received callback with invalid HMAC signature');
+        return response.status(401).json({ success: false, message: 'Invalid webhook signature' });
+      }
+    }
+
+    const payload = request.body || {};
+    console.log('[BundlePortalWebhook] Received event:', payload.event, 'order_id:', payload.order_id, 'status:', payload.status);
+
+    // Respond 200 quickly within the 5 second timeout requirement
+    response.status(200).json({ success: true, message: 'Webhook received' });
+
+    // Process order update asynchronously
+    const orderId = payload.order_id;
+    const reference = payload.reference;
+    const rawStatus = payload.status || (typeof payload.event === 'string' ? payload.event.replace('order.', '') : null);
+
+    if (!orderId && !reference) {
+      return;
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        status: { in: [OrderStatus.PENDING, OrderStatus.PROCESSING] },
+        OR: [
+          ...(orderId ? [{ receiptNumber: String(orderId) }, { externalReference: String(orderId) }, { providerReference: String(orderId) }] : []),
+          ...(reference ? [{ externalReference: String(reference) }, { providerReference: String(reference) }] : []),
+        ],
+      },
+      include: {
+        product: { include: { network: true } },
+        user: { include: { wallet: true } },
+      },
+    });
+
+    if (!order) {
+      console.log(`[BundlePortalWebhook] No pending order found matching order_id "${orderId}" / ref "${reference}"`);
+      return;
+    }
+
+    const mappedStatus = mapBundlePortalStatusToOrderStatus(rawStatus);
+    if (!mappedStatus) {
+      console.warn(`[BundlePortalWebhook] Could not map status "${rawStatus}" for order ${order.receiptNumber}`);
+      return;
+    }
+
+    await applyBundlePortalOrderStatusUpdate(order as any, mappedStatus, payload.failure_reason);
+    console.log(`[BundlePortalWebhook] Updated order ${order.receiptNumber} -> ${mappedStatus}`);
+  } catch (error) {
+    console.error('[BundlePortalWebhook] Error processing webhook:', error);
+    if (!response.headersSent) {
+      return next(error);
+    }
+  }
+});
+
+webhookRouter.post('/webhooks/bundle-portal', (request, response, next) => {
+  request.url = '/webhooks/bundleportal';
+  webhookRouter.handle(request, response, next);
 });

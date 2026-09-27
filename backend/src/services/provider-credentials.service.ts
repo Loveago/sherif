@@ -80,17 +80,45 @@ export const getProviderCredentials = async (
   const databaseApiKey = apiKeySetting?.value ? decrypt(apiKeySetting.value).trim() : '';
   const environmentApiKey = PROVIDER_DEFAULTS[provider].apiKey?.trim() || '';
 
+  let resolvedBaseUrl = baseUrlSetting?.value.trim() || PROVIDER_DEFAULTS[provider].baseUrl;
+  if (provider === 'bundleportal' && resolvedBaseUrl.includes('/v1')) {
+    resolvedBaseUrl = resolvedBaseUrl.replace('/v1', '/v2');
+  }
+
   return {
     apiKey: databaseApiKey || environmentApiKey,
-    baseUrl: baseUrlSetting?.value.trim() || PROVIDER_DEFAULTS[provider].baseUrl,
+    baseUrl: resolvedBaseUrl,
     source: databaseApiKey ? 'database' : environmentApiKey ? 'environment' : 'none',
   };
 };
 
+export const getBundlePortalWebhookSecret = async (): Promise<string | undefined> => {
+  const setting = await prisma.adminSettings.findUnique({
+    where: { key: 'provider.bundleportal.webhookSecret' },
+  });
+  if (setting?.value) {
+    try {
+      return decrypt(setting.value).trim();
+    } catch {
+      return setting.value.trim();
+    }
+  }
+  return env.BUNDLE_PORTAL_WEBHOOK_SECRET?.trim() || undefined;
+};
+
+export const saveBundlePortalWebhookSecret = async (secret: string): Promise<void> => {
+  await prisma.adminSettings.upsert({
+    where: { key: 'provider.bundleportal.webhookSecret' },
+    update: { value: encrypt(secret.trim()) },
+    create: { key: 'provider.bundleportal.webhookSecret', value: encrypt(secret.trim()) },
+  });
+};
+
 export const getProviderCredentialSummaries = async () => {
-  const [shank, bundleportal] = await Promise.all([
+  const [shank, bundleportal, bundlePortalWebhookSecret] = await Promise.all([
     getProviderCredentials('shank'),
     getProviderCredentials('bundleportal'),
+    getBundlePortalWebhookSecret(),
   ]);
 
   return {
@@ -105,6 +133,7 @@ export const getProviderCredentialSummaries = async () => {
       apiKeyMasked: maskApiKey(bundleportal.apiKey),
       baseUrl: bundleportal.baseUrl,
       source: bundleportal.source,
+      webhookConfigured: Boolean(bundlePortalWebhookSecret),
     },
   };
 };
@@ -113,13 +142,18 @@ export const saveProviderCredentials = async (
   provider: ProviderCode,
   values: { apiKey?: string; baseUrl: string },
 ): Promise<void> => {
+  let cleanBaseUrl = values.baseUrl.trim().replace(/\/$/, '');
+  if (provider === 'bundleportal' && cleanBaseUrl.includes('/v1')) {
+    cleanBaseUrl = cleanBaseUrl.replace('/v1', '/v2');
+  }
+
   const operations = [
     prisma.adminSettings.upsert({
       where: { key: keyName(provider, 'baseUrl') },
-      update: { value: values.baseUrl.trim().replace(/\/$/, '') },
+      update: { value: cleanBaseUrl },
       create: {
         key: keyName(provider, 'baseUrl'),
-        value: values.baseUrl.trim().replace(/\/$/, ''),
+        value: cleanBaseUrl,
       },
     }),
   ];

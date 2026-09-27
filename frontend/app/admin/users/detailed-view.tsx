@@ -26,6 +26,41 @@ export function UserDetailedView({ userId, onClose }: UserDetailedViewProps) {
     role: 'AGENT',
   });
 
+  const [walletMode, setWalletMode] = useState<'CREDIT' | 'DEBIT' | null>(null);
+  const [walletAmount, setWalletAmount] = useState('');
+  const [walletReason, setWalletReason] = useState('');
+  const [walletMsg, setWalletMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const adjustWalletMutation = useMutation({
+    mutationFn: async () => {
+      const numAmount = parseFloat(walletAmount);
+      if (!numAmount || numAmount <= 0) throw new Error('Invalid amount');
+      if (!walletReason.trim()) throw new Error('Reason required');
+      return apiRequest(`/admin/users/${userId}/wallet`, {
+        method: 'POST',
+        body: JSON.stringify({
+          amount: numAmount,
+          type: walletMode,
+          reason: walletReason.trim(),
+        }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-user', userId] });
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setWalletMsg({ type: 'success', text: `Wallet ${walletMode === 'CREDIT' ? 'credited' : 'debited'} successfully!` });
+      setWalletAmount('');
+      setWalletReason('');
+      setTimeout(() => {
+        setWalletMode(null);
+        setWalletMsg(null);
+      }, 1500);
+    },
+    onError: (err: any) => {
+      setWalletMsg({ type: 'error', text: err?.message || 'Adjustment failed' });
+    },
+  });
+
   const { data: user, isLoading } = useQuery({
     queryKey: ['admin-user', userId],
     queryFn: () => apiRequest<User>(`/admin/users/${userId}`),
@@ -108,14 +143,103 @@ export function UserDetailedView({ userId, onClose }: UserDetailedViewProps) {
               </div>
             </div>
 
-            {user.wallet && (
-              <div className="bg-slate-800/50 p-4 rounded-lg">
-                <p className="text-gray-400 text-sm mb-2">Wallet Balance</p>
-                <p className="text-2xl font-bold">{formatCurrency(user.wallet.availableBalance)}</p>
+            {/* Wallet Section */}
+            <div className="rounded-xl border border-white/10 bg-slate-800/40 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-400">Available Wallet Balance</p>
+                  <p className="text-2xl font-bold text-white font-mono mt-0.5">
+                    GHS {formatCurrency(Number(user.wallet?.availableBalance ?? 0))}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setWalletMode('CREDIT');
+                      setWalletMsg(null);
+                    }}
+                    className="text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                  >
+                    + Credit Wallet
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setWalletMode('DEBIT');
+                      setWalletMsg(null);
+                    }}
+                    className="text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                  >
+                    - Debit Wallet
+                  </Button>
+                </div>
               </div>
-            )}
 
-            <div className="flex gap-2 flex-wrap">
+              {/* Status Message */}
+              {walletMsg && (
+                <div className={`mt-3 rounded-lg p-2.5 text-xs ${
+                  walletMsg.type === 'success'
+                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20'
+                    : 'bg-red-500/15 text-red-300 border border-red-500/20'
+                }`}>
+                  {walletMsg.text}
+                </div>
+              )}
+
+              {/* Inline Wallet Adjustment Form */}
+              {walletMode && (
+                <div className="mt-4 pt-3 border-t border-white/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white">
+                      {walletMode === 'CREDIT' ? 'Credit User Funds' : 'Debit User Funds'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setWalletMode(null)}
+                      className="text-xs text-gray-400 hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="Amount (GHS)"
+                      value={walletAmount}
+                      onChange={(e) => setWalletAmount(e.target.value)}
+                      className="font-mono text-xs"
+                    />
+                    <Input
+                      placeholder="Reason for adjustment"
+                      value={walletReason}
+                      onChange={(e) => setWalletReason(e.target.value)}
+                      className="text-xs"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => adjustWalletMutation.mutate()}
+                    disabled={adjustWalletMutation.isPending || !walletAmount || !walletReason}
+                    className={`w-full text-xs ${
+                      walletMode === 'CREDIT'
+                        ? 'bg-emerald-600 hover:bg-emerald-700'
+                        : 'bg-amber-600 hover:bg-amber-700'
+                    }`}
+                  >
+                    {adjustWalletMutation.isPending
+                      ? 'Processing...'
+                      : `Confirm ${walletMode === 'CREDIT' ? 'Credit' : 'Debit'}`}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 flex-wrap pt-2">
               <Button onClick={() => setEditMode(true)}>Edit User</Button>
               {user.deletedAt ? (
                 <Button onClick={() => unsuspendMutation.mutate()} disabled={unsuspendMutation.isPending}>Unsuspend</Button>

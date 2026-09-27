@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { getProviderCredentials } from './provider-credentials.service.js';
 
-export type BundlePortalNetwork = 'telecel' | 'airteltigo' | 'mtn';
+export type BundlePortalNetwork = 'telecel' | 'airteltigo' | 'mtn' | 'mtn_2' | 'mtn_3' | 'ishare';
 
 export interface BundlePortalResponse<T = Record<string, unknown>> {
   success: boolean;
@@ -19,8 +19,33 @@ export interface BundlePortalOrderData {
   bundle?: string;
   amount?: number;
   status?: string;
+  new_balance?: number;
   failure_reason?: string | null;
   [key: string]: unknown;
+}
+
+export interface BundlePortalTransaction {
+  order_id: string;
+  type: string;
+  network: string;
+  bundle: string;
+  amount: number;
+  phone_number: string;
+  status: string;
+  created_at: string;
+  [key: string]: unknown;
+}
+
+export interface BundlePortalBundleItem {
+  id: number;
+  network: string;
+  size: string;
+  size_gb: number;
+  price: number;
+  validity: string;
+  pricing_source?: string;
+  has_custom_price?: boolean;
+  has_role_price?: boolean;
 }
 
 /**
@@ -153,6 +178,249 @@ class BundlePortalClient {
     });
   }
 
+  async checkBalance() {
+    return this.request<{
+      wallet_balance: number;
+      currency: string;
+      user?: { name: string; email: string };
+    }>({
+      action: 'check_balance',
+    });
+  }
+
+  async getBundles(network?: string) {
+    return this.request<{
+      bundles: BundlePortalBundleItem[];
+      count: number;
+    }>({
+      action: 'get_bundles',
+      ...(network ? { network } : {}),
+    });
+  }
+
+  async getTransactions(limit = 20, offset = 0) {
+    return this.request<{
+      transactions: BundlePortalTransaction[];
+      count: number;
+      limit: number;
+      offset: number;
+    }>({
+      action: 'get_transactions',
+      limit,
+      offset,
+    });
+  }
+
+  async setWebhook(webhookUrl: string) {
+    return this.request<{
+      webhook_url: string;
+      webhook_secret: string;
+      events: string[];
+    }>({
+      action: 'set_webhook',
+      webhook_url: webhookUrl,
+    });
+  }
+
+  async getWebhook() {
+    return this.request<{
+      webhook_url: string;
+    }>({
+      action: 'get_webhook',
+    });
+  }
+
+  async deleteWebhook() {
+    return this.request<Record<string, unknown>>({
+      action: 'delete_webhook',
+    });
+  }
+
+  async getAirtimeConfig() {
+    return this.request<{
+      enabled: boolean;
+      minAmount: number;
+      maxAmount: number;
+      networks: string[];
+      payRatio: number;
+      balance: number;
+    }>({
+      action: 'get_airtime_config',
+    });
+  }
+
+  async placeAirtime(network: string, recipient: string, amount: number) {
+    return this.request<{
+      order_id: string;
+      status: string;
+      amount: number;
+      face_value: number;
+      phone_number: string;
+      balance: number;
+    }>({
+      action: 'place_airtime',
+      network,
+      recipient,
+      amount,
+    });
+  }
+
+  async getDataBundles() {
+    return this.request<{
+      enabled: boolean;
+      balance: number;
+      flexiPayRatio: number;
+      packages: Array<{
+        id: number;
+        display_name: string;
+        group_label: string;
+        network: string;
+        data_amount: string;
+        sell_price: number;
+        is_flexi: boolean;
+        min_amount?: number | null;
+        max_amount?: number | null;
+      }>;
+    }>({
+      action: 'get_data_bundles',
+    });
+  }
+
+  async placeDataOrder(packageId: number, recipient: string, amount?: number) {
+    return this.request<{
+      order_id: string;
+      status: string;
+      amount: number;
+      phone_number: string;
+      balance: number;
+    }>({
+      action: 'place_data_order',
+      package_id: packageId,
+      recipient,
+      ...(amount !== undefined ? { amount } : {}),
+    });
+  }
+
+  async getResultCheckers() {
+    return this.request<{
+      result_checkers: Array<{
+        type: string;
+        name: string;
+        price: number;
+        available: number;
+        in_stock: boolean;
+      }>;
+    }>({
+      action: 'get_result_checkers',
+    });
+  }
+
+  async buyResultChecker(productType: string) {
+    return this.request<{
+      success: boolean;
+      name: string;
+      serial: string;
+      pin: string;
+      amount: number;
+      wallet_balance: number;
+      transaction_id: number;
+    }>({
+      action: 'buy_result_checker',
+      product_type: productType,
+    });
+  }
+
+  async getSpecialOffers() {
+    return this.request<{
+      special_offers: Array<{
+        id: number;
+        title: string;
+        description: string;
+        price: number;
+      }>;
+    }>({
+      action: 'get_special_offers',
+    });
+  }
+
+  async buySpecialOffer(offerId: number, recipient: string) {
+    return this.request<{
+      order_id: string;
+      transaction_id: number;
+      offer: string;
+      recipient: string;
+      amount: number;
+      status: string;
+      new_balance: number;
+    }>({
+      action: 'buy_special_offer',
+      offer_id: offerId,
+      recipient,
+    });
+  }
+
+  async getIShareBalance() {
+    return this.request<{
+      network: string;
+      balance: number;
+      unit: string;
+      enabled: boolean;
+    }>({
+      action: 'get_ishare_balance',
+    });
+  }
+
+  async shareIShare(recipient: string, mb: number, orderId?: string) {
+    return this.request<{
+      order_id: string;
+      network: string;
+      recipient: string;
+      amount: number;
+      unit: string;
+      status: string;
+      balance_remaining: number;
+      timestamp: string;
+    }>({
+      action: 'share_ishare',
+      recipient,
+      mb,
+      ...(orderId ? { order_id: orderId } : {}),
+    });
+  }
+
+  async getTelecelBalance() {
+    return this.request<{
+      network: string;
+      balance: number;
+      unit: string;
+      enabled: boolean;
+    }>({
+      action: 'get_telecel_balance',
+    });
+  }
+
+  async shareTelecel(recipient: string, gb: number, orderId?: string) {
+    return this.request<{
+      order_id: string;
+      network: string;
+      recipient: string;
+      amount: number;
+      unit: string;
+      status: string;
+      balance_remaining: number;
+      timestamp: string;
+    }>({
+      action: 'share_telecel',
+      recipient,
+      gb,
+      ...(orderId ? { order_id: orderId } : {}),
+    });
+  }
+
+  /**
+   * Note: In API v2, check_status is refused with HTTP 410 (polling_disabled).
+   * Status updates are delivered via webhook or retrieved via getTransactions().
+   */
   async checkStatus(orderReference: string) {
     return this.request<BundlePortalOrderData>({
       action: 'check_status',

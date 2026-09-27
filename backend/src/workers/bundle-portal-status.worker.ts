@@ -218,17 +218,11 @@ const pickStatusPayloadForOrder = (
   return response;
 };
 
-const fetchBundlePortalStatus = async (externalRef: string) => {
-  const response = await bundlePortalClient.checkStatus(externalRef);
-  const statusText = response.data?.status || null;
-  return { response, statusText, endpoint: 'bundle-portal-v1' as const };
-};
-
-const applyOrderStatusUpdate = async (
+export const applyBundlePortalOrderStatusUpdate = async (
   order: {
     id: string;
     userId: string;
-    amount: { toNumber: () => number };
+    amount: { toNumber: () => number } | number;
     receiptNumber: string;
     source: string;
     status: OrderStatus;
@@ -237,6 +231,7 @@ const applyOrderStatusUpdate = async (
     user: { wallet: { id: string } | null };
   },
   newStatus: OrderStatus,
+  failureReason?: string | null,
 ): Promise<boolean> => {
   // Never downgrade PROCESSING → PENDING
   if (order.status === OrderStatus.PROCESSING && newStatus === OrderStatus.PENDING) {
@@ -248,6 +243,7 @@ const applyOrderStatusUpdate = async (
 
   const isTerminal = newStatus === OrderStatus.SUCCESSFUL || newStatus === OrderStatus.FAILED;
   let didUpdate = false;
+  const orderAmount = typeof order.amount === 'number' ? order.amount : order.amount.toNumber();
 
   await prisma.$transaction(async (tx) => {
     const result = await tx.order.updateMany({
@@ -278,10 +274,10 @@ const applyOrderStatusUpdate = async (
       if (!existingRefund) {
         await createWalletTransaction(
           order.user.wallet.id,
-          order.amount.toNumber(),
+          orderAmount,
           WalletTransactionType.CREDIT,
           WalletTransactionCategory.REFUND,
-          `Automatic refund for failed order ${order.receiptNumber}`,
+          `Automatic refund for failed order ${order.receiptNumber}: ${failureReason || 'Provider delivery failed'}`,
           tx,
         );
 
@@ -289,8 +285,8 @@ const applyOrderStatusUpdate = async (
           data: {
             userId: order.userId,
             orderId: order.id,
-            amount: order.amount as any,
-            reason: 'Automatic refund for failed provider delivery',
+            amount: orderAmount as any,
+            reason: failureReason || 'Automatic refund for failed provider delivery',
             status: 'REFUNDED',
           },
         });
@@ -310,7 +306,7 @@ const applyOrderStatusUpdate = async (
     await createNotification(
       order.userId,
       newStatus === OrderStatus.SUCCESSFUL ? 'Order completed' : 'Order failed',
-      `${order.product.name} for ${order.phoneNumber} is now ${newStatus.toLowerCase()}.`,
+      `${order.product.name} for ${order.phoneNumber} is now ${newStatus.toLowerCase()}.${newStatus === OrderStatus.FAILED ? ' Your wallet has been refunded.' : ''}`,
       'ORDER',
     );
   }
@@ -318,6 +314,12 @@ const applyOrderStatusUpdate = async (
   return true;
 };
 
+/**
+ * In API v2, check_status is disabled (returns HTTP 410).
+ * Statuses are pushed in real-time via webhook.
+ * This worker acts as a background safety-net by periodically pulling get_transactions(50)
+ * to catch and settle any orders where a webhook delivery may have been missed.
+ */
 export const pollBundlePortalOrderStatuses = async (): Promise<{ checked: number; updated: number }> => {
   if (!(await bundlePortalClient.isConfigured())) {
     return { checked: 0, updated: 0 };
@@ -333,12 +335,8 @@ export const pollBundlePortalOrderStatuses = async (): Promise<{ checked: number
     const pendingOrders = await prisma.order.findMany({
       where: {
         status: { in: [OrderStatus.PENDING, OrderStatus.PROCESSING] },
-        externalReference: { not: null },
         product: {
           network: {
-            // Include common AT aliases so status polling still works if network code was renamed.
-            // MTN is included because the admin routing toggle can send MTN orders through
-            // Bundle Portal; those are filtered per-order below.
             code: { in: ['TELECEL', 'AIRTELTIGO', 'AT', 'AIRTEL', 'TIGO', 'VODAFONE', 'MTN'] },
           },
         },
@@ -347,7 +345,6 @@ export const pollBundlePortalOrderStatuses = async (): Promise<{ checked: number
         product: { include: { network: true } },
         user: { include: { wallet: true } },
       },
-      // Prefer freshest open orders so a backlog of stuck rows doesn't starve new ones
       orderBy: { createdAt: 'desc' },
       take: POLL_BATCH_SIZE,
     });
@@ -357,22 +354,16 @@ export const pollBundlePortalOrderStatuses = async (): Promise<{ checked: number
     }
 
     const now = Date.now();
-
     const activeOrders = pendingOrders.filter((o) => {
       const createdAt = new Date(o.createdAt).getTime();
       return now - createdAt <= STALE_ORDER_MS;
     });
 
-    const skippedCount = pendingOrders.length - activeOrders.length;
-    if (skippedCount > 0) {
-      console.log(`[BundlePortalWorker] Skipping ${skippedCount} orders older than 24 hours`);
-    }
-
     if (activeOrders.length === 0) {
       return { checked: 0, updated: 0 };
     }
 
-    // Only MTN orders that were actually placed through Bundle Portal may be polled here;
+    // Only MTN orders that were actually placed through Bundle Portal may be checked here;
     // Shank-placed MTN orders belong to the Shank status worker.
     const mtnCandidates = activeOrders.filter((o) => o.product.network.code.toUpperCase() === 'MTN');
     let eligibleOrders = activeOrders;
@@ -389,80 +380,44 @@ export const pollBundlePortalOrderStatuses = async (): Promise<{ checked: number
       return { checked: 0, updated: 0 };
     }
 
-    const externalRefs = [...new Set(eligibleOrders.map((o) => o.externalReference!))];
     let updated = 0;
 
-    for (const externalRef of externalRefs) {
-      try {
-        const ordersForRef = eligibleOrders.filter((o) => o.externalReference === externalRef);
-        if (ordersForRef.length === 0) {
-          continue;
-        }
+    try {
+      // In API v2, fetch recent provider transactions (up to 50) as our reconciliation source
+      const transactionsRes = await bundlePortalClient.getTransactions(50, 0);
+      const transactions = transactionsRes.data?.transactions ?? [];
 
-        const { response: statusResponse, statusText: rawStatusText, endpoint } = await fetchBundlePortalStatus(
-          externalRef,
-        );
-
-        console.log(
-          `[BundlePortalWorker] Raw status response for ${externalRef} via ${endpoint}:`,
-          JSON.stringify(statusResponse),
-        );
-
-        for (const order of ordersForRef) {
-          // If Bundle Portal returns multiple rows, resolve the one for this phone
-          const scoped = pickStatusPayloadForOrder(statusResponse, order.phoneNumber);
-          const statusText =
-            ordersForRef.length > 1 ? extractBundlePortalOrderStatus(scoped) ?? rawStatusText : rawStatusText;
-
-          const newStatus = mapBundlePortalStatusToOrderStatus(statusText);
-          console.log(
-            `[BundlePortalWorker] ${order.receiptNumber} mapped status "${statusText ?? ''}" -> ${newStatus} for ${externalRef}`,
+      if (transactions.length > 0) {
+        for (const order of eligibleOrders) {
+          // Match by receiptNumber (which we pass as order_id) or externalReference
+          const matchedTx = transactions.find(
+            (tx) =>
+              tx.order_id === order.receiptNumber ||
+              (order.externalReference && tx.order_id === order.externalReference) ||
+              (phonesMatch(tx.phone_number, order.phoneNumber) &&
+                Math.abs(new Date(tx.created_at).getTime() - new Date(order.createdAt).getTime()) < 3600000),
           );
 
-          if (!statusText) {
-            console.log(`[BundlePortalWorker] No order status field found for ${externalRef}, skipping`);
-            continue;
-          }
+          if (!matchedTx) continue;
 
-          if (!newStatus) {
-            console.warn(
-              `[BundlePortalWorker] Unmapped Bundle Portal status "${statusText}" for ${externalRef} — not updating`,
-            );
-            continue;
-          }
+          const newStatus = mapBundlePortalStatusToOrderStatus(matchedTx.status);
+          if (!newStatus || newStatus === order.status) continue;
 
-          const changed = await applyOrderStatusUpdate(order as any, newStatus);
+          console.log(
+            `[BundlePortalWorker] Reconciled order ${order.receiptNumber} from transactions (tx status: "${matchedTx.status}" -> ${newStatus})`,
+          );
+
+          const changed = await applyBundlePortalOrderStatusUpdate(order as any, newStatus);
           if (changed) {
             updated++;
-            console.log(
-              `[BundlePortalWorker] Updated ${order.receiptNumber} ${order.status} -> ${newStatus}`,
-            );
           }
         }
-      } catch (error) {
-        const errorMessage = bundlePortalClient.getErrorMessage(error);
-
-        // A 404 "order not found" for a reference means the order was never created
-        // at Bundle Portal (e.g. a deferred placement that exhausted its retries).
-        // Resolve it as failed so the customer gets an automatic refund instead of
-        // leaving the order stuck in PROCESSING forever.
-        if (error instanceof BundlePortalError && error.status === 404) {
-          const missingOrders = eligibleOrders.filter((o) => o.externalReference === externalRef);
-          for (const order of missingOrders) {
-            const changed = await applyOrderStatusUpdate(order as any, OrderStatus.FAILED);
-            if (changed) {
-              updated++;
-              console.log(`[BundlePortalWorker] Marked ${order.receiptNumber} FAILED (order not found at Bundle Portal)`);
-            }
-          }
-          continue;
-        }
-
-        console.error(`[BundlePortalWorker] Error polling status for ${externalRef}:`, errorMessage);
       }
+    } catch (err) {
+      console.warn('[BundlePortalWorker] Failed to fetch transactions for reconciliation:', bundlePortalClient.getErrorMessage(err));
     }
 
-    console.log(`[BundlePortalWorker] Checked ${eligibleOrders.length} orders, updated ${updated}`);
+    console.log(`[BundlePortalWorker] Checked ${eligibleOrders.length} orders, reconciled ${updated}`);
     return { checked: eligibleOrders.length, updated };
   } finally {
     isPolling = false;
