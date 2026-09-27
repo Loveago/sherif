@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Router } from 'express';
+import { Router, type Request, type Response, type NextFunction } from 'express';
 import { OrderStatus, WalletTransactionCategory, WalletTransactionType } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { createSuccessResponse } from '../utils/response.js';
@@ -177,7 +177,7 @@ webhookRouter.post('/webhooks/shank/orders-processed', async (request, response,
   }
 });
 
-webhookRouter.post('/webhooks/bundleportal', async (request, response, next) => {
+const handleBundlePortalWebhook = async (request: Request, response: Response, next: NextFunction) => {
   try {
     const rawBody = (request as any).rawBody || Buffer.from(JSON.stringify(request.body));
     const signatureHeader = (request.headers['x-bundleportal-signature'] || '') as string;
@@ -244,9 +244,8 @@ webhookRouter.post('/webhooks/bundleportal', async (request, response, next) => 
       return next(error);
     }
   }
-});
+};
 
-webhookRouter.post('/webhooks/bundle-portal', (request, response, next) => {
-  request.url = '/webhooks/bundleportal';
-  webhookRouter.handle(request, response, next);
-});
+webhookRouter.post('/webhooks/bundleportal', handleBundlePortalWebhook);
+webhookRouter.post('/webhooks/bundle-portal', handleBundlePortalWebhook);
+

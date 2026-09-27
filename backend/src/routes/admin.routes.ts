@@ -304,7 +304,7 @@ adminRouter.post('/wallets/debit', validate(creditWalletSchema), async (request,
       if (!user) {
         return response.status(404).json({ success: false, message: 'User not found' });
       }
-      wallet = await prisma.wallet.create({ data: { userId: user.id, availableBalance: 0 } });
+      wallet = await prisma.wallet.create({ data: { userId: user.id, availableBalance: 0, pendingBalance: 0 } });
     }
 
     const numAmount = Number(request.body.amount);
@@ -347,7 +347,7 @@ adminRouter.post('/wallets/credit', validate(creditWalletSchema), async (request
       if (!user) {
         return response.status(404).json({ success: false, message: 'User not found' });
       }
-      wallet = await prisma.wallet.create({ data: { userId: user.id, availableBalance: 0 } });
+      wallet = await prisma.wallet.create({ data: { userId: user.id, availableBalance: 0, pendingBalance: 0 } });
     }
 
     const numAmount = Number(request.body.amount);
@@ -1428,6 +1428,7 @@ adminRouter.post('/users/:id/wallet', async (request, response, next) => {
         data: {
           userId: user.id,
           availableBalance: 0,
+          pendingBalance: 0,
         },
       });
     }

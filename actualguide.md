@@ -400,7 +400,7 @@ Your site is now live at **`https://datahubgh.com`** 🎉
 #### Update the application
 
 ```bash
-cd /var/www/sherif
+cd /var/www/cleandatapacks
 
 # Pull latest code
 git pull origin main
@@ -411,13 +411,13 @@ npm install
 npm run build
 npx prisma migrate deploy
 npx prisma generate
-pm2 restart sherif-backend
+pm2 restart cleandatapacks-backend
 
 # ---- Update Frontend ----
 cd ../frontend
 npm install
 npm run build
-pm2 restart sherif-frontend
+pm2 restart cleandatapacks-frontend
 
 # Reload Nginx (just in case)
 sudo systemctl reload nginx
