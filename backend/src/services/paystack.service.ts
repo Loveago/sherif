@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma.js';
 
 const PAYSTACK_BASE_URL = 'https://api.paystack.co';
 
-async function getPaystackSecretKey(): Promise<string> {
+export async function getPaystackSecretKey(): Promise<string> {
   const setting = await prisma.adminSettings.findUnique({ where: { key: 'paystackSecretKey' } });
   return setting?.value || process.env.PAYSTACK_SECRET_KEY || '';
 }

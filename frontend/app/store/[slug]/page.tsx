@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/api';
 import Image from 'next/image';
 import type { Product, Storefront } from '@/lib/types';
+import { PoweredBy } from '@/components/ui/powered-by';
 import { formatCurrency } from '@/lib/utils';
 import { sortProductsBySize, sortProductsForDisplay, sortNetworksByPriority } from '@/lib/product-sorting';
 
@@ -286,6 +287,7 @@ export default function PublicStorefrontPage() {
             </div>
             <span className="font-semibold text-slate-900">{brandName}</span>
           </div>
+          <PoweredBy variant="light" />
           <div className="flex items-center gap-4">
             <span className="inline-flex items-center gap-1.5"><Shield className="h-4 w-4 text-emerald-500" /> Secured</span>
             <span className="inline-flex items-center gap-1.5"><Wifi className="h-4 w-4 text-blue-500" /> Instant delivery</span>

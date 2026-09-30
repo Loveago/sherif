@@ -24,12 +24,12 @@ export const reconcilerState: ReconcilerState = {
 let workerTimer: NodeJS.Timeout | null = null;
 
 export const runReconcilerTick = async (): Promise<ReconciliationResult> => {
-  if (!reconcilerState.isEnabled || !reconcilerState.startAfter) {
+  if (!reconcilerState.isEnabled) {
     return { checked: 0, reconciled: 0, failed: 0, skipped: 0 };
   }
 
   try {
-    const result = await runReconciliation(reconcilerState.startAfter);
+    const result = await runReconciliation(reconcilerState.startAfter ?? undefined);
     reconcilerState.lastRunAt = new Date();
     reconcilerState.lastResult = result;
     reconcilerState.totalReconciled += result.reconciled;
@@ -47,9 +47,9 @@ export const startPaymentReconciler = () => {
     return;
   }
 
-  // Only track orders created from now onward; ignore all existing pending orders
+  // Look back up to 3 days by default so recent missed payments are never lost across restarts
   if (!reconcilerState.startAfter) {
-    reconcilerState.startAfter = new Date();
+    reconcilerState.startAfter = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
   }
 
   const tick = async () => {

@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { PoweredBy } from '@/components/ui/powered-by';
 import type { Storefront } from '@/lib/types';
 
 const statusIcons: Record<string, React.ReactNode> = {
@@ -320,6 +321,7 @@ export default function StorefrontTrackPage() {
             </div>
             <span className="font-semibold text-slate-900">{storefront?.displayName || 'CheapDataPacks'}</span>
           </div>
+          <PoweredBy variant="light" />
           <div className="flex items-center gap-4">
             <span className="inline-flex items-center gap-1.5"><Shield className="h-4 w-4 text-emerald-500" /> Secured</span>
             <span className="inline-flex items-center gap-1.5"><Wifi className="h-4 w-4 text-blue-500" /> Instant delivery</span>

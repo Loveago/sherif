@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/glass-card';
 import { LandingHeader } from '@/components/landing-header';
+import { PoweredBy } from '@/components/ui/powered-by';
 
 const features = [
   { title: 'Instant Data Delivery', description: 'Automated fulfillment across MTN, Telecel and AirtelTigo.', icon: Zap },
@@ -444,9 +445,12 @@ export default function LandingPage() {
               <p className="text-[9px] text-gray-600">Ghana</p>
             </div>
           </div>
-          <p className="text-center text-sm text-gray-600">
-            © 2026 CheapDataPacks Ghana. Premium enterprise data distribution platform.
-          </p>
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-center text-sm text-gray-600">
+              © 2026 CheapDataPacks Ghana. Premium enterprise data distribution platform.
+            </p>
+            <PoweredBy variant="dark" />
+          </div>
           <div className="flex gap-6 text-sm text-gray-500">
             <Link href="/login" className="transition-colors hover:text-violet-300">Sign In</Link>
             <Link href="/register" className="transition-colors hover:text-violet-300">Register</Link>

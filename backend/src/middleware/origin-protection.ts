@@ -11,6 +11,11 @@ export const originProtection = (request: Request, response: Response, next: Nex
     return next();
   }
 
+  // Webhooks from payment gateways or external providers do not send frontend origin
+  if (request.path.includes('/webhooks')) {
+    return next();
+  }
+
   const origin = request.headers.origin;
 
   if (!origin || allowedOrigins.has(origin) || isLocalDev) {

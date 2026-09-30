@@ -22,7 +22,12 @@ import {
   togglePaymentReconciler,
   reconcilerState,
 } from '../workers/payment-reconciler.worker.js';
-import { findPendingStorefrontOrders, reconcileSingleOrder } from '../services/reconciler.service.js';
+import {
+  findPendingStorefrontOrders,
+  findPendingWalletPayments,
+  reconcileSingleOrder,
+  reconcileSinglePayment,
+} from '../services/reconciler.service.js';
 import {
   getProviderCredentialSummaries,
   saveProviderCredentials,
@@ -1876,7 +1881,13 @@ adminRouter.get('/reconciler/status', requireAuth, requireRole(UserRole.ADMIN), 
         source: 'STOREFRONT',
         status: 'PENDING',
         providerReference: null,
-        ...(status.startAfter && { createdAt: { gt: new Date(status.startAfter) } }),
+      },
+    });
+    const pendingPaymentsCount = await prisma.payment.count({
+      where: {
+        method: 'PAYSTACK',
+        status: 'PENDING',
+        providerRef: { not: null },
       },
     });
 
@@ -1884,6 +1895,7 @@ adminRouter.get('/reconciler/status', requireAuth, requireRole(UserRole.ADMIN), 
       createSuccessResponse({
         ...status,
         pendingCount,
+        pendingPaymentsCount,
       }),
     );
   } catch (error) {
@@ -1902,10 +1914,17 @@ adminRouter.post('/reconciler/trigger', requireAuth, requireRole(UserRole.ADMIN)
 
 adminRouter.get('/reconciler/pending', requireAuth, requireRole(UserRole.ADMIN), async (_request, response, next) => {
   try {
-    const pendingOrders = await findPendingStorefrontOrders(
-      reconcilerState.startAfter ?? undefined,
-    );
+    const pendingOrders = await findPendingStorefrontOrders();
     return response.json(createSuccessResponse(pendingOrders));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.get('/reconciler/pending-payments', requireAuth, requireRole(UserRole.ADMIN), async (_request, response, next) => {
+  try {
+    const pendingPayments = await findPendingWalletPayments();
+    return response.json(createSuccessResponse(pendingPayments));
   } catch (error) {
     return next(error);
   }
@@ -1931,11 +1950,6 @@ adminRouter.post('/reconciler/:orderId/reconcile', requireAuth, requireRole(User
       return response.status(404).json({ success: false, message: 'Order not found or not eligible for reconciliation' });
     }
 
-    // Guard: only reconcile orders created after the reconciler became active
-    if (reconcilerState.startAfter && order.createdAt < reconcilerState.startAfter) {
-      return response.status(400).json({ success: false, message: 'Order was created before the reconciler was active and cannot be reconciled automatically' });
-    }
-
     const result = await reconcileSingleOrder(order);
 
     if (result === 'reconciled') {
@@ -1947,6 +1961,25 @@ adminRouter.post('/reconciler/:orderId/reconcile', requireAuth, requireRole(User
     }
 
     return response.json(createSuccessResponse({ result }, 'Order skipped (not paid yet)'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/reconciler/payments/:paymentId/reconcile', requireAuth, requireRole(UserRole.ADMIN), async (request, response, next) => {
+  try {
+    const paymentId = String(request.params.paymentId);
+    const result = await reconcileSinglePayment(paymentId);
+
+    if (result === 'reconciled') {
+      return response.json(createSuccessResponse({ result }, 'Wallet payment reconciled and credited successfully'));
+    }
+
+    if (result === 'failed') {
+      return response.status(400).json({ success: false, message: 'Reconciliation failed' });
+    }
+
+    return response.json(createSuccessResponse({ result }, 'Payment skipped (not verified as successful on Paystack)'));
   } catch (error) {
     return next(error);
   }

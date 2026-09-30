@@ -9,7 +9,7 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiRequest } from '@/lib/api';
-import { Smartphone, CheckCircle, MessageCircle, CreditCard, Key, ArrowLeftRight, Wallet, RefreshCw, Radio } from 'lucide-react';
+import { Smartphone, CheckCircle, MessageCircle, CreditCard, Key, ArrowLeftRight, Wallet, RefreshCw, Radio, Copy, Check } from 'lucide-react';
 
 type ProviderCredentialSummary = {
   configured: boolean;
@@ -45,6 +45,7 @@ type AdminSettings = {
 export default function AdminSettingsPage() {
   const queryClient = useQueryClient();
   const [saved, setSaved] = useState(false);
+  const [copiedPaystackWebhook, setCopiedPaystackWebhook] = useState(false);
 
   const { data } = useQuery({ queryKey: ['admin-settings'], queryFn: () => apiRequest<AdminSettings>('/admin/settings') });
 
@@ -469,6 +470,38 @@ export default function AdminSettingsPage() {
                     </span>
                   ) : 'Save Paystack Keys'}
                 </Button>
+              </div>
+            </div>
+
+            {/* Paystack Webhook URL info */}
+            <div className="mt-4 pt-4 border-t border-gray-700/40">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold text-gray-300">Paystack Webhook URL</p>
+                  <p className="text-[11px] text-gray-500">
+                    Add this webhook URL to your Paystack Dashboard (Settings &gt; Preferences &gt; Webhooks) so customer payments are validated instantly.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 mt-2 sm:mt-0">
+                  <code className="text-xs bg-black/40 text-blue-300 px-3 py-1.5 rounded-lg border border-white/10 font-mono truncate max-w-xs">
+                    {typeof window !== 'undefined' ? `${window.location.origin}/api/v1/webhooks/paystack` : '/api/v1/webhooks/paystack'}
+                  </code>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      const url = `${window.location.origin}/api/v1/webhooks/paystack`;
+                      navigator.clipboard.writeText(url);
+                      setCopiedPaystackWebhook(true);
+                      setTimeout(() => setCopiedPaystackWebhook(false), 2000);
+                    }}
+                    className="h-8 shrink-0 flex items-center gap-1.5 text-xs"
+                  >
+                    {copiedPaystackWebhook ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedPaystackWebhook ? 'Copied' : 'Copy'}
+                  </Button>
+                </div>
               </div>
             </div>
           </GlassCard>

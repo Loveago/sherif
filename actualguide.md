@@ -418,6 +418,18 @@ cd ../frontend
 npm install
 npm run build
 pm2 restart cleandatapacks-frontend
+cd /var/www/cleandatapacks && \
+git pull origin main && \
+cd backend && \
+npm install && \
+npx prisma generate && \
+npx prisma migrate deploy && \
+npm run build && \
+pm2 restart cleandatapacks-backend && \
+cd ../frontend && \
+npm install && \
+npm run build && \
+pm2 restart cleandatapacks-frontend
 
 # Reload Nginx (just in case)
 sudo systemctl reload nginx

@@ -7,6 +7,7 @@ import { env } from './config/env.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { originProtection } from './middleware/origin-protection.js';
 import { apiRouter } from './routes/index.js';
+import { webhookRouter } from './routes/webhook.routes.js';
 
 export const app = express();
 
@@ -49,4 +50,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(originProtection);
 app.use('/api/v1', apiRouter);
+// Also allow direct webhook paths without /api/v1 prefix (e.g. /webhooks/paystack)
+app.use('/', webhookRouter);
 app.use(errorHandler);

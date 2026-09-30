@@ -15,6 +15,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useCartStore } from '@/store/cart-store';
 import { WhatsAppBubble } from '@/components/whatsapp-bubble';
 import { ThemeSwitcher } from '@/components/theme-switcher';
+import { PoweredBy } from '@/components/ui/powered-by';
 
 interface NavLink {
   href: string;
@@ -389,6 +390,11 @@ export function DashboardShell({
         >
           {children}
         </motion.main>
+
+        {/* Dashboard Shell Footer */}
+        <footer className="mt-auto border-t border-white/[0.04] py-4 px-6 text-center">
+          <PoweredBy variant="dark" />
+        </footer>
 
         {mode === 'agent' && <WhatsAppBubble />}
       </div>

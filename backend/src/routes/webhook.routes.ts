@@ -1,10 +1,10 @@
 import crypto from 'crypto';
 import { Router, type Request, type Response, type NextFunction } from 'express';
-import { OrderStatus, WalletTransactionCategory, WalletTransactionType } from '@prisma/client';
+import { OrderStatus, Prisma, WalletTransactionCategory, WalletTransactionType } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { createSuccessResponse } from '../utils/response.js';
 import { createNotification } from '../services/notification.service.js';
-import { createWalletTransaction } from '../services/wallet.service.js';
+import { createWalletTransaction, getWalletByUserId } from '../services/wallet.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
 import { mapShankStatusToOrderStatus } from '../workers/shank-status.worker.js';
 import {
@@ -12,9 +12,316 @@ import {
   mapBundlePortalStatusToOrderStatus,
 } from '../workers/bundle-portal-status.worker.js';
 import { getBundlePortalWebhookSecret } from '../services/provider-credentials.service.js';
+import { getPaystackSecretKey } from '../services/paystack.service.js';
+import { emitWebhookEvent } from '../services/webhook.service.js';
+import { queueFulfillment } from '../queues/index.js';
+import { generateReference } from '../utils/refs.js';
 import type { ShankOrderStatusItem } from '../services/shank.service.js';
 
+const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
+
 export const webhookRouter = Router();
+
+/**
+ * Handle incoming Paystack webhook events (e.g. charge.success)
+ * Fully validates HMAC SHA512 signature and processes:
+ * 1. Storefront orders (marks paid, increments sales, queues fulfillment)
+ * 2. Wallet deposits (credits wallet balance, updates payment status)
+ * 3. AFA Registrations (marks paymentStatus successful)
+ */
+export const handlePaystackWebhook = async (request: Request, response: Response, next: NextFunction) => {
+  try {
+    const signature = request.headers['x-paystack-signature'] as string | undefined;
+    const secretKey = await getPaystackSecretKey();
+
+    if (secretKey) {
+      if (!signature) {
+        console.warn('[PaystackWebhook] Webhook received without x-paystack-signature header');
+        return response.status(401).json({ success: false, message: 'Missing signature' });
+      }
+
+      const rawBody = (request as any).rawBody || Buffer.from(JSON.stringify(request.body));
+      const hash = crypto.createHmac('sha512', secretKey).update(rawBody).digest('hex');
+
+      if (hash !== signature) {
+        console.warn('[PaystackWebhook] Invalid HMAC signature for webhook');
+        return response.status(401).json({ success: false, message: 'Invalid signature' });
+      }
+    } else {
+      console.warn('[PaystackWebhook] No Paystack secret key configured, skipping signature check');
+    }
+
+    const payload = request.body;
+    const event = payload?.event;
+    const data = payload?.data;
+
+    // Log the incoming webhook to webhook logs
+    try {
+      await prisma.webhookLog.create({
+        data: {
+          event: event ? `paystack.${event}` : 'paystack.unknown',
+          statusCode: 200,
+          success: true,
+          responseBody: JSON.stringify(payload).slice(0, 5000),
+          webhook: {
+            connectOrCreate: {
+              where: { id: 'incoming-paystack' },
+              create: {
+                id: 'incoming-paystack',
+                event: event || 'paystack',
+                url: request.originalUrl,
+                secret: signature || '',
+                active: true,
+              },
+            },
+          },
+        },
+      });
+    } catch (logErr) {
+      console.error('[PaystackWebhook] Failed to log webhook to DB:', logErr);
+    }
+
+    // Acknowledge non-charge.success events immediately
+    if (event !== 'charge.success' || !data || data.status !== 'success') {
+      return response.status(200).json({ success: true, message: 'Event acknowledged' });
+    }
+
+    // Process the successful charge
+    await processPaystackSuccessfulCharge(data);
+
+    return response.status(200).json({ success: true, message: 'Webhook processed successfully' });
+  } catch (error) {
+    console.error('[PaystackWebhook] Error processing webhook:', error);
+    if (!response.headersSent) {
+      return response.status(500).json({ success: false, message: 'Internal error processing webhook' });
+    }
+  }
+};
+
+async function processPaystackSuccessfulCharge(data: any) {
+  const reference = String(data.reference || '');
+  const metadata = data.metadata || {};
+  const amountInCedis = (Number(data.amount) || 0) / 100;
+
+  console.log(`[PaystackWebhook] Processing charge.success for reference "${reference}", amount: GHS ${amountInCedis}`);
+
+  // ─── 1. Check Storefront Order ───
+  const order = await prisma.order.findFirst({
+    where: {
+      OR: [
+        { receiptNumber: reference },
+        { providerReference: reference },
+        ...(metadata.orderId ? [{ receiptNumber: metadata.orderId }] : []),
+      ],
+    },
+    include: {
+      product: { include: { network: true } },
+    },
+  });
+
+  if (order) {
+    if (order.status === 'PENDING' && !order.providerReference) {
+      console.log(`[PaystackWebhook] Fulfilling storefront order ${order.receiptNumber}`);
+      const storefront = await prisma.storefront.findFirst({
+        where: { userId: order.userId },
+      });
+
+      await prisma.$transaction(async (tx) => {
+        await tx.order.update({
+          where: { id: order.id },
+          data: { providerReference: reference },
+        });
+
+        if (storefront) {
+          const nextSalesCount = storefront.sales + 1;
+          const conversionRate = storefront.visits > 0
+            ? Number(((nextSalesCount / storefront.visits) * 100).toFixed(2))
+            : 0;
+
+          await tx.storefront.update({
+            where: { id: storefront.id },
+            data: {
+              sales: { increment: 1 },
+              conversionRate: toDecimal(conversionRate),
+            },
+          });
+        }
+      });
+
+      await createNotification(
+        order.userId,
+        'Storefront order paid (Paystack)',
+        `Order ${order.receiptNumber} for ${order.phoneNumber} has been confirmed and queued for delivery.`,
+        'ORDER',
+      );
+
+      await emitWebhookEvent('order.created', {
+        orderId: order.id,
+        userId: order.userId,
+        source: 'STOREFRONT',
+        viaWebhook: true,
+      });
+
+      queueFulfillment(order.id).catch((err) => {
+        console.error(`[PaystackWebhook] Fulfillment failed for order ${order.id}:`, err);
+      });
+      return;
+    } else {
+      console.log(`[PaystackWebhook] Storefront order ${order.receiptNumber} already validated/processed.`);
+      return;
+    }
+  }
+
+  // ─── 2. Check Wallet Deposit (Payment) ───
+  const payment = await prisma.payment.findFirst({
+    where: {
+      OR: [
+        { providerRef: reference },
+        { reference: reference },
+      ],
+      method: 'PAYSTACK',
+    },
+  });
+
+  if (payment) {
+    if (payment.status !== 'SUCCESSFUL') {
+      console.log(`[PaystackWebhook] Crediting wallet for payment ${payment.id}, amount: GHS ${payment.amount}`);
+      const wallet = await getWalletByUserId(payment.userId);
+
+      await prisma.$transaction(async (tx) => {
+        await createWalletTransaction(
+          wallet.id,
+          payment.amount.toNumber(),
+          WalletTransactionType.CREDIT,
+          WalletTransactionCategory.FUNDING,
+          'Wallet funded via Paystack (Webhook)',
+          tx,
+        );
+
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: 'SUCCESSFUL' },
+        });
+      });
+
+      await createNotification(
+        payment.userId,
+        'Wallet funded',
+        `Your wallet has been credited with GHS ${payment.amount.toFixed(2)}.`,
+        'WALLET',
+      );
+
+      await emitWebhookEvent('wallet.funded', {
+        userId: payment.userId,
+        amount: payment.amount.toNumber(),
+        reference: payment.providerRef || payment.reference,
+        viaWebhook: true,
+      });
+      return;
+    } else {
+      console.log(`[PaystackWebhook] Payment ${payment.id} already marked SUCCESSFUL.`);
+      return;
+    }
+  }
+
+  // Fallback: If payment record was not created beforehand but metadata has userId for wallet funding:
+  if (
+    metadata.userId &&
+    (metadata.amount || amountInCedis > 0) &&
+    metadata.type !== 'AFA_REGISTRATION' &&
+    metadata.source !== 'STOREFRONT'
+  ) {
+    const user = await prisma.user.findUnique({ where: { id: metadata.userId } });
+    if (user) {
+      const depositAmount = Number(metadata.amount) || amountInCedis;
+      console.log(`[PaystackWebhook] Creating and crediting wallet for user ${user.id}, amount: GHS ${depositAmount}`);
+      const wallet = await getWalletByUserId(user.id);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.payment.create({
+          data: {
+            userId: user.id,
+            amount: toDecimal(depositAmount),
+            method: 'PAYSTACK',
+            status: 'SUCCESSFUL',
+            reference: generateReference('PAY'),
+            providerRef: reference,
+          },
+        });
+
+        await createWalletTransaction(
+          wallet.id,
+          depositAmount,
+          WalletTransactionType.CREDIT,
+          WalletTransactionCategory.FUNDING,
+          'Wallet funded via Paystack (Webhook)',
+          tx,
+        );
+      });
+
+      await createNotification(
+        user.id,
+        'Wallet funded',
+        `Your wallet has been credited with GHS ${depositAmount.toFixed(2)}.`,
+        'WALLET',
+      );
+
+      await emitWebhookEvent('wallet.funded', {
+        userId: user.id,
+        amount: depositAmount,
+        reference,
+        viaWebhook: true,
+      });
+      return;
+    }
+  }
+
+  // ─── 3. Check AFA Registration ───
+  const afa = await prisma.aFARegistration.findFirst({
+    where: { paymentReference: reference },
+  });
+
+  if (afa) {
+    if (afa.paymentStatus !== 'SUCCESSFUL') {
+      console.log(`[PaystackWebhook] Marking AFA registration ${afa.id} as SUCCESSFUL`);
+      const relatedPayment = await prisma.payment.findFirst({
+        where: { providerRef: reference },
+      });
+
+      await prisma.$transaction(async (tx) => {
+        await tx.aFARegistration.update({
+          where: { id: afa.id },
+          data: { paymentStatus: 'SUCCESSFUL' },
+        });
+
+        if (relatedPayment) {
+          await tx.payment.update({
+            where: { id: relatedPayment.id },
+            data: { status: 'SUCCESSFUL' },
+          });
+        }
+      });
+
+      await createNotification(
+        afa.userId,
+        'AFA Registration Submitted',
+        `Your AFA registration payment of GHS ${afa.amountPaid?.toFixed(2) || amountInCedis.toFixed(2)} was successful and is now under review.`,
+        'SYSTEM',
+      );
+      return;
+    } else {
+      console.log(`[PaystackWebhook] AFA registration ${afa.id} already SUCCESSFUL.`);
+      return;
+    }
+  }
+
+  console.warn(`[PaystackWebhook] Unhandled charge.success for ref "${reference}" - no matching order, payment, or AFA registration`);
+}
+
+// Paystack webhook routes
+webhookRouter.post('/webhooks/paystack', handlePaystackWebhook);
+webhookRouter.post('/paystack/webhook', handlePaystackWebhook);
+webhookRouter.post('/paystack', handlePaystackWebhook);
 
 webhookRouter.post('/webhooks/:event', async (request, response, next) => {
   try {
