@@ -2427,6 +2427,12 @@ adminRouter.get('/claims/settings', async (_request, response, next) => {
   try {
     const settings = await getSendClaimSettings();
     const forwarderSecret = settings.forwarderSecret || process.env.SMS_FORWARDER_SECRET || DEFAULT_FORWARDER_SECRET;
+    const minimumAmount = typeof (settings as any).minimumAmount?.toNumber === 'function'
+      ? (settings as any).minimumAmount.toNumber()
+      : Number((settings as any).minimumAmount ?? 1);
+    const maximumAmount = typeof (settings as any).maximumAmount?.toNumber === 'function'
+      ? (settings as any).maximumAmount.toNumber()
+      : Number((settings as any).maximumAmount ?? 5000);
     return response.json(createSuccessResponse({
       id: settings.id,
       enabled: settings.enabled,
@@ -2434,8 +2440,8 @@ adminRouter.get('/claims/settings', async (_request, response, next) => {
       momoNumber: settings.momoNumber,
       accountName: settings.accountName,
       instructions: settings.instructions,
-      minimumAmount: settings.minimumAmount.toNumber(),
-      maximumAmount: settings.maximumAmount.toNumber(),
+      minimumAmount,
+      maximumAmount,
       claimExpiryHours: settings.claimExpiryHours,
       forwarderSecret,
       webhookUrl: '/webhooks/momo/sms',
@@ -2471,6 +2477,12 @@ adminRouter.put('/claims/settings', async (request, response, next) => {
   try {
     const updated = await updateSendClaimSettings(request.body);
     const forwarderSecret = updated.forwarderSecret || process.env.SMS_FORWARDER_SECRET || DEFAULT_FORWARDER_SECRET;
+    const minimumAmount = typeof (updated as any).minimumAmount?.toNumber === 'function'
+      ? (updated as any).minimumAmount.toNumber()
+      : Number((updated as any).minimumAmount ?? 1);
+    const maximumAmount = typeof (updated as any).maximumAmount?.toNumber === 'function'
+      ? (updated as any).maximumAmount.toNumber()
+      : Number((updated as any).maximumAmount ?? 5000);
     return response.json(createSuccessResponse({
       id: updated.id,
       enabled: updated.enabled,
@@ -2478,14 +2490,18 @@ adminRouter.put('/claims/settings', async (request, response, next) => {
       momoNumber: updated.momoNumber,
       accountName: updated.accountName,
       instructions: updated.instructions,
-      minimumAmount: updated.minimumAmount.toNumber(),
-      maximumAmount: updated.maximumAmount.toNumber(),
+      minimumAmount,
+      maximumAmount,
       claimExpiryHours: updated.claimExpiryHours,
       forwarderSecret,
       webhookUrl: '/webhooks/momo/sms',
     }, 'Send & Claim settings updated successfully'));
-  } catch (error) {
-    return next(error);
+  } catch (error: any) {
+    console.error('[PUT /claims/settings] Error updating settings:', error);
+    return response.status(400).json({
+      success: false,
+      message: error?.message || 'Failed to update Send & Claim settings',
+    });
   }
 });
 

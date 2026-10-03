@@ -39,31 +39,109 @@ export function resetFailedClaimAttempts(key: string): void {
   failedClaimAttempts.delete(key);
 }
 
+let hasEnsuredColumn = false;
+export async function ensureSendClaimSchema() {
+  if (hasEnsuredColumn) return;
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "SendClaimSettings" ADD COLUMN IF NOT EXISTS "forwarderSecret" TEXT DEFAULT 'tskconnect_forwarder_secret_2026'`
+    );
+    hasEnsuredColumn = true;
+  } catch {
+    // Ignore if not supported or permission denied
+  }
+}
+
 /**
  * Get Send & Claim settings with defaults fallback
  */
 export async function getSendClaimSettings() {
-  const settings = await prisma.sendClaimSettings.findUnique({
-    where: { id: 'default' },
-  });
+  await ensureSendClaimSchema();
 
-  if (!settings) {
-    return prisma.sendClaimSettings.create({
-      data: {
-        id: 'default',
-        enabled: true,
-        network: 'MTN',
-        momoNumber: '0240000000',
-        accountName: 'CheapDataPacks',
-        instructions: 'Send Mobile Money to the number below, then enter your Transaction ID to claim instant credit.',
-        minimumAmount: toDecimal(DEFAULT_MIN_AMOUNT),
-        maximumAmount: toDecimal(DEFAULT_MAX_AMOUNT),
-        claimExpiryHours: DEFAULT_EXPIRY_HOURS,
-      },
-    });
+  let settings: any = null;
+  try {
+    settings = await prisma.sendClaimSettings.findFirst();
+  } catch (err: any) {
+    console.warn('[getSendClaimSettings] findFirst failed, trying raw query fallback:', err?.message);
+    try {
+      const rows: any[] = await prisma.$queryRawUnsafe(
+        `SELECT "id", "enabled", "network", "momoNumber", "accountName", "instructions", "minimumAmount", "maximumAmount", "claimExpiryHours" FROM "SendClaimSettings" LIMIT 1`
+      );
+      if (rows && rows.length > 0) {
+        settings = {
+          ...rows[0],
+          minimumAmount: toDecimal(rows[0].minimumAmount),
+          maximumAmount: toDecimal(rows[0].maximumAmount),
+          forwarderSecret: null,
+        };
+      }
+    } catch (rawErr) {
+      console.error('[getSendClaimSettings] Raw query fallback failed:', rawErr);
+    }
   }
 
-  return settings;
+  if (!settings) {
+    try {
+      settings = await prisma.sendClaimSettings.create({
+        data: {
+          id: 'default',
+          enabled: true,
+          network: 'MTN',
+          momoNumber: '0240000000',
+          accountName: 'CheapDataPacks',
+          instructions: 'Send Mobile Money to the number below, then enter your Transaction ID to claim instant credit.',
+          minimumAmount: toDecimal(DEFAULT_MIN_AMOUNT),
+          maximumAmount: toDecimal(DEFAULT_MAX_AMOUNT),
+          claimExpiryHours: DEFAULT_EXPIRY_HOURS,
+          forwarderSecret: DEFAULT_FORWARDER_SECRET,
+        },
+      });
+    } catch {
+      try {
+        settings = await prisma.sendClaimSettings.create({
+          data: {
+            id: 'default',
+            enabled: true,
+            network: 'MTN',
+            momoNumber: '0240000000',
+            accountName: 'CheapDataPacks',
+            instructions: 'Send Mobile Money to the number below, then enter your Transaction ID to claim instant credit.',
+            minimumAmount: toDecimal(DEFAULT_MIN_AMOUNT),
+            maximumAmount: toDecimal(DEFAULT_MAX_AMOUNT),
+            claimExpiryHours: DEFAULT_EXPIRY_HOURS,
+          } as any,
+        });
+      } catch (e2) {
+        console.error('[getSendClaimSettings] Default create fallback failed:', e2);
+      }
+    }
+  }
+
+  let forwarderSecret = settings?.forwarderSecret;
+  try {
+    const adminSetting = await prisma.adminSettings.findUnique({
+      where: { key: 'forwarderSecret' },
+      select: { value: true },
+    });
+    if (adminSetting?.value && adminSetting.value.trim()) {
+      forwarderSecret = adminSetting.value.trim();
+    }
+  } catch (_) {}
+
+  return {
+    ...(settings || {
+      id: 'default',
+      enabled: true,
+      network: 'MTN',
+      momoNumber: '0240000000',
+      accountName: 'CheapDataPacks',
+      instructions: 'Send Mobile Money to the number below, then enter your Transaction ID to claim instant credit.',
+      minimumAmount: toDecimal(DEFAULT_MIN_AMOUNT),
+      maximumAmount: toDecimal(DEFAULT_MAX_AMOUNT),
+      claimExpiryHours: DEFAULT_EXPIRY_HOURS,
+    }),
+    forwarderSecret: forwarderSecret || process.env.SMS_FORWARDER_SECRET || DEFAULT_FORWARDER_SECRET,
+  };
 }
 
 /**
@@ -80,32 +158,86 @@ export async function updateSendClaimSettings(data: {
   claimExpiryHours?: number;
   forwarderSecret?: string;
 }) {
-  return prisma.sendClaimSettings.upsert({
-    where: { id: 'default' },
-    update: {
-      ...(data.enabled !== undefined && { enabled: data.enabled }),
-      ...(data.network !== undefined && { network: data.network }),
-      ...(data.momoNumber !== undefined && { momoNumber: data.momoNumber }),
-      ...(data.accountName !== undefined && { accountName: data.accountName }),
-      ...(data.instructions !== undefined && { instructions: data.instructions }),
-      ...(data.minimumAmount !== undefined && { minimumAmount: toDecimal(data.minimumAmount) }),
-      ...(data.maximumAmount !== undefined && { maximumAmount: toDecimal(data.maximumAmount) }),
-      ...(data.claimExpiryHours !== undefined && { claimExpiryHours: data.claimExpiryHours }),
-      ...(data.forwarderSecret !== undefined && { forwarderSecret: data.forwarderSecret.trim() }),
-    },
-    create: {
-      id: 'default',
-      enabled: data.enabled ?? true,
-      network: data.network ?? 'MTN',
-      momoNumber: data.momoNumber ?? '0240000000',
-      accountName: data.accountName ?? 'CheapDataPacks',
-      instructions: data.instructions ?? 'Send Mobile Money to the number below, then enter your Transaction ID to claim instant credit.',
-      minimumAmount: toDecimal(data.minimumAmount ?? DEFAULT_MIN_AMOUNT),
-      maximumAmount: toDecimal(data.maximumAmount ?? DEFAULT_MAX_AMOUNT),
-      claimExpiryHours: data.claimExpiryHours ?? DEFAULT_EXPIRY_HOURS,
-      forwarderSecret: data.forwarderSecret?.trim() || DEFAULT_FORWARDER_SECRET,
-    },
-  });
+  await ensureSendClaimSchema();
+
+  let existingId = 'default';
+  try {
+    const existing = await prisma.sendClaimSettings.findFirst({ select: { id: true } });
+    if (existing?.id) {
+      existingId = existing.id;
+    }
+  } catch (_) {}
+
+  const secret = data.forwarderSecret !== undefined && data.forwarderSecret !== null
+    ? String(data.forwarderSecret).trim()
+    : undefined;
+
+  // Persist secret in adminSettings key-value store as well
+  if (secret) {
+    try {
+      await prisma.adminSettings.upsert({
+        where: { key: 'forwarderSecret' },
+        update: { value: secret },
+        create: { key: 'forwarderSecret', value: secret },
+      });
+    } catch (err) {
+      console.warn('[updateSendClaimSettings] adminSettings secret sync failed:', err);
+    }
+  }
+
+  const minAmount = data.minimumAmount !== undefined && !isNaN(Number(data.minimumAmount)) ? Number(data.minimumAmount) : undefined;
+  const maxAmount = data.maximumAmount !== undefined && !isNaN(Number(data.maximumAmount)) ? Number(data.maximumAmount) : undefined;
+  const expiryHours = data.claimExpiryHours !== undefined && !isNaN(Number(data.claimExpiryHours)) ? Math.round(Number(data.claimExpiryHours)) : undefined;
+
+  const updateData: any = {
+    ...(data.enabled !== undefined && { enabled: Boolean(data.enabled) }),
+    ...(data.network !== undefined && { network: String(data.network).trim() }),
+    ...(data.momoNumber !== undefined && { momoNumber: String(data.momoNumber).trim() }),
+    ...(data.accountName !== undefined && { accountName: String(data.accountName).trim() }),
+    ...(data.instructions !== undefined && { instructions: data.instructions }),
+    ...(minAmount !== undefined && { minimumAmount: toDecimal(minAmount) }),
+    ...(maxAmount !== undefined && { maximumAmount: toDecimal(maxAmount) }),
+    ...(expiryHours !== undefined && { claimExpiryHours: expiryHours }),
+  };
+
+  const createData: any = {
+    id: existingId,
+    enabled: data.enabled ?? true,
+    network: data.network ? String(data.network).trim() : 'MTN',
+    momoNumber: data.momoNumber ? String(data.momoNumber).trim() : '0240000000',
+    accountName: data.accountName ? String(data.accountName).trim() : 'CheapDataPacks',
+    instructions: data.instructions ?? 'Send Mobile Money to the number below, then enter your Transaction ID to claim instant credit.',
+    minimumAmount: toDecimal(minAmount ?? DEFAULT_MIN_AMOUNT),
+    maximumAmount: toDecimal(maxAmount ?? DEFAULT_MAX_AMOUNT),
+    claimExpiryHours: expiryHours ?? DEFAULT_EXPIRY_HOURS,
+  };
+
+  let updated: any;
+  try {
+    updated = await prisma.sendClaimSettings.upsert({
+      where: { id: existingId },
+      update: {
+        ...updateData,
+        ...(secret !== undefined && { forwarderSecret: secret }),
+      },
+      create: {
+        ...createData,
+        forwarderSecret: secret || DEFAULT_FORWARDER_SECRET,
+      },
+    });
+  } catch (err: any) {
+    console.warn('[updateSendClaimSettings] Upsert with forwarderSecret failed, retrying without column:', err?.message);
+    updated = await prisma.sendClaimSettings.upsert({
+      where: { id: existingId },
+      update: updateData,
+      create: createData,
+    });
+  }
+
+  return {
+    ...updated,
+    forwarderSecret: secret || updated?.forwarderSecret || DEFAULT_FORWARDER_SECRET,
+  };
 }
 
 /**
@@ -129,8 +261,7 @@ export async function verifyForwarderSecret(providedToken?: string | null): Prom
 
   // 1. Check SendClaimSettings from DB
   try {
-    const settings = await prisma.sendClaimSettings.findUnique({
-      where: { id: 'default' },
+    const settings = await prisma.sendClaimSettings.findFirst({
       select: { forwarderSecret: true },
     });
     if (settings?.forwarderSecret && settings.forwarderSecret.trim()) {

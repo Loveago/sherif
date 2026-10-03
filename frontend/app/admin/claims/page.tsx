@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AuthGuard } from '@/components/auth/auth-guard';
 import { DashboardShell } from '@/components/navigation/dashboard-shell';
@@ -128,6 +128,7 @@ export default function AdminClaimsPage() {
   const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
   const [copiedWebhook, setCopiedWebhook] = useState<boolean>(false);
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
 
   // Setup Card Interactive State
   const [activeMethod, setActiveMethod] = useState<'query' | 'bearer' | 'header'>('query');
@@ -178,14 +179,37 @@ export default function AdminClaimsPage() {
   // Settings local edit state
   const [settingsForm, setSettingsForm] = useState<Partial<SendClaimSettings>>({});
 
+  // Synchronize settingsForm whenever remote settingsData loads or changes
+  useEffect(() => {
+    if (settingsData) {
+      setSettingsForm({
+        enabled: settingsData.enabled,
+        network: settingsData.network,
+        momoNumber: settingsData.momoNumber,
+        accountName: settingsData.accountName,
+        instructions: settingsData.instructions ?? '',
+        minimumAmount: settingsData.minimumAmount,
+        maximumAmount: settingsData.maximumAmount,
+        claimExpiryHours: settingsData.claimExpiryHours,
+        forwarderSecret: settingsData.forwarderSecret ?? '',
+      });
+    }
+  }, [settingsData]);
+
   // Mutations
   const updateSettingsMutation = useMutation({
     mutationFn: (values: Partial<SendClaimSettings>) =>
       apiRequest('/admin/claims/settings', { method: 'PUT', body: JSON.stringify(values) }),
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['admin-claims-settings'] });
-      setSettingsSuccess('Settings successfully updated');
-      setTimeout(() => setSettingsSuccess(null), 3000);
+      setSettingsSuccess(data?.message || 'Send & Claim configuration saved successfully!');
+      setSettingsError(null);
+      setTimeout(() => setSettingsSuccess(null), 4000);
+    },
+    onError: (err: any) => {
+      console.error('Failed to update Send & Claim settings:', err);
+      setSettingsError(err?.message || 'Failed to save settings. Please verify inputs.');
+      setTimeout(() => setSettingsError(null), 6000);
     },
   });
 
@@ -718,8 +742,15 @@ export default function AdminClaimsPage() {
 
                 {settingsSuccess && (
                   <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-xs text-emerald-300">
-                    <CheckCircle className="h-4 w-4" />
-                    {settingsSuccess}
+                    <CheckCircle className="h-4 w-4 shrink-0 text-emerald-400" />
+                    <span>{settingsSuccess}</span>
+                  </div>
+                )}
+
+                {settingsError && (
+                  <div className="flex items-center gap-2 rounded-xl bg-rose-500/10 border border-rose-500/20 p-3 text-xs text-rose-300">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" />
+                    <span>{settingsError}</span>
                   </div>
                 )}
 
@@ -732,7 +763,20 @@ export default function AdminClaimsPage() {
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
-                      updateSettingsMutation.mutate(settingsForm);
+                      setSettingsError(null);
+                      setSettingsSuccess(null);
+                      const payload: Partial<SendClaimSettings> = {
+                        enabled: settingsForm.enabled !== undefined ? settingsForm.enabled : (settingsData?.enabled ?? true),
+                        network: settingsForm.network || settingsData?.network || 'MTN',
+                        momoNumber: (settingsForm.momoNumber ?? settingsData?.momoNumber ?? '').trim(),
+                        accountName: (settingsForm.accountName ?? settingsData?.accountName ?? '').trim(),
+                        instructions: settingsForm.instructions ?? settingsData?.instructions ?? '',
+                        minimumAmount: Number(settingsForm.minimumAmount ?? settingsData?.minimumAmount ?? 1),
+                        maximumAmount: Number(settingsForm.maximumAmount ?? settingsData?.maximumAmount ?? 5000),
+                        claimExpiryHours: Number(settingsForm.claimExpiryHours ?? settingsData?.claimExpiryHours ?? 168),
+                        forwarderSecret: (settingsForm.forwarderSecret ?? settingsData?.forwarderSecret ?? '').trim(),
+                      };
+                      updateSettingsMutation.mutate(payload);
                     }}
                     className="space-y-4 text-xs"
                   >
