@@ -694,6 +694,7 @@ model SendClaimSettings {
   minimumAmount    Decimal  @default(1.00) @db.Decimal(12, 2)
   maximumAmount    Decimal  @default(5000.00) @db.Decimal(12, 2)
   claimExpiryHours Int      @default(168) // 7 days = 168 hours
+  forwarderSecret  String?  @default("tskconnect_forwarder_secret_2026")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }

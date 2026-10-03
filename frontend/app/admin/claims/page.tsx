@@ -38,6 +38,7 @@ import {
   Code2,
   Sparkles,
   CheckCircle2,
+  Key,
 } from 'lucide-react';
 
 interface ClaimItem {
@@ -235,7 +236,7 @@ export default function AdminClaimsPage() {
     }
   };
 
-  const forwarderSecret = settingsData?.forwarderSecret || 'tskconnect_forwarder_secret_2026';
+  const forwarderSecret = settingsForm.forwarderSecret ?? settingsData?.forwarderSecret ?? 'tskconnect_forwarder_secret_2026';
   const webhookUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/webhooks/momo/sms`
     : 'https://cheapdatapacks.com/webhooks/momo/sms';
@@ -814,6 +815,36 @@ export default function AdminClaimsPage() {
                           required
                         />
                       </div>
+                    </div>
+
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-semibold text-emerald-300 flex items-center gap-1.5">
+                          <Key className="h-3.5 w-3.5 text-emerald-400" />
+                          SMS Forwarder Auth Secret (Bearer Token)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const gen = `sec_${Math.random().toString(36).substring(2, 9)}_${Date.now().toString(36)}`;
+                            setSettingsForm((prev) => ({ ...prev, forwarderSecret: gen }));
+                          }}
+                          className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+                        >
+                          Generate Random Key
+                        </button>
+                      </div>
+                      <Input
+                        type="text"
+                        value={settingsForm.forwarderSecret ?? settingsData?.forwarderSecret ?? ''}
+                        onChange={(e) => setSettingsForm((prev) => ({ ...prev, forwarderSecret: e.target.value }))}
+                        placeholder="e.g. tskconnect_forwarder_secret_2026"
+                        className="text-xs font-mono border-emerald-500/30 bg-slate-900/90 text-emerald-300"
+                        required
+                      />
+                      <p className="text-[11px] text-slate-400 leading-tight">
+                        Bearer token used to authenticate incoming SMS webhook. Saved directly in database — <strong className="text-emerald-300">no .env editing required</strong>!
+                      </p>
                     </div>
 
                     <div>

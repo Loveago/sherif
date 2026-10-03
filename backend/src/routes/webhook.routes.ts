@@ -657,7 +657,7 @@ export const handleMomoSmsWebhook = async (request: Request, response: Response,
     const bodySecret = typeof request.body === 'object' && request.body ? (request.body.secret as string | undefined) : undefined;
     const token = authHeader || secretHeader || apiKeyHeader || querySecret || bodySecret;
 
-    if (!verifyForwarderSecret(token)) {
+    if (!await verifyForwarderSecret(token)) {
       console.warn('[MomoSmsWebhook] Unauthorized SMS forwarder attempt. Token provided:', token ? 'YES (masked)' : 'NONE');
       return response.status(401).json({ success: false, message: 'Unauthorized: Invalid forwarder secret' });
     }

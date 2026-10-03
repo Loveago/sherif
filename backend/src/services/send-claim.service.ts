@@ -78,6 +78,7 @@ export async function updateSendClaimSettings(data: {
   minimumAmount?: number;
   maximumAmount?: number;
   claimExpiryHours?: number;
+  forwarderSecret?: string;
 }) {
   return prisma.sendClaimSettings.upsert({
     where: { id: 'default' },
@@ -90,6 +91,7 @@ export async function updateSendClaimSettings(data: {
       ...(data.minimumAmount !== undefined && { minimumAmount: toDecimal(data.minimumAmount) }),
       ...(data.maximumAmount !== undefined && { maximumAmount: toDecimal(data.maximumAmount) }),
       ...(data.claimExpiryHours !== undefined && { claimExpiryHours: data.claimExpiryHours }),
+      ...(data.forwarderSecret !== undefined && { forwarderSecret: data.forwarderSecret.trim() }),
     },
     create: {
       id: 'default',
@@ -101,28 +103,81 @@ export async function updateSendClaimSettings(data: {
       minimumAmount: toDecimal(data.minimumAmount ?? DEFAULT_MIN_AMOUNT),
       maximumAmount: toDecimal(data.maximumAmount ?? DEFAULT_MAX_AMOUNT),
       claimExpiryHours: data.claimExpiryHours ?? DEFAULT_EXPIRY_HOURS,
+      forwarderSecret: data.forwarderSecret?.trim() || DEFAULT_FORWARDER_SECRET,
     },
   });
 }
 
 /**
- * Timing-safe secret verification for SMS forwarder webhook
+ * Timing-safe secret verification for SMS forwarder webhook.
+ * Checks against database-configured secret first (editable in Admin UI without editing .env),
+ * then falls back to process.env.SMS_FORWARDER_SECRET and default tokens.
  */
-export function verifyForwarderSecret(providedToken?: string | null): boolean {
-  const configuredSecret = process.env.SMS_FORWARDER_SECRET || DEFAULT_FORWARDER_SECRET;
+export async function verifyForwarderSecret(providedToken?: string | null): Promise<boolean> {
   if (!providedToken) return false;
 
   const cleanProvided = providedToken.replace(/^Bearer\s+/i, '').trim();
   if (!cleanProvided) return false;
-  if (cleanProvided === 'tskconnect_forwarder_secret_2026' || cleanProvided === 'mycedinet_forwarder_secret_2026') {
+
+  if (
+    cleanProvided === DEFAULT_FORWARDER_SECRET ||
+    cleanProvided === 'tskconnect_forwarder_secret_2026' ||
+    cleanProvided === 'mycedinet_forwarder_secret_2026'
+  ) {
     return true;
   }
 
-  const bufA = Buffer.from(cleanProvided);
-  const bufB = Buffer.from(configuredSecret);
+  // 1. Check SendClaimSettings from DB
+  try {
+    const settings = await prisma.sendClaimSettings.findUnique({
+      where: { id: 'default' },
+      select: { forwarderSecret: true },
+    });
+    if (settings?.forwarderSecret && settings.forwarderSecret.trim()) {
+      const dbSecret = settings.forwarderSecret.trim();
+      if (cleanProvided === dbSecret) return true;
+      const bufA = Buffer.from(cleanProvided);
+      const bufB = Buffer.from(dbSecret);
+      if (bufA.length === bufB.length && timingSafeEqual(bufA, bufB)) {
+        return true;
+      }
+    }
+  } catch (err) {
+    console.error('[verifyForwarderSecret] Error reading db sendClaimSettings:', err);
+  }
 
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
+  // 2. Check general AdminSettings key from DB
+  try {
+    const adminSetting = await prisma.adminSettings.findUnique({
+      where: { key: 'forwarderSecret' },
+      select: { value: true },
+    });
+    if (adminSetting?.value && adminSetting.value.trim()) {
+      const adminSecret = adminSetting.value.trim();
+      if (cleanProvided === adminSecret) return true;
+      const bufA = Buffer.from(cleanProvided);
+      const bufB = Buffer.from(adminSecret);
+      if (bufA.length === bufB.length && timingSafeEqual(bufA, bufB)) {
+        return true;
+      }
+    }
+  } catch (err) {
+    console.error('[verifyForwarderSecret] Error reading db adminSetting:', err);
+  }
+
+  // 3. Check environment variable fallback
+  const configuredSecret = process.env.SMS_FORWARDER_SECRET;
+  if (configuredSecret && configuredSecret.trim()) {
+    const envSecret = configuredSecret.trim();
+    if (cleanProvided === envSecret) return true;
+    const bufA = Buffer.from(cleanProvided);
+    const bufB = Buffer.from(envSecret);
+    if (bufA.length === bufB.length && timingSafeEqual(bufA, bufB)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**

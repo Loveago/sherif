@@ -31,7 +31,7 @@ type AdminSettings = {
     mtnProvider: 'shank' | 'bundleportal' | 'tskconnect';
     otherNetworksProvider?: 'bundleportal' | 'tskconnect';
   };
-  momoSettings: { momoNumber: string; momoName: string; momoEnabled: boolean };
+  momoSettings: { momoNumber: string; momoName: string; momoEnabled: boolean; forwarderSecret?: string };
   whatsappNumber: string;
   afaRegistrationFee: number;
   paystackPublicKey: string;
@@ -61,11 +61,13 @@ export default function AdminSettingsPage() {
       momoNumber: data?.momoSettings?.momoNumber ?? '',
       momoName: data?.momoSettings?.momoName ?? '',
       momoEnabled: data?.momoSettings?.momoEnabled ?? true,
+      forwarderSecret: data?.momoSettings?.forwarderSecret ?? '',
     },
     values: {
       momoNumber: data?.momoSettings?.momoNumber ?? '',
       momoName: data?.momoSettings?.momoName ?? '',
       momoEnabled: data?.momoSettings?.momoEnabled ?? true,
+      forwarderSecret: data?.momoSettings?.forwarderSecret ?? '',
     },
   });
 
@@ -232,6 +234,7 @@ export default function AdminSettingsPage() {
       momoNumber: values.momoNumber,
       momoName: values.momoName,
       momoEnabled: String(values.momoEnabled),
+      forwarderSecret: values.forwarderSecret,
     });
   });
 
@@ -380,19 +383,32 @@ export default function AdminSettingsPage() {
                   {...momoForm.register('momoName')}
                 />
               </div>
-              <div className="flex items-end">
-                <Button
-                  onClick={onSaveMoMo}
-                  disabled={updateMutation.isPending}
-                  className="w-full"
-                >
-                  {updateMutation.isPending ? 'Saving...' : saved ? (
-                    <span className="flex items-center gap-1.5">
-                      <CheckCircle className="h-4 w-4" /> Saved
-                    </span>
-                  ) : 'Save MoMo Details'}
-                </Button>
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400 flex items-center justify-between">
+                  <span>SMS Forwarder Secret (Bearer Token)</span>
+                </label>
+                <Input
+                  placeholder="e.g. tskconnect_forwarder_secret_2026"
+                  className="font-mono text-xs text-emerald-300 border-emerald-500/30 bg-slate-900/80"
+                  {...momoForm.register('forwarderSecret')}
+                />
               </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/[0.06]">
+              <p className="text-[11px] text-slate-400">
+                Bearer secret token used by forwarder app webhooks. Stored in DB — <strong className="text-emerald-300">no .env editing required</strong>.
+              </p>
+              <Button
+                onClick={onSaveMoMo}
+                disabled={updateMutation.isPending}
+                size="sm"
+              >
+                {updateMutation.isPending ? 'Saving...' : saved ? (
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle className="h-4 w-4" /> Saved
+                  </span>
+                ) : 'Save MoMo Details & Secret'}
+              </Button>
             </div>
           </GlassCard>
 
