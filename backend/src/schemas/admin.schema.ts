@@ -66,6 +66,7 @@ export const updateProviderCredentialsSchema = z.object({
   body: z.object({
     apiKey: z.string().trim().optional(),
     baseUrl: z.string().trim().url(),
+    webhookSecret: z.string().trim().optional(),
   }),
   query: z.object({}).optional().default({}),
   params: z.object({

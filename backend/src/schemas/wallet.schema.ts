@@ -31,3 +31,15 @@ export const storefrontWithdrawSchema = z.object({
   query: z.object({}).optional().default({}),
   params: z.object({}).optional().default({}),
 });
+
+export const claimMomoSchema = z.object({
+  body: z.object({
+    transactionReference: z.string().trim().min(3),
+    amount: z.coerce.number().positive().optional(),
+    network: z.string().trim().optional(),
+    senderPhone: z.string().trim().optional(),
+  }),
+  query: z.object({}).optional().default({}),
+  params: z.object({}).optional().default({}),
+});
+

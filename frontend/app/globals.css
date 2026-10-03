@@ -4,13 +4,13 @@
 
 :root {
   color-scheme: dark;
-  --bg-0: #0f0f1e;
-  --bg-1: #1a1a2e;
-  --bg-2: #16213e;
-  --panel: rgba(26, 26, 46, 0.85);
-  --panel-2: rgba(22, 33, 62, 0.92);
-  --stroke: rgba(100, 116, 139, 0.3);
-  --text: #f1f5f9;
+  --bg-0: #080c15;
+  --bg-1: #0c1322;
+  --bg-2: #111b2e;
+  --panel: rgba(12, 19, 34, 0.85);
+  --panel-2: rgba(17, 27, 46, 0.92);
+  --stroke: rgba(255, 255, 255, 0.08);
+  --text: #f8fafc;
   --text-muted: #94a3b8;
   --success: #10b981;
   --danger: #ef4444;
@@ -161,6 +161,7 @@ textarea {
   background: var(--bg-1);
   border: 1px solid var(--stroke);
   border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
 }
 
 /* KPI tile */
@@ -168,6 +169,14 @@ textarea {
   background: var(--bg-1);
   border: 1px solid var(--stroke);
   border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.kpi-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 /* Glass effect (kept for compatibility) */

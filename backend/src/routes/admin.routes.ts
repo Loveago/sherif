@@ -37,7 +37,16 @@ import {
   saveBundlePortalWebhookSecret,
   getTskconnectWebhookSecret,
   saveTskconnectWebhookSecret,
+  type ProviderCode,
 } from '../services/provider-credentials.service.js';
+import {
+  getAdminClaims,
+  getAdminIncomingMomo,
+  getSendClaimSettings,
+  updateSendClaimSettings,
+  approveClaimManually,
+  rejectClaimManually,
+} from '../services/send-claim.service.js';
 
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
 
@@ -801,7 +810,7 @@ adminRouter.put('/settings', validate(updateSettingsSchema), async (request, res
 
 adminRouter.put('/settings/providers/:provider', validate(updateProviderCredentialsSchema), async (request, response, next) => {
   try {
-    await saveProviderCredentials(request.params.provider as 'shank' | 'bundleportal', request.body);
+    await saveProviderCredentials(request.params.provider as ProviderCode, request.body);
     return response.json(createSuccessResponse(await getProviderCredentialSummaries(), 'Provider credentials updated'));
   } catch (error) {
     return next(error);
@@ -2391,3 +2400,97 @@ adminRouter.get('/critical-issues', requireAuth, requireRole(UserRole.ADMIN), as
     return next(error);
   }
 });
+
+adminRouter.get('/claims', async (request, response, next) => {
+  try {
+    const page = Number(request.query.page) || 1;
+    const pageSize = Number(request.query.pageSize) || 20;
+    const status = request.query.status as string | undefined;
+    const network = request.query.network as string | undefined;
+    const q = request.query.q as string | undefined;
+
+    const result = await getAdminClaims({ page, pageSize, status, network, q });
+    return response.json(createSuccessResponse(result));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.get('/claims/settings', async (_request, response, next) => {
+  try {
+    const settings = await getSendClaimSettings();
+    return response.json(createSuccessResponse({
+      id: settings.id,
+      enabled: settings.enabled,
+      network: settings.network,
+      momoNumber: settings.momoNumber,
+      accountName: settings.accountName,
+      instructions: settings.instructions,
+      minimumAmount: settings.minimumAmount.toNumber(),
+      maximumAmount: settings.maximumAmount.toNumber(),
+      claimExpiryHours: settings.claimExpiryHours,
+    }));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.put('/claims/settings', async (request, response, next) => {
+  try {
+    const updated = await updateSendClaimSettings(request.body);
+    return response.json(createSuccessResponse({
+      id: updated.id,
+      enabled: updated.enabled,
+      network: updated.network,
+      momoNumber: updated.momoNumber,
+      accountName: updated.accountName,
+      instructions: updated.instructions,
+      minimumAmount: updated.minimumAmount.toNumber(),
+      maximumAmount: updated.maximumAmount.toNumber(),
+      claimExpiryHours: updated.claimExpiryHours,
+    }, 'Send & Claim settings updated successfully'));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/claims/:id/approve', async (request, response, next) => {
+  try {
+    const result = await approveClaimManually(request.params.id, request.auth!.userId);
+    return response.json(createSuccessResponse(result, 'Claim approved and balance credited'));
+  } catch (error: any) {
+    return response.status(400).json({
+      success: false,
+      message: error?.message || 'Failed to approve claim',
+    });
+  }
+});
+
+adminRouter.post('/claims/:id/reject', async (request, response, next) => {
+  try {
+    const reason = request.body.reason || 'Rejected by administrator';
+    const result = await rejectClaimManually(request.params.id, reason, request.auth!.userId);
+    return response.json(createSuccessResponse(result, 'Claim rejected'));
+  } catch (error: any) {
+    return response.status(400).json({
+      success: false,
+      message: error?.message || 'Failed to reject claim',
+    });
+  }
+});
+
+adminRouter.get('/incoming-momo', async (request, response, next) => {
+  try {
+    const page = Number(request.query.page) || 1;
+    const pageSize = Number(request.query.pageSize) || 20;
+    const status = request.query.status as string | undefined;
+    const network = request.query.network as string | undefined;
+    const q = request.query.q as string | undefined;
+
+    const result = await getAdminIncomingMomo({ page, pageSize, status, network, q });
+    return response.json(createSuccessResponse(result));
+  } catch (error) {
+    return next(error);
+  }
+});
+

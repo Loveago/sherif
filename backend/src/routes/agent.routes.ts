@@ -5,7 +5,8 @@ import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { createSuccessResponse } from '../utils/response.js';
-import { fundWalletSchema, withdrawSchema, storefrontWithdrawSchema } from '../schemas/wallet.schema.js';
+import { fundWalletSchema, withdrawSchema, storefrontWithdrawSchema, claimMomoSchema } from '../schemas/wallet.schema.js';
+import { getSendClaimSettings, claimMomoTransaction, getUserClaimsHistory } from '../services/send-claim.service.js';
 import {
   createOrderSchema,
   initializeStorefrontCheckoutSchema,
@@ -852,6 +853,75 @@ agentRouter.post('/wallet/withdraw', validate(withdrawSchema), async (request, r
       success: false,
       message: 'Withdrawals from the main wallet are currently locked. Please use your storefront wallet for withdrawals.',
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.get('/wallet/send-claim/settings', async (_request, response, next) => {
+  try {
+    const settings = await getSendClaimSettings();
+    return response.json(createSuccessResponse({
+      settings: {
+        id: settings.id,
+        enabled: settings.enabled,
+        network: settings.network,
+        momoNumber: settings.momoNumber,
+        accountName: settings.accountName,
+        instructions: settings.instructions,
+        minimumAmount: settings.minimumAmount.toNumber(),
+        maximumAmount: settings.maximumAmount.toNumber(),
+        claimExpiryHours: settings.claimExpiryHours,
+      },
+    }));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+agentRouter.post('/wallet/send-claim', validate(claimMomoSchema), async (request, response, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: request.auth!.userId },
+      select: { email: true },
+    });
+
+    if (!user) {
+      return response.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const { transactionReference, amount, network, senderPhone } = request.body;
+    const ip = (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || request.ip;
+    const userAgent = (request.headers['user-agent'] as string) || null;
+
+    const result = await claimMomoTransaction({
+      userId: request.auth!.userId,
+      userEmail: user.email,
+      transactionReference,
+      amount: amount ? Number(amount) : undefined,
+      network: network || undefined,
+      senderPhone: senderPhone || undefined,
+      ip,
+      userAgent,
+    });
+
+    return response.status(200).json(createSuccessResponse({
+      claim: result,
+    }, 'Payment verified and credited to wallet!'));
+  } catch (error: any) {
+    return response.status(400).json({
+      success: false,
+      message: error?.message || 'Failed to verify and claim payment',
+    });
+  }
+});
+
+agentRouter.get('/wallet/send-claim/history', async (request, response, next) => {
+  try {
+    const page = Number(request.query.page) || 1;
+    const pageSize = Number(request.query.pageSize) || 20;
+    const history = await getUserClaimsHistory(request.auth!.userId, { page, pageSize });
+    return response.json(createSuccessResponse(history));
   } catch (error) {
     return next(error);
   }

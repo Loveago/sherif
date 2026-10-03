@@ -25,6 +25,7 @@ import { emitWebhookEvent } from '../services/webhook.service.js';
 import { queueFulfillment } from '../queues/index.js';
 import { generateReference } from '../utils/refs.js';
 import type { ShankOrderStatusItem } from '../services/shank.service.js';
+import { verifyForwarderSecret, processIncomingForwardedSms } from '../services/send-claim.service.js';
 
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
 
@@ -642,4 +643,56 @@ const handleTskconnectWebhook = async (request: Request, response: Response, nex
 
 webhookRouter.post('/webhooks/tskconnect', handleTskconnectWebhook);
 webhookRouter.post('/webhooks/tsk-connect', handleTskconnectWebhook);
+
+/**
+ * Handle incoming SMS Forwarder webhook for Send & Claim Mobile Money deposits.
+ * Compatible with common Android SMS Forwarder apps sending JSON or form payloads.
+ */
+export const handleMomoSmsWebhook = async (request: Request, response: Response, next: NextFunction) => {
+  try {
+    const authHeader = (request.headers.authorization as string) || (request.query.secret as string) || (request.body?.secret as string);
+    if (!verifyForwarderSecret(authHeader)) {
+      console.warn('[MomoSmsWebhook] Unauthorized SMS forwarder attempt');
+      return response.status(401).json({ success: false, message: 'Unauthorized: Invalid forwarder secret' });
+    }
+
+    const body = request.body || {};
+    const rawSms = (
+      body.message ||
+      body.sms ||
+      body.text ||
+      body.content ||
+      body.body ||
+      (typeof body === 'string' ? body : '')
+    );
+
+    if (!rawSms || typeof rawSms !== 'string' || !rawSms.trim()) {
+      return response.status(400).json({ success: false, message: 'Missing SMS body or message text' });
+    }
+
+    const senderPhone = body.from || body.sender || body.phone || null;
+    const recipientPhone = body.to || body.recipient || body.simNumber || null;
+    const networkHint = body.network || body.carrier || body.sim || null;
+
+    const result = await processIncomingForwardedSms({
+      rawSms: rawSms.trim(),
+      senderPhone: senderPhone ? String(senderPhone) : null,
+      recipientPhone: recipientPhone ? String(recipientPhone) : null,
+      networkHint: networkHint ? String(networkHint) : null,
+      source: 'SMS_FORWARDER',
+    });
+
+    console.log(`[MomoSmsWebhook] Processed incoming SMS -> Status: ${result.status} (ID: ${result.transactionId})`);
+    return response.status(200).json(result);
+  } catch (error) {
+    console.error('[MomoSmsWebhook] Error processing forwarded SMS:', error);
+    if (!response.headersSent) {
+      return next(error);
+    }
+  }
+};
+
+webhookRouter.post('/webhooks/momo/sms', handleMomoSmsWebhook);
+webhookRouter.post('/momo/sms', handleMomoSmsWebhook);
+
 

@@ -17,6 +17,7 @@ type ProviderCredentialSummary = {
   baseUrl: string;
   source: 'database' | 'environment' | 'none';
   webhookConfigured?: boolean;
+  webhookSecretMasked?: string;
 };
 
 type AdminSettings = {
@@ -121,18 +122,20 @@ export default function AdminSettingsPage() {
   });
 
   const bundlePortalForm = useForm({
-    defaultValues: { apiKey: '', baseUrl: '' },
+    defaultValues: { apiKey: '', baseUrl: '', webhookSecret: '' },
     values: {
       apiKey: '',
       baseUrl: data?.providerCredentials?.bundleportal.baseUrl ?? 'https://api.bundleportal.com/v2',
+      webhookSecret: '',
     },
   });
 
   const tskconnectForm = useForm({
-    defaultValues: { apiKey: '', baseUrl: '' },
+    defaultValues: { apiKey: '', baseUrl: '', webhookSecret: '' },
     values: {
       apiKey: '',
       baseUrl: data?.providerCredentials?.tskconnect?.baseUrl ?? 'https://tsk05.net/v1',
+      webhookSecret: '',
     },
   });
 
@@ -162,7 +165,7 @@ export default function AdminSettingsPage() {
   });
 
   const providerMutation = useMutation({
-    mutationFn: ({ provider, values }: { provider: 'shank' | 'bundleportal' | 'tskconnect'; values: { apiKey: string; baseUrl: string } }) =>
+    mutationFn: ({ provider, values }: { provider: 'shank' | 'bundleportal' | 'tskconnect'; values: { apiKey?: string; baseUrl: string; webhookSecret?: string } }) =>
       apiRequest('/admin/settings/providers/' + provider, {
         method: 'PUT',
         body: JSON.stringify(values),
@@ -170,8 +173,14 @@ export default function AdminSettingsPage() {
     onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
       if (variables.provider === 'shank') shankForm.resetField('apiKey');
-      if (variables.provider === 'bundleportal') bundlePortalForm.resetField('apiKey');
-      if (variables.provider === 'tskconnect') tskconnectForm.resetField('apiKey');
+      if (variables.provider === 'bundleportal') {
+        bundlePortalForm.resetField('apiKey');
+        bundlePortalForm.resetField('webhookSecret');
+      }
+      if (variables.provider === 'tskconnect') {
+        tskconnectForm.resetField('apiKey');
+        tskconnectForm.resetField('webhookSecret');
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     },
@@ -808,6 +817,16 @@ export default function AdminSettingsPage() {
                     <label className="mb-1.5 block text-xs text-gray-400">API URL (v2)</label>
                     <Input type="url" placeholder="https://api.bundleportal.com/v2" {...bundlePortalForm.register('baseUrl', { required: true })} />
                   </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs text-gray-400">Webhook Secret</label>
+                      {data?.providerCredentials?.bundleportal.webhookSecretMasked && (
+                        <span className="font-mono text-[10px] text-cyan-300">Set: {data.providerCredentials.bundleportal.webhookSecretMasked}</span>
+                      )}
+                    </div>
+                    <Input type="password" autoComplete="new-password" placeholder="whsec_... (leave empty to keep current)" {...bundlePortalForm.register('webhookSecret')} />
+                    <p className="mt-1 text-[11px] text-slate-500">Paste your Bundle Portal webhook secret to verify incoming event signatures.</p>
+                  </div>
                   <Button onClick={onSaveBundlePortal} disabled={providerMutation.isPending} className="w-full">
                     {providerMutation.isPending && providerMutation.variables?.provider === 'bundleportal' ? 'Saving...' : saved ? 'Saved' : 'Save Bundle Portal Credentials'}
                   </Button>
@@ -892,6 +911,16 @@ export default function AdminSettingsPage() {
                   <div>
                     <label className="mb-1.5 block text-xs text-gray-400">API URL (v1)</label>
                     <Input type="url" placeholder="https://tsk05.net/v1" {...tskconnectForm.register('baseUrl', { required: true })} />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs text-gray-400">Webhook Secret</label>
+                      {data?.providerCredentials?.tskconnect?.webhookSecretMasked && (
+                        <span className="font-mono text-[10px] text-emerald-300">Set: {data.providerCredentials.tskconnect.webhookSecretMasked}</span>
+                      )}
+                    </div>
+                    <Input type="password" autoComplete="new-password" placeholder="whsec_... or secret (leave empty to keep current)" {...tskconnectForm.register('webhookSecret')} />
+                    <p className="mt-1 text-[11px] text-slate-500">Paste your Tskconnect webhook secret to verify HMAC-SHA256 signatures (X-Tskconnect-Signature).</p>
                   </div>
                   <Button onClick={onSaveTskconnect} disabled={providerMutation.isPending} className="w-full">
                     {providerMutation.isPending && providerMutation.variables?.provider === 'tskconnect' ? 'Saving...' : saved ? 'Saved' : 'Save Tskconnect Credentials'}

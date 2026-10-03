@@ -178,6 +178,7 @@ export const getProviderCredentialSummaries = async () => {
       baseUrl: bundleportal.baseUrl,
       source: bundleportal.source,
       webhookConfigured: Boolean(bundlePortalWebhookSecret),
+      webhookSecretMasked: maskApiKey(bundlePortalWebhookSecret || ''),
     },
     tskconnect: {
       configured: Boolean(tskconnect.apiKey),
@@ -185,13 +186,14 @@ export const getProviderCredentialSummaries = async () => {
       baseUrl: tskconnect.baseUrl,
       source: tskconnect.source,
       webhookConfigured: Boolean(tskconnectWebhookSecret),
+      webhookSecretMasked: maskApiKey(tskconnectWebhookSecret || ''),
     },
   };
 };
 
 export const saveProviderCredentials = async (
   provider: ProviderCode,
-  values: { apiKey?: string; baseUrl: string },
+  values: { apiKey?: string; baseUrl: string; webhookSecret?: string },
 ): Promise<void> => {
   let cleanBaseUrl = values.baseUrl.trim().replace(/\/$/, '');
   if (provider === 'bundleportal' && cleanBaseUrl.includes('/v1')) {
@@ -218,6 +220,27 @@ export const saveProviderCredentials = async (
         create: { key: keyName(provider, 'apiKey'), value: encrypt(apiKey) },
       }),
     );
+  }
+
+  const webhookSecret = values.webhookSecret?.trim();
+  if (webhookSecret) {
+    if (provider === 'bundleportal') {
+      operations.push(
+        prisma.adminSettings.upsert({
+          where: { key: 'provider.bundleportal.webhookSecret' },
+          update: { value: encrypt(webhookSecret) },
+          create: { key: 'provider.bundleportal.webhookSecret', value: encrypt(webhookSecret) },
+        }),
+      );
+    } else if (provider === 'tskconnect') {
+      operations.push(
+        prisma.adminSettings.upsert({
+          where: { key: 'provider.tskconnect.webhookSecret' },
+          update: { value: encrypt(webhookSecret) },
+          create: { key: 'provider.tskconnect.webhookSecret', value: encrypt(webhookSecret) },
+        }),
+      );
+    }
   }
 
   await prisma.$transaction(operations);
