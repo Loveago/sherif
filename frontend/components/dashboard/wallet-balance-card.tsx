@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Wallet } from 'lucide-react';
+import { Wallet, Smartphone } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 
 export function WalletBalanceCard() {
@@ -46,17 +46,26 @@ export function WalletBalanceCard() {
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             Available Balance
           </div>
-          <Link
-            href="/wallet"
-            className="mt-5 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all active:scale-95"
-            style={{
-              background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
-              boxShadow: '0 18px 45px rgba(15,23,42,0.9)',
-            }}
-          >
-            <Wallet className="h-4 w-4" />
-            + Fund Wallet
-          </Link>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <Link
+              href="/wallet"
+              className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-lg transition-all hover:opacity-95 active:scale-95"
+              style={{
+                background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
+                boxShadow: '0 8px 25px rgba(124,58,237,0.3)',
+              }}
+            >
+              <Wallet className="h-4 w-4" />
+              + Fund Wallet
+            </Link>
+            <Link
+              href="/wallet?tab=send-claim"
+              className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-xs sm:text-sm font-semibold text-emerald-300 transition-all hover:bg-emerald-500/20 active:scale-95 shadow-sm"
+            >
+              <Smartphone className="h-4 w-4 text-emerald-400" />
+              Send &amp; Claim (MoMo)
+            </Link>
+          </div>
         </div>
 
         {/* Wallet illustration */}

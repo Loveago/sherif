@@ -650,20 +650,30 @@ webhookRouter.post('/webhooks/tsk-connect', handleTskconnectWebhook);
  */
 export const handleMomoSmsWebhook = async (request: Request, response: Response, next: NextFunction) => {
   try {
-    const authHeader = (request.headers.authorization as string) || (request.query.secret as string) || (request.body?.secret as string);
-    if (!verifyForwarderSecret(authHeader)) {
-      console.warn('[MomoSmsWebhook] Unauthorized SMS forwarder attempt');
+    const authHeader = request.headers.authorization as string | undefined;
+    const secretHeader = (request.headers['x-forwarder-secret'] as string | undefined);
+    const apiKeyHeader = (request.headers['x-api-key'] as string | undefined);
+    const querySecret = (request.query.secret as string | undefined) || (request.query.token as string | undefined);
+    const bodySecret = typeof request.body === 'object' && request.body ? (request.body.secret as string | undefined) : undefined;
+    const token = authHeader || secretHeader || apiKeyHeader || querySecret || bodySecret;
+
+    if (!verifyForwarderSecret(token)) {
+      console.warn('[MomoSmsWebhook] Unauthorized SMS forwarder attempt. Token provided:', token ? 'YES (masked)' : 'NONE');
       return response.status(401).json({ success: false, message: 'Unauthorized: Invalid forwarder secret' });
     }
 
-    const body = request.body || {};
+    const body = (typeof request.body === 'object' && request.body !== null) ? request.body : {};
     const rawSms = (
       body.message ||
-      body.sms ||
+      body.body ||
       body.text ||
       body.content ||
-      body.body ||
-      (typeof body === 'string' ? body : '')
+      body.sms ||
+      body.msg ||
+      body.textMsg ||
+      body.desp ||
+      body.data ||
+      (typeof request.body === 'string' ? request.body : '')
     );
 
     if (!rawSms || typeof rawSms !== 'string' || !rawSms.trim()) {
@@ -683,7 +693,10 @@ export const handleMomoSmsWebhook = async (request: Request, response: Response,
     });
 
     console.log(`[MomoSmsWebhook] Processed incoming SMS -> Status: ${result.status} (ID: ${result.transactionId})`);
-    return response.status(200).json(result);
+    return response.status(200).json({
+      received: true,
+      ...result,
+    });
   } catch (error) {
     console.error('[MomoSmsWebhook] Error processing forwarded SMS:', error);
     if (!response.headersSent) {
@@ -691,6 +704,10 @@ export const handleMomoSmsWebhook = async (request: Request, response: Response,
     }
   }
 };
+
+// GET ping endpoints for connectivity testing
+webhookRouter.get('/webhooks/momo/sms', (_req, res) => res.json({ status: 'ok', service: 'momo-sms-webhook' }));
+webhookRouter.get('/momo/sms', (_req, res) => res.json({ status: 'ok', service: 'momo-sms-webhook' }));
 
 webhookRouter.post('/webhooks/momo/sms', handleMomoSmsWebhook);
 webhookRouter.post('/momo/sms', handleMomoSmsWebhook);

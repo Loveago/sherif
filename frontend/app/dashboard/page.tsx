@@ -54,19 +54,66 @@ function DashboardContent({ data, router }: { data: any; router: any }) {
   const networkUsage = data.networkUsage ?? [];
 
   return (
-    <div className="mx-auto max-w-xl lg:max-w-none space-y-4">
+    <div className="mx-auto max-w-xl lg:max-w-none space-y-5">
       {/* Wallet Balance */}
       <div className="animate-fade-in">
         <WalletBalanceCard />
       </div>
 
+      {/* Mobile Quick Action Shortcuts (visible on sm/mobile) */}
+      <div className="lg:hidden grid grid-cols-2 sm:grid-cols-4 gap-2.5 animate-fade-in" style={{ animationDelay: '0.1s' }}>
+        <button
+          onClick={() => router.push('/buy-data')}
+          className="flex flex-col items-center justify-center p-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] transition-all active:scale-95"
+        >
+          <div className="h-9 w-9 rounded-xl bg-violet-500/20 text-violet-400 flex items-center justify-center mb-1.5">
+            <span className="text-base font-bold">⚡</span>
+          </div>
+          <span className="text-xs font-semibold text-white">Buy Data</span>
+          <span className="text-[10px] text-slate-400">Instant bundles</span>
+        </button>
+
+        <button
+          onClick={() => router.push('/wallet?tab=send-claim')}
+          className="flex flex-col items-center justify-center p-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all active:scale-95"
+        >
+          <div className="h-9 w-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-1.5">
+            <span className="text-base font-bold">📲</span>
+          </div>
+          <span className="text-xs font-semibold text-emerald-300">Send &amp; Claim</span>
+          <span className="text-[10px] text-emerald-200/70">MoMo credit</span>
+        </button>
+
+        <button
+          onClick={() => router.push('/wallet')}
+          className="flex flex-col items-center justify-center p-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] transition-all active:scale-95"
+        >
+          <div className="h-9 w-9 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center mb-1.5">
+            <span className="text-base font-bold">💳</span>
+          </div>
+          <span className="text-xs font-semibold text-white">Fund Wallet</span>
+          <span className="text-[10px] text-slate-400">Paystack top-up</span>
+        </button>
+
+        <button
+          onClick={() => router.push('/orders')}
+          className="flex flex-col items-center justify-center p-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] transition-all active:scale-95"
+        >
+          <div className="h-9 w-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center mb-1.5">
+            <span className="text-base font-bold">📦</span>
+          </div>
+          <span className="text-xs font-semibold text-white">My Orders</span>
+          <span className="text-[10px] text-slate-400">History &amp; status</span>
+        </button>
+      </div>
+
       {/* Overview Section Header */}
-      <div className="flex items-center justify-between pt-1 animate-fade-in" style={{ animationDelay: '0.1s' }}>
+      <div className="flex items-center justify-between pt-1 animate-fade-in" style={{ animationDelay: '0.15s' }}>
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-violet-400" />
-          <h2 className="text-sm font-bold text-white">Overview</h2>
+          <h2 className="text-sm font-bold text-white tracking-tight">Overview &amp; Statistics</h2>
         </div>
-        <select defaultValue="This Month" className="rounded-lg border border-gray-700/60 bg-gray-900/80 px-2.5 py-1 text-[11px] text-gray-300 outline-none">
+        <select defaultValue="This Month" className="rounded-lg border border-white/[0.08] bg-slate-900/80 px-2.5 py-1 text-[11px] text-gray-300 outline-none">
           <option>This Month</option>
           <option>Last Month</option>
           <option>This Year</option>
@@ -78,40 +125,40 @@ function DashboardContent({ data, router }: { data: any; router: any }) {
         <OverviewStats stats={stats} />
       </div>
 
-      {/* Total Spending */}
-      <div className="animate-fade-in" style={{ animationDelay: '0.3s' }}>
-        <SpendingCard value={formatCurrency(metrics.totalSpending ?? 0)} change="+22.4%" />
-      </div>
-
-      {/* Spending Chart */}
-      <div className="animate-fade-in" style={{ animationDelay: '0.4s' }}>
-        <SpendingChart data={revenueSeries} dataKey="revenue" />
+      {/* Spending Breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-1 animate-fade-in" style={{ animationDelay: '0.3s' }}>
+          <SpendingCard value={formatCurrency(metrics.totalSpending ?? 0)} change="+22.4%" />
+        </div>
+        <div className="lg:col-span-2 animate-fade-in" style={{ animationDelay: '0.35s' }}>
+          <SpendingChart data={revenueSeries} dataKey="revenue" />
+        </div>
       </div>
 
       {/* Refer & Earn */}
-      <div className="animate-fade-in" style={{ animationDelay: '0.5s' }}>
+      <div className="animate-fade-in" style={{ animationDelay: '0.4s' }}>
         <ReferEarnCard />
       </div>
 
-      {/* Desktop extras */}
-      <div className="hidden lg:grid lg:grid-cols-[1fr_0.8fr_0.5fr] lg:gap-4">
-        <div className="animate-fade-in" style={{ animationDelay: '0.6s' }}>
+      {/* Transactions & Network Activity (Visible on mobile & desktop) */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.8fr_0.6fr] gap-4">
+        <div className="animate-fade-in" style={{ animationDelay: '0.45s' }}>
           <TransactionList
             title="Recent Transactions"
             orders={orders}
             onViewAll={() => router.push('/orders')}
           />
         </div>
-        <div className="animate-fade-in" style={{ animationDelay: '0.7s' }}>
+        <div className="animate-fade-in" style={{ animationDelay: '0.5s' }}>
           <DonutChartCard
-            title="Top Networks"
+            title="Network Distribution"
             data={networkUsage.map((entry: any) => ({
               label: entry.networkCode,
               count: entry.orders,
             }))}
           />
         </div>
-        <div className="animate-fade-in" style={{ animationDelay: '0.8s' }}>
+        <div className="hidden lg:block animate-fade-in" style={{ animationDelay: '0.55s' }}>
           <QuickActionsCard />
         </div>
       </div>

@@ -30,6 +30,14 @@ import {
   ArrowRight,
   ShieldCheck,
   MessageSquare,
+  Terminal,
+  Play,
+  Zap,
+  HelpCircle,
+  ExternalLink,
+  Code2,
+  Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface ClaimItem {
@@ -92,6 +100,8 @@ interface SendClaimSettings {
   minimumAmount: number;
   maximumAmount: number;
   claimExpiryHours: number;
+  forwarderSecret?: string;
+  webhookUrl?: string;
 }
 
 export default function AdminClaimsPage() {
@@ -117,6 +127,24 @@ export default function AdminClaimsPage() {
   const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
   const [copiedWebhook, setCopiedWebhook] = useState<boolean>(false);
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
+
+  // Setup Card Interactive State
+  const [activeMethod, setActiveMethod] = useState<'query' | 'bearer' | 'header'>('query');
+  const [activeApp, setActiveApp] = useState<'macrodroid' | 'smsforwarder'>('macrodroid');
+  const [copiedSecret, setCopiedSecret] = useState(false);
+  const [copiedFullUrl, setCopiedFullUrl] = useState(false);
+  const [copiedHeader, setCopiedHeader] = useState(false);
+  const [copiedCustomHeader, setCopiedCustomHeader] = useState(false);
+  const [copiedCurl, setCopiedCurl] = useState(false);
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
+
+  // In-Browser Live Parser Tester State
+  const [testSmsInput, setTestSmsInput] = useState(
+    'Payment received for GHS 50.00 from 0241234567. Current Balance: GHS 150.00. Reference: 28391049281. Transaction ID: 28391049281.'
+  );
+  const [testSmsNetwork, setTestSmsNetwork] = useState('MTN');
+  const [testResult, setTestResult] = useState<{ matched: boolean; parsed?: any; message?: string } | null>(null);
+  const [testingParser, setTestingParser] = useState(false);
 
   // Queries
   const { data: claimsData, isLoading: loadingClaims, refetch: refetchClaims } = useQuery({
@@ -181,10 +209,10 @@ export default function AdminClaimsPage() {
     },
   });
 
-  const handleCopy = (text: string) => {
+  const copyToClipboard = (text: string, setter: (val: boolean) => void) => {
     navigator.clipboard.writeText(text);
-    setCopiedWebhook(true);
-    setTimeout(() => setCopiedWebhook(false), 2000);
+    setter(true);
+    setTimeout(() => setter(false), 2000);
   };
 
   const getStatusBadge = (status: string) => {
@@ -207,9 +235,35 @@ export default function AdminClaimsPage() {
     }
   };
 
+  const forwarderSecret = settingsData?.forwarderSecret || 'tskconnect_forwarder_secret_2026';
   const webhookUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/webhooks/momo/sms`
     : 'https://cheapdatapacks.com/webhooks/momo/sms';
+
+  const fullUrlWithSecret = webhookUrl.includes('?')
+    ? `${webhookUrl}&secret=${forwarderSecret}`
+    : `${webhookUrl}?secret=${forwarderSecret}`;
+
+  const curlTestCommand = `curl -X POST "${fullUrlWithSecret}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"message": "Payment received for GHS 10.00 from 0241234567. Transaction ID: TEST${Date.now()}."}'`;
+
+  const handleTestParser = async () => {
+    if (!testSmsInput.trim()) return;
+    setTestingParser(true);
+    setTestResult(null);
+    try {
+      const res = await apiRequest<{ matched: boolean; parsed?: any; message?: string }>('/admin/claims/test-parser', {
+        method: 'POST',
+        body: JSON.stringify({ rawSms: testSmsInput.trim(), network: testSmsNetwork }),
+      });
+      setTestResult(res);
+    } catch (err: any) {
+      setTestResult({ matched: false, message: err?.message || 'Failed to test SMS parser' });
+    } finally {
+      setTestingParser(false);
+    }
+  };
 
   return (
     <AuthGuard>
@@ -625,198 +679,593 @@ export default function AdminClaimsPage() {
 
         {/* TAB 3: Settings & Webhook */}
         {activeTab === 'settings' && (
-          <div className="grid gap-5 xl:grid-cols-3">
-            {/* Settings Form */}
-            <GlassCard className="p-6 xl:col-span-2">
-              <div className="flex items-center justify-between">
+          <div className="space-y-6">
+            <div className="grid gap-6 xl:grid-cols-12">
+              {/* Settings Form - 5 Cols */}
+              <GlassCard className="p-6 xl:col-span-5 space-y-5">
+                <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <Sliders className="h-5 w-5 text-violet-400" />
+                      Send &amp; Claim Configuration
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Configure your primary Mobile Money recipient number and limits.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentVal = settingsForm.enabled ?? settingsData?.enabled ?? true;
+                      setSettingsForm((prev) => ({ ...prev, enabled: !currentVal }));
+                    }}
+                    className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                      (settingsForm.enabled ?? settingsData?.enabled ?? true)
+                        ? 'bg-emerald-500'
+                        : 'bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                        (settingsForm.enabled ?? settingsData?.enabled ?? true)
+                          ? 'left-[22px]'
+                          : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {settingsSuccess && (
+                  <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-xs text-emerald-300">
+                    <CheckCircle className="h-4 w-4" />
+                    {settingsSuccess}
+                  </div>
+                )}
+
+                {loadingSettings ? (
+                  <div className="py-12 text-center text-slate-400">
+                    <RefreshCw className="mx-auto h-6 w-6 animate-spin text-violet-400" />
+                    <p className="mt-2 text-xs">Loading configuration...</p>
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      updateSettingsMutation.mutate(settingsForm);
+                    }}
+                    className="space-y-4 text-xs"
+                  >
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block font-semibold text-slate-400">MoMo Network</label>
+                        <Select
+                          value={settingsForm.network ?? settingsData?.network ?? 'MTN'}
+                          onChange={(e) => setSettingsForm((prev) => ({ ...prev, network: e.target.value }))}
+                          className="text-xs"
+                        >
+                          <option value="MTN">MTN Mobile Money</option>
+                          <option value="TELECEL">Telecel Cash</option>
+                          <option value="AIRTELTIGO">AirtelTigo Money</option>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block font-semibold text-slate-400">Admin MoMo Number</label>
+                        <Input
+                          value={settingsForm.momoNumber ?? settingsData?.momoNumber ?? ''}
+                          onChange={(e) => setSettingsForm((prev) => ({ ...prev, momoNumber: e.target.value }))}
+                          placeholder="e.g. 0241234567"
+                          className="text-xs font-mono"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block font-semibold text-slate-400">Account / Merchant Name</label>
+                        <Input
+                          value={settingsForm.accountName ?? settingsData?.accountName ?? ''}
+                          onChange={(e) => setSettingsForm((prev) => ({ ...prev, accountName: e.target.value }))}
+                          placeholder="e.g. CheapDataPacks"
+                          className="text-xs"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block font-semibold text-slate-400">Claim Expiry (Hours)</label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="720"
+                          value={settingsForm.claimExpiryHours ?? settingsData?.claimExpiryHours ?? 168}
+                          onChange={(e) => setSettingsForm((prev) => ({ ...prev, claimExpiryHours: Number(e.target.value) }))}
+                          placeholder="168 (7 days)"
+                          className="text-xs"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block font-semibold text-slate-400">Minimum Deposit (GHS)</label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0.10"
+                          value={settingsForm.minimumAmount ?? settingsData?.minimumAmount ?? 1}
+                          onChange={(e) => setSettingsForm((prev) => ({ ...prev, minimumAmount: Number(e.target.value) }))}
+                          className="text-xs"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block font-semibold text-slate-400">Maximum Deposit (GHS)</label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="1"
+                          value={settingsForm.maximumAmount ?? settingsData?.maximumAmount ?? 5000}
+                          onChange={(e) => setSettingsForm((prev) => ({ ...prev, maximumAmount: Number(e.target.value) }))}
+                          className="text-xs"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block font-semibold text-slate-400">User-Facing Instructions</label>
+                      <textarea
+                        rows={3}
+                        value={settingsForm.instructions ?? settingsData?.instructions ?? ''}
+                        onChange={(e) => setSettingsForm((prev) => ({ ...prev, instructions: e.target.value }))}
+                        placeholder="Instructions shown to users when sending money..."
+                        className="w-full rounded-xl border border-slate-700 bg-slate-900/60 p-3 text-xs text-white placeholder-slate-500 outline-none focus:border-violet-500"
+                      />
+                    </div>
+
+                    <Button
+                      type="submit"
+                      disabled={updateSettingsMutation.isPending}
+                      className="w-full mt-2"
+                    >
+                      {updateSettingsMutation.isPending ? 'Saving Settings...' : 'Save Settings'}
+                    </Button>
+                  </form>
+                )}
+              </GlassCard>
+
+              {/* SMS Forwarder Integration Guide & Methods - 7 Cols */}
+              <GlassCard className="p-6 xl:col-span-7 space-y-5">
                 <div>
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <Sliders className="h-5 w-5 text-violet-400" />
-                    Send &amp; Claim Clearing Parameters
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Configure your primary Mobile Money recipient number, merchant name, and deposit limits.
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="h-5 w-5 text-emerald-400" />
+                    <h4 className="text-base font-bold text-white">
+                      SMS Forwarder Integration &amp; Methods
+                    </h4>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-400 leading-relaxed">
+                    Configure your Android phone (with your MoMo SIM) to push incoming transaction SMS to your server in real-time. Choose the configuration method that matches your app:
                   </p>
                 </div>
-                {settingsData?.enabled && (
-                  <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3 py-1 text-xs font-semibold text-emerald-300">
-                    Live Clearing Active
-                  </span>
-                )}
-              </div>
 
-              {settingsSuccess && (
-                <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-xs text-emerald-300">
-                  <CheckCircle className="h-4 w-4" />
-                  {settingsSuccess}
-                </div>
-              )}
-
-              {loadingSettings ? (
-                <div className="py-12 text-center text-slate-400">
-                  <RefreshCw className="mx-auto h-6 w-6 animate-spin text-violet-400" />
-                  <p className="mt-2 text-xs">Loading configuration...</p>
-                </div>
-              ) : (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    updateSettingsMutation.mutate(settingsForm);
-                  }}
-                  className="mt-6 space-y-4"
-                >
-                  <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-                    <div>
-                      <p className="text-sm font-semibold text-white">Enable Send &amp; Claim Top-Ups</p>
-                      <p className="text-xs text-slate-400">Allow users to view MoMo credentials and submit claims</p>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={settingsForm.enabled ?? settingsData?.enabled ?? true}
-                      onChange={(e) => setSettingsForm((prev) => ({ ...prev, enabled: e.target.checked }))}
-                      className="h-5 w-5 rounded border-slate-700 bg-slate-900 text-violet-600 focus:ring-violet-500"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-400">Primary Network</label>
-                      <Select
-                        value={settingsForm.network ?? settingsData?.network ?? 'MTN'}
-                        onChange={(e) => setSettingsForm((prev) => ({ ...prev, network: e.target.value }))}
-                        className="text-xs"
-                      >
-                        <option value="MTN">MTN Mobile Money</option>
-                        <option value="TELECEL">Telecel Cash</option>
-                        <option value="AIRTELTIGO">AirtelTigo Money</option>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-400">MoMo Phone Number</label>
-                      <Input
-                        value={settingsForm.momoNumber ?? settingsData?.momoNumber ?? ''}
-                        onChange={(e) => setSettingsForm((prev) => ({ ...prev, momoNumber: e.target.value }))}
-                        placeholder="e.g. 0241234567"
-                        className="text-xs font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-400">Account / Merchant Name</label>
-                      <Input
-                        value={settingsForm.accountName ?? settingsData?.accountName ?? ''}
-                        onChange={(e) => setSettingsForm((prev) => ({ ...prev, accountName: e.target.value }))}
-                        placeholder="e.g. CheapDataPacks"
-                        className="text-xs"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-400">Claim Expiry (Hours)</label>
-                      <Input
-                        type="number"
-                        value={settingsForm.claimExpiryHours ?? settingsData?.claimExpiryHours ?? 168}
-                        onChange={(e) => setSettingsForm((prev) => ({ ...prev, claimExpiryHours: Number(e.target.value) }))}
-                        placeholder="168 (7 days)"
-                        className="text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-400">Minimum Deposit (GHS)</label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={settingsForm.minimumAmount ?? settingsData?.minimumAmount ?? 1}
-                        onChange={(e) => setSettingsForm((prev) => ({ ...prev, minimumAmount: Number(e.target.value) }))}
-                        className="text-xs"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-400">Maximum Deposit (GHS)</label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={settingsForm.maximumAmount ?? settingsData?.maximumAmount ?? 5000}
-                        onChange={(e) => setSettingsForm((prev) => ({ ...prev, maximumAmount: Number(e.target.value) }))}
-                        className="text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-slate-400">Custom User Instructions</label>
-                    <textarea
-                      rows={3}
-                      value={settingsForm.instructions ?? settingsData?.instructions ?? ''}
-                      onChange={(e) => setSettingsForm((prev) => ({ ...prev, instructions: e.target.value }))}
-                      placeholder="Instructions shown to users when sending money..."
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900/60 p-3 text-xs text-white placeholder-slate-500 outline-none focus:border-violet-500"
-                    />
-                  </div>
-
-                  <Button
-                    type="submit"
-                    disabled={updateSettingsMutation.isPending}
-                    className="w-full"
-                  >
-                    {updateSettingsMutation.isPending ? 'Saving Settings...' : 'Save Settings'}
-                  </Button>
-                </form>
-              )}
-            </GlassCard>
-
-            {/* Webhook Forwarder Setup Instructions Card */}
-            <GlassCard className="p-6 xl:col-span-1 space-y-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Radio className="h-5 w-5 text-emerald-400" />
-                SMS Forwarder Webhook
-              </h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Connect your Android SIM phone using any standard SMS Forwarder app (e.g. <em>SMS Forwarder</em> by Bogdan Cerovac).
-              </p>
-
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-400">Webhook URL</label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    readOnly
-                    value={webhookUrl}
-                    className="text-xs font-mono text-emerald-300 bg-slate-900/80"
-                  />
-                  <Button
+                {/* Method Selector Tabs */}
+                <div className="flex flex-wrap gap-2 border-b border-white/[0.08] pb-3 text-xs font-semibold">
+                  <button
                     type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleCopy(webhookUrl)}
-                    className="shrink-0 text-xs"
+                    onClick={() => setActiveMethod('query')}
+                    className={`rounded-lg px-3 py-1.5 transition-colors ${
+                      activeMethod === 'query'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-white/[0.05] text-slate-300 hover:bg-white/[0.1]'
+                    }`}
                   >
-                    {copiedWebhook ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                  </Button>
+                    Method 1: URL Query (Easiest — No Headers)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveMethod('bearer')}
+                    className={`rounded-lg px-3 py-1.5 transition-colors ${
+                      activeMethod === 'bearer'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-white/[0.05] text-slate-300 hover:bg-white/[0.1]'
+                    }`}
+                  >
+                    Method 2: Authorization Header (Standard)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveMethod('header')}
+                    className={`rounded-lg px-3 py-1.5 transition-colors ${
+                      activeMethod === 'header'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-white/[0.05] text-slate-300 hover:bg-white/[0.1]'
+                    }`}
+                  >
+                    Method 3: Custom Header (x-forwarder-secret)
+                  </button>
+                </div>
+
+                {/* Method 1 Content */}
+                {activeMethod === 'query' && (
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">
+                          Recommended: URL Query Parameter
+                        </span>
+                        <p className="text-[11px] text-emerald-200/80 mt-0.5">
+                          Simplest setup! Paste this single URL into your forwarder app. No custom HTTP headers needed.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copyToClipboard(fullUrlWithSecret, setCopiedFullUrl)}
+                        className="shrink-0 text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20"
+                      >
+                        {copiedFullUrl ? <Check className="h-3.5 w-3.5 text-emerald-400 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+                        {copiedFullUrl ? 'Copied!' : 'Copy Full URL'}
+                      </Button>
+                    </div>
+                    <div className="rounded-lg bg-black/50 p-2.5 font-mono text-xs text-emerald-200 break-all select-all border border-emerald-500/20">
+                      {fullUrlWithSecret}
+                    </div>
+                  </div>
+                )}
+
+                {/* Method 2 Content */}
+                {activeMethod === 'bearer' && (
+                  <div className="rounded-xl border border-white/[0.08] bg-black/40 p-4 space-y-3 text-xs">
+                    <span className="font-bold text-slate-200 uppercase tracking-wider block">
+                      Standard Bearer Authorization Header
+                    </span>
+                    <div className="space-y-2">
+                      <div className="rounded-lg bg-black/50 p-3 border border-white/[0.06]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 font-medium">Webhook URL:</span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(webhookUrl, setCopiedWebhook)}
+                            className="text-xs font-semibold text-emerald-400 hover:underline"
+                          >
+                            {copiedWebhook ? 'Copied!' : 'Copy URL'}
+                          </button>
+                        </div>
+                        <span className="font-mono block mt-1 select-all break-all text-slate-200">
+                          {webhookUrl}
+                        </span>
+                      </div>
+
+                      <div className="rounded-lg bg-black/50 p-3 border border-white/[0.06]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 font-medium">Header Name &amp; Value:</span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(`Bearer ${forwarderSecret}`, setCopiedHeader)}
+                            className="text-xs font-semibold text-emerald-400 hover:underline"
+                          >
+                            {copiedHeader ? 'Copied!' : 'Copy Value'}
+                          </button>
+                        </div>
+                        <div className="font-mono mt-1 space-y-1">
+                          <div><span className="text-slate-500">Header:</span> <span className="font-semibold text-white">Authorization</span></div>
+                          <div><span className="text-slate-500">Value:</span> <span className="font-semibold text-emerald-400 select-all">Bearer {forwarderSecret}</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Method 3 Content */}
+                {activeMethod === 'header' && (
+                  <div className="rounded-xl border border-white/[0.08] bg-black/40 p-4 space-y-3 text-xs">
+                    <span className="font-bold text-slate-200 uppercase tracking-wider block">
+                      Custom Header (x-forwarder-secret)
+                    </span>
+                    <div className="space-y-2">
+                      <div className="rounded-lg bg-black/50 p-3 border border-white/[0.06]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 font-medium">Webhook URL:</span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(webhookUrl, setCopiedWebhook)}
+                            className="text-xs font-semibold text-emerald-400 hover:underline"
+                          >
+                            {copiedWebhook ? 'Copied!' : 'Copy URL'}
+                          </button>
+                        </div>
+                        <span className="font-mono block mt-1 select-all break-all text-slate-200">
+                          {webhookUrl}
+                        </span>
+                      </div>
+
+                      <div className="rounded-lg bg-black/50 p-3 border border-white/[0.06]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 font-medium">Header Name &amp; Value:</span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(forwarderSecret, setCopiedCustomHeader)}
+                            className="text-xs font-semibold text-emerald-400 hover:underline"
+                          >
+                            {copiedCustomHeader ? 'Copied!' : 'Copy Secret'}
+                          </button>
+                        </div>
+                        <div className="font-mono mt-1 space-y-1">
+                          <div><span className="text-slate-500">Header:</span> <span className="font-semibold text-white">x-forwarder-secret</span></div>
+                          <div><span className="text-slate-500">Value:</span> <span className="font-semibold text-emerald-400 select-all">{forwarderSecret}</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Android App JSON Payload Template */}
+                <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <Code2 className="h-4 w-4 text-violet-400" />
+                      App JSON Payload Template
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setActiveApp('macrodroid')}
+                        className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors ${
+                          activeApp === 'macrodroid'
+                            ? 'bg-violet-600 text-white'
+                            : 'text-slate-400 hover:bg-white/[0.05]'
+                        }`}
+                      >
+                        MacroDroid
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveApp('smsforwarder')}
+                        className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors ${
+                          activeApp === 'smsforwarder'
+                            ? 'bg-violet-600 text-white'
+                            : 'text-slate-400 hover:bg-white/[0.05]'
+                        }`}
+                      >
+                        SMS Forwarder
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <pre className="rounded-lg bg-black/60 p-3 font-mono text-xs text-emerald-300 border border-white/[0.06]">
+                      {activeApp === 'macrodroid'
+                        ? `{\n  "message": "{sms_message}",\n  "from": "{sms_number}"\n}`
+                        : `{\n  "message": "[msg]",\n  "from": "[from]"\n}`}
+                    </pre>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const text =
+                          activeApp === 'macrodroid'
+                            ? `{\n  "message": "{sms_message}",\n  "from": "{sms_number}"\n}`
+                            : `{\n  "message": "[msg]",\n  "from": "[from]"\n}`;
+                        copyToClipboard(text, setCopiedTemplate);
+                      }}
+                      className="absolute top-2.5 right-2.5 text-xs font-semibold text-emerald-400 hover:underline"
+                    >
+                      {copiedTemplate ? 'Copied!' : 'Copy Template'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    HTTP Method: <strong className="text-white">POST</strong> · Content-Type: <strong className="text-white">application/json</strong>
+                  </p>
+                </div>
+
+                {/* Step-by-Step Android Setup Instructions */}
+                <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-3">
+                  <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <Smartphone className="h-4 w-4 text-cyan-400" />
+                    Step-by-Step Android Setup Procedures
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="rounded-lg bg-black/40 p-3 border border-white/[0.06] space-y-1">
+                      <p className="font-bold text-white flex items-center gap-1">
+                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-600 text-[10px] text-white">1</span>
+                        Install Forwarder App
+                      </p>
+                      <p className="text-slate-400 text-[11px] leading-relaxed">
+                        Install <strong>MacroDroid</strong> (Google Play) or <strong>SMS Forwarder</strong> (by Bogdan Cerovac / GitHub) on the Android phone with your MoMo SIM card.
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg bg-black/40 p-3 border border-white/[0.06] space-y-1">
+                      <p className="font-bold text-white flex items-center gap-1">
+                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-600 text-[10px] text-white">2</span>
+                        Configure SMS Trigger
+                      </p>
+                      <p className="text-slate-400 text-[11px] leading-relaxed">
+                        Add a Trigger for <strong>SMS Received</strong> from sender: <code>170</code> or <code>MobileMoney</code> (MTN), <code>TelecelCash</code>, or <code>ATMoney</code>.
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg bg-black/40 p-3 border border-white/[0.06] space-y-1">
+                      <p className="font-bold text-white flex items-center gap-1">
+                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-600 text-[10px] text-white">3</span>
+                        HTTP Request Action
+                      </p>
+                      <p className="text-slate-400 text-[11px] leading-relaxed">
+                        Action: <strong>HTTP Request / Webhook</strong> -&gt; <code>POST</code> -&gt; Paste the full Webhook URL from Method 1 with body JSON template.
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg bg-black/40 p-3 border border-white/[0.06] space-y-1">
+                      <p className="font-bold text-white flex items-center gap-1">
+                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-600 text-[10px] text-white">4</span>
+                        Disable Battery Optimization
+                      </p>
+                      <p className="text-slate-400 text-[11px] leading-relaxed">
+                        Go to Android Settings &gt; Apps &gt; Battery &gt; Set to <strong>Unrestricted</strong> so Android doesn&apos;t sleep the forwarder app.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Instant Terminal Verification (cURL) */}
+                <div className="rounded-xl border border-white/[0.08] bg-black/40 p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Terminal className="h-4 w-4 text-emerald-400" />
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">
+                        Terminal Verification (cURL Test Command)
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(curlTestCommand, setCopiedCurl)}
+                      className="text-xs font-semibold text-emerald-400 hover:underline"
+                    >
+                      {copiedCurl ? 'Copied!' : 'Copy Command'}
+                    </button>
+                  </div>
+                  <pre className="rounded-lg bg-black/70 p-3 font-mono text-[11px] text-emerald-300 overflow-x-auto select-all border border-emerald-500/20">
+                    {curlTestCommand}
+                  </pre>
+                  <p className="text-[11px] text-slate-400">
+                    Run this command in any terminal to test your live endpoint. A successful test returns <code className="text-emerald-300">&#123;&quot;received&quot;: true&#125;</code>.
+                  </p>
+                </div>
+              </GlassCard>
+            </div>
+
+            {/* In-Browser Live SMS Parser Simulator Card */}
+            <GlassCard className="p-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] pb-3">
+                <div className="flex items-center gap-2">
+                  <Play className="h-5 w-5 text-cyan-400" />
+                  <div>
+                    <h4 className="text-base font-bold text-white">
+                      In-Browser SMS Parser Simulator
+                    </h4>
+                    <p className="text-xs text-slate-400">
+                      Test any incoming MoMo receipt message to verify amount, reference, and carrier detection in real-time.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-slate-400">Sample Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTestSmsNetwork('MTN');
+                      setTestSmsInput('Payment received for GHS 50.00 from 0241234567. Current Balance: GHS 150.00. Reference: 28391049281. Transaction ID: 28391049281.');
+                    }}
+                    className="rounded-lg bg-yellow-500/15 border border-yellow-500/30 px-2.5 py-1 text-[11px] font-semibold text-yellow-300 hover:bg-yellow-500/25 transition-colors"
+                  >
+                    MTN MoMo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTestSmsNetwork('TELECEL');
+                      setTestSmsInput('You have received GHS 25.00 from 0201234567. Current balance: GHS 100.00. Financial Transaction Id: 9482019482.');
+                    }}
+                    className="rounded-lg bg-red-500/15 border border-red-500/30 px-2.5 py-1 text-[11px] font-semibold text-red-300 hover:bg-red-500/25 transition-colors"
+                  >
+                    Telecel Cash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTestSmsNetwork('AIRTELTIGO');
+                      setTestSmsInput('Cash In received for GHS 30.00 from 0561234567. Trans ID: AT94820192.');
+                    }}
+                    className="rounded-lg bg-blue-500/15 border border-blue-500/30 px-2.5 py-1 text-[11px] font-semibold text-blue-300 hover:bg-blue-500/25 transition-colors"
+                  >
+                    AirtelTigo
+                  </button>
                 </div>
               </div>
 
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-400">Auth Header</label>
-                <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 text-xs font-mono text-slate-300">
-                  Authorization: Bearer tskconnect_forwarder_secret_2026
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div className="md:col-span-8 space-y-3">
+                  <label className="text-xs font-semibold text-slate-300">Raw SMS Text</label>
+                  <textarea
+                    rows={3}
+                    value={testSmsInput}
+                    onChange={(e) => setTestSmsInput(e.target.value)}
+                    placeholder="Paste sample MoMo SMS here..."
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900/80 p-3 text-xs text-white font-mono placeholder-slate-500 outline-none focus:border-cyan-500"
+                  />
+                  <div className="flex items-center gap-3">
+                    <Select
+                      value={testSmsNetwork}
+                      onChange={(e) => setTestSmsNetwork(e.target.value)}
+                      className="w-40 text-xs"
+                    >
+                      <option value="MTN">MTN</option>
+                      <option value="TELECEL">TELECEL</option>
+                      <option value="AIRTELTIGO">AIRTELTIGO</option>
+                    </Select>
+                    <Button
+                      type="button"
+                      onClick={handleTestParser}
+                      disabled={testingParser}
+                      className="bg-cyan-600 hover:bg-cyan-500 text-xs"
+                    >
+                      {testingParser ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Zap className="h-3.5 w-3.5 mr-1.5" />}
+                      Test SMS Parser
+                    </Button>
+                  </div>
                 </div>
-              </div>
 
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-300 space-y-1">
-                <p className="font-bold flex items-center gap-1.5">
-                  <ShieldCheck className="h-4 w-4" />
-                  Auto-Parsing Engine
-                </p>
-                <p className="text-[11px] text-emerald-200/90 leading-relaxed">
-                  Incoming SMS receipts from MTN MoMo, Telecel, and AT Money are parsed instantly. Transaction IDs and amounts are verified with anti-replay protection.
-                </p>
+                <div className="md:col-span-4 rounded-xl border border-white/[0.08] bg-black/40 p-4">
+                  <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block mb-2">
+                    Parser Output
+                  </span>
+                  {testResult ? (
+                    testResult.matched && testResult.parsed ? (
+                      <div className="space-y-2 text-xs">
+                        <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span>Matched Successfully</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-white/[0.06]">
+                          <div>
+                            <span className="text-slate-500">Amount:</span>
+                            <p className="font-bold text-white">GHS {testResult.parsed.amount}</p>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Reference:</span>
+                            <p className="font-mono font-bold text-cyan-300">{testResult.parsed.transactionReference}</p>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Network:</span>
+                            <p className="font-semibold text-white">{testResult.parsed.network}</p>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Confidence:</span>
+                            <p className="font-semibold text-emerald-400">{testResult.parsed.confidence}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-rose-400 space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <XCircle className="h-4 w-4" />
+                          <span>No Match</span>
+                        </div>
+                        <p className="text-[11px] text-rose-300/80">
+                          {testResult.message || 'Could not parse amount or transaction ID from this SMS.'}
+                        </p>
+                      </div>
+                    )
+                  ) : (
+                    <div className="text-center py-6 text-slate-500 text-xs">
+                      Click &quot;Test SMS Parser&quot; to view live parsed extraction.
+                    </div>
+                  )}
+                </div>
               </div>
             </GlassCard>
           </div>

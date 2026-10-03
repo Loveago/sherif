@@ -12,7 +12,7 @@ export const originProtection = (request: Request, response: Response, next: Nex
   }
 
   // Webhooks from payment gateways or external providers do not send frontend origin
-  if (request.path.includes('/webhooks')) {
+  if (request.path.includes('/webhooks') || request.path.includes('/momo/sms')) {
     return next();
   }
 

@@ -79,7 +79,6 @@ const agentSections: NavSection[] = [
       { href: '/storefront', label: 'Storefront', icon: Store },
       { href: '/storefront-analytics', label: 'Analytics', icon: Gauge },
       { href: '/afa-registration', label: 'AFA Registration', icon: FileText },
-      { href: '/api-keys', label: 'API Keys', icon: CreditCard },
       { href: '/referrals', label: 'Referrals', icon: Link2 },
     ],
   },

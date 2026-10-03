@@ -46,7 +46,9 @@ import {
   updateSendClaimSettings,
   approveClaimManually,
   rejectClaimManually,
+  DEFAULT_FORWARDER_SECRET,
 } from '../services/send-claim.service.js';
+import { parseMomoSms } from '../utils/momo-parser.js';
 
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
 
@@ -2419,6 +2421,7 @@ adminRouter.get('/claims', async (request, response, next) => {
 adminRouter.get('/claims/settings', async (_request, response, next) => {
   try {
     const settings = await getSendClaimSettings();
+    const forwarderSecret = process.env.SMS_FORWARDER_SECRET || DEFAULT_FORWARDER_SECRET;
     return response.json(createSuccessResponse({
       id: settings.id,
       enabled: settings.enabled,
@@ -2429,6 +2432,30 @@ adminRouter.get('/claims/settings', async (_request, response, next) => {
       minimumAmount: settings.minimumAmount.toNumber(),
       maximumAmount: settings.maximumAmount.toNumber(),
       claimExpiryHours: settings.claimExpiryHours,
+      forwarderSecret,
+      webhookUrl: '/webhooks/momo/sms',
+    }));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.post('/claims/test-parser', async (request, response, next) => {
+  try {
+    const { rawSms, network } = request.body || {};
+    if (!rawSms || typeof rawSms !== 'string' || !rawSms.trim()) {
+      return response.status(400).json({ success: false, message: 'rawSms string is required' });
+    }
+    const parsed = parseMomoSms(rawSms.trim(), network);
+    if (!parsed) {
+      return response.json(createSuccessResponse({
+        matched: false,
+        message: 'Could not match known MoMo confirmation SMS patterns. Ensure the SMS contains an amount and Transaction ID.',
+      }));
+    }
+    return response.json(createSuccessResponse({
+      matched: true,
+      parsed,
     }));
   } catch (error) {
     return next(error);
