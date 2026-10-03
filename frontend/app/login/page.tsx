@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { LoginForm } from '@/components/auth/login-form';
 import { Zap, ShieldCheck, Globe, Star } from 'lucide-react';
+import { Logo } from '@/components/ui/logo';
 
 const highlights = [
   { icon: Zap, label: 'Instant Data Delivery' },
@@ -19,18 +20,7 @@ export default function LoginPage() {
       {/* Left panel - hidden on small screens */}
       <div className="relative hidden w-1/2 flex-col justify-between p-12 lg:flex">
         <div>
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-violet-800 shadow-lg shadow-violet-600/30">
-              <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-white">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" />
-                <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <div className="leading-tight">
-              <p className="text-[13px] font-bold tracking-wide text-white">CheapDataPacks</p>
-              <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-500">Ghana</p>
-            </div>
-          </Link>
+          <Logo linkTo="/" size="md" />
         </div>
 
         <div className="space-y-8">
@@ -67,17 +57,8 @@ export default function LoginPage() {
         <div className="absolute inset-0 grid-pattern opacity-20" />
         <div className="relative w-full max-w-md">
           {/* Mobile logo */}
-          <div className="mb-8 flex items-center justify-center gap-2.5 lg:hidden">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-violet-800">
-              <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-white">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" />
-                <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <div className="leading-tight">
-              <p className="text-[13px] font-bold tracking-wide text-white">CheapDataPacks</p>
-              <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-500">Ghana</p>
-            </div>
+          <div className="mb-8 flex items-center justify-center lg:hidden">
+            <Logo linkTo="/" size="md" />
           </div>
           <LoginForm />
         </div>

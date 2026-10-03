@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
+import { Logo } from '@/components/ui/logo';
 import {
   Bell,
   CreditCard,
@@ -206,28 +207,13 @@ export function DashboardShell({
       {/* Desktop Sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-white/[0.07] bg-[#0b101d]/90 backdrop-blur-2xl lg:flex z-30">
         {/* Brand Header */}
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-white/[0.05]">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 via-indigo-600 to-cyan-500 shadow-md shadow-violet-600/30 text-white">
-            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
-              <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" />
-              <path
-                d="M2 17l10 5 10-5M2 12l10 5 10-5"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <p className="text-sm font-extrabold tracking-tight text-white">CheapDataPacks</p>
-            </div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Ghana &middot; {mode === 'admin' ? 'Control' : 'Portal'}
-            </p>
-          </div>
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.05]">
+          <Logo
+            linkTo={mode === 'admin' ? '/admin' : '/dashboard'}
+            size="sm"
+            badgeText={mode === 'admin' ? 'ADMIN' : 'GH'}
+            subline={`Ghana · ${mode === 'admin' ? 'Control' : 'Portal'}`}
+          />
         </div>
 
         {/* User Card with Balance Glance */}
@@ -310,24 +296,11 @@ export function DashboardShell({
             >
               {/* Drawer Header */}
               <div className="flex items-center justify-between px-4 py-4 border-b border-white/[0.06]">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-sm font-bold text-white shadow-md">
-                    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-                      <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" />
-                      <path
-                        d="M2 17l10 5 10-5M2 12l10 5 10-5"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white">CheapDataPacks</p>
-                    <p className="text-[10px] uppercase font-bold text-emerald-400">Ghana</p>
-                  </div>
-                </div>
+                <Logo
+                  linkTo={mode === 'admin' ? '/admin' : '/dashboard'}
+                  size="xs"
+                  badgeText={mode === 'admin' ? 'ADMIN' : 'GH'}
+                />
                 <button
                   onClick={() => setMobileNavOpen(false)}
                   className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/[0.05] text-slate-400 hover:text-white"

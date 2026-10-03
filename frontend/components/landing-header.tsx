@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
+import { Logo } from '@/components/ui/logo';
 
 const navLinks = [
   { href: '#features', label: 'Features' },
@@ -17,18 +18,7 @@ export function LandingHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-gray-800/60 bg-[#060a14]/80 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-6 md:py-4">
-        <Link href="/" className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl brand-pill shadow-lg md:h-9 md:w-9">
-            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-white md:h-5 md:w-5">
-              <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" />
-              <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-          <div className="leading-tight">
-            <p className="text-xs font-bold tracking-wide text-white md:text-[13px]">CheapDataPacks</p>
-            <p className="text-[8px] font-semibold uppercase tracking-[0.2em] text-gray-500 md:text-[9px]">Ghana</p>
-          </div>
-        </Link>
+        <Logo linkTo="/" size="sm" />
 
         <nav className="hidden items-center gap-7 text-sm text-gray-400 md:flex">
           {navLinks.map((link) => (

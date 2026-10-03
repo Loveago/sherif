@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/glass-card';
 import { LandingHeader } from '@/components/landing-header';
 import { PoweredBy } from '@/components/ui/powered-by';
+import { Logo } from '@/components/ui/logo';
 
 const features = [
   { title: 'Instant Data Delivery', description: 'Automated fulfillment across MTN, Telecel and AirtelTigo.', icon: Zap },
@@ -433,18 +434,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-gray-800/60 bg-[#050812] py-8 md:py-10">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 md:flex-row md:gap-6 md:px-6">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-violet-800">
-              <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-white">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" />
-                <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-white">CheapDataPacks</p>
-              <p className="text-[9px] text-gray-600">Ghana</p>
-            </div>
-          </div>
+          <Logo linkTo="/" size="xs" showBadge={false} subline="Ghana" />
           <div className="flex flex-col items-center gap-2">
             <p className="text-center text-sm text-gray-600">
               © 2026 CheapDataPacks Ghana. Premium enterprise data distribution platform.

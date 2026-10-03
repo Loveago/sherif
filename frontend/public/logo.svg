@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 96" width="380" height="96" fill="none">
+  <defs>
+    <!-- Background Gradient for Icon Squircle -->
+    <linearGradient id="logo-bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b" />
+      <stop offset="50%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#080c15" />
+    </linearGradient>
+
+    <!-- Outer Rim Glow -->
+    <linearGradient id="logo-rim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8" />
+      <stop offset="45%" stop-color="#6366f1" />
+      <stop offset="75%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+
+    <!-- Arc Gradient -->
+    <linearGradient id="logo-arc" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6" />
+      <stop offset="60%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+
+    <!-- Bolt Gradient -->
+    <linearGradient id="logo-bolt" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="35%" stop-color="#f0f9ff" />
+      <stop offset="70%" stop-color="#7dd3fc" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+
+    <!-- Brand Text Gradient -->
+    <linearGradient id="logo-text-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="70%" stop-color="#f8fafc" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+
+    <!-- Glow Filter -->
+    <filter id="logo-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- ICON MARK (Left, x: 8..88, y: 8..88) -->
+  <g transform="translate(6, 8)">
+    <!-- Squircle base -->
+    <rect x="0" y="0" width="80" height="80" rx="22" fill="url(#logo-bg-grad)" stroke="url(#logo-rim)" stroke-width="2.5" />
+    
+    <!-- Stylized "C" Arc -->
+    <path d="M58 22H32C25.373 22 20 27.373 20 34V46C20 52.627 25.373 58 32 58H58" 
+          fill="none" 
+          stroke="url(#logo-arc)" 
+          stroke-width="6" 
+          stroke-linecap="round" 
+          stroke-linejoin="round" />
+
+    <!-- Lightning Bolt -->
+    <path d="M48 14L26 42H41L34 68L60 36H45L52 14H48Z" 
+          fill="url(#logo-bolt)" 
+          filter="url(#logo-glow)" />
+
+    <!-- Nodes -->
+    <circle cx="61" cy="22" r="4" fill="#f59e0b" />
+    <circle cx="61" cy="58" r="4" fill="#10b981" />
+  </g>
+
+  <!-- TYPOGRAPHY (Right) -->
+  <g transform="translate(104, 0)">
+    <!-- "CheapData" in bold white -->
+    <text x="0" y="52" 
+          font-family="system-ui, -apple-system, 'Space Grotesk', BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" 
+          font-size="32" 
+          font-weight="800" 
+          letter-spacing="-0.5" 
+          fill="url(#logo-text-grad)">CheapData<tspan fill="#38bdf8">Packs</tspan></text>
+
+    <!-- Subtitle / Tagline -->
+    <g transform="translate(2, 64)">
+      <!-- Ghana Flag Pill Indicator -->
+      <rect x="0" y="4" width="7" height="9" rx="1.5" fill="#f59e0b" />
+      <rect x="7" y="4" width="7" height="9" rx="1.5" fill="#ef4444" />
+      <rect x="14" y="4" width="7" height="9" rx="1.5" fill="#10b981" />
+
+      <text x="28" y="12" 
+            font-family="system-ui, -apple-system, 'Space Grotesk', BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" 
+            font-size="10.5" 
+            font-weight="700" 
+            letter-spacing="2.5" 
+            fill="#94a3b8">GHANA &middot; INSTANT FULFILLMENT</text>
+    </g>
+  </g>
+</svg>
