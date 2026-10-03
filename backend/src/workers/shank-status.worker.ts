@@ -4,7 +4,10 @@ import { shankClient, ShankOrderStatusItem } from '../services/shank.service.js'
 import { createNotification } from '../services/notification.service.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
-import { getBundlePortalFulfilledOrderIds } from '../services/provider.service.js';
+import {
+  getBundlePortalFulfilledOrderIds,
+  getTskconnectFulfilledOrderIds,
+} from '../services/provider.service.js';
 import { env } from '../config/env.js';
 import { phonesMatch } from '../utils/phone.js';
 
@@ -304,16 +307,18 @@ export const pollOrderStatuses = async (): Promise<{ checked: number; updated: n
       return { checked: 0, updated: 0 };
     }
 
-    // MTN orders that were routed through Bundle Portal belong to the Bundle Portal
-    // status worker — never poll them against Shank (wrong reference space).
-    const bundlePortalOrderIds = await getBundlePortalFulfilledOrderIds(activeOrders.map((o) => o.id));
-    const shankOrders =
-      bundlePortalOrderIds.size > 0
-        ? activeOrders.filter((o) => !bundlePortalOrderIds.has(o.id))
-        : activeOrders;
+    // MTN orders routed through Bundle Portal or Tskconnect belong to their own
+    // status workers — never poll them against Shank (wrong reference space).
+    const [bundlePortalOrderIds, tskconnectOrderIds] = await Promise.all([
+      getBundlePortalFulfilledOrderIds(activeOrders.map((o) => o.id)),
+      getTskconnectFulfilledOrderIds(activeOrders.map((o) => o.id)),
+    ]);
+    const shankOrders = activeOrders.filter(
+      (o) => !bundlePortalOrderIds.has(o.id) && !tskconnectOrderIds.has(o.id),
+    );
 
     if (shankOrders.length === 0) {
-      console.log('[ShankWorker] Candidate MTN orders are all Bundle Portal-fulfilled; nothing to poll');
+      console.log('[ShankWorker] Candidate MTN orders are handled by other providers; nothing to poll');
       return { checked: 0, updated: 0 };
     }
 

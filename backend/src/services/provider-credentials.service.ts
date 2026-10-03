@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { env } from '../config/env.js';
 import { prisma } from '../lib/prisma.js';
 
-export type ProviderCode = 'shank' | 'bundleportal';
+export type ProviderCode = 'shank' | 'bundleportal' | 'tskconnect';
 
 export interface ProviderCredentials {
   apiKey: string;
@@ -18,6 +18,10 @@ const PROVIDER_DEFAULTS: Record<ProviderCode, { apiKey?: string; baseUrl: string
   bundleportal: {
     apiKey: env.BUNDLE_PORTAL_API_KEY,
     baseUrl: env.BUNDLE_PORTAL_API_BASE_URL,
+  },
+  tskconnect: {
+    apiKey: env.TSKCONNECT_API_KEY,
+    baseUrl: env.TSKCONNECT_API_BASE_URL,
   },
 };
 
@@ -72,24 +76,34 @@ const maskApiKey = (apiKey: string): string => {
 export const getProviderCredentials = async (
   provider: ProviderCode,
 ): Promise<ProviderCredentials> => {
-  const [apiKeySetting, baseUrlSetting] = await Promise.all([
-    prisma.adminSettings.findUnique({ where: { key: keyName(provider, 'apiKey') } }),
-    prisma.adminSettings.findUnique({ where: { key: keyName(provider, 'baseUrl') } }),
-  ]);
+  try {
+    const [apiKeySetting, baseUrlSetting] = await Promise.all([
+      prisma.adminSettings.findUnique({ where: { key: keyName(provider, 'apiKey') } }),
+      prisma.adminSettings.findUnique({ where: { key: keyName(provider, 'baseUrl') } }),
+    ]);
 
-  const databaseApiKey = apiKeySetting?.value ? decrypt(apiKeySetting.value).trim() : '';
-  const environmentApiKey = PROVIDER_DEFAULTS[provider].apiKey?.trim() || '';
+    const databaseApiKey = apiKeySetting?.value ? decrypt(apiKeySetting.value).trim() : '';
+    const environmentApiKey = PROVIDER_DEFAULTS[provider].apiKey?.trim() || '';
 
-  let resolvedBaseUrl = baseUrlSetting?.value.trim() || PROVIDER_DEFAULTS[provider].baseUrl;
-  if (provider === 'bundleportal' && resolvedBaseUrl.includes('/v1')) {
-    resolvedBaseUrl = resolvedBaseUrl.replace('/v1', '/v2');
+    let resolvedBaseUrl = baseUrlSetting?.value.trim() || PROVIDER_DEFAULTS[provider].baseUrl;
+    if (provider === 'bundleportal' && resolvedBaseUrl.includes('/v1')) {
+      resolvedBaseUrl = resolvedBaseUrl.replace('/v1', '/v2');
+    }
+
+    return {
+      apiKey: databaseApiKey || environmentApiKey,
+      baseUrl: resolvedBaseUrl,
+      source: databaseApiKey ? 'database' : environmentApiKey ? 'environment' : 'none',
+    };
+  } catch (err) {
+    // If DB is temporarily unreachable, fall back gracefully to environment defaults
+    const environmentApiKey = PROVIDER_DEFAULTS[provider].apiKey?.trim() || '';
+    return {
+      apiKey: environmentApiKey,
+      baseUrl: PROVIDER_DEFAULTS[provider].baseUrl,
+      source: environmentApiKey ? 'environment' : 'none',
+    };
   }
-
-  return {
-    apiKey: databaseApiKey || environmentApiKey,
-    baseUrl: resolvedBaseUrl,
-    source: databaseApiKey ? 'database' : environmentApiKey ? 'environment' : 'none',
-  };
 };
 
 export const getBundlePortalWebhookSecret = async (): Promise<string | undefined> => {
@@ -114,11 +128,41 @@ export const saveBundlePortalWebhookSecret = async (secret: string): Promise<voi
   });
 };
 
+export const getTskconnectWebhookSecret = async (): Promise<string | undefined> => {
+  const setting = await prisma.adminSettings.findUnique({
+    where: { key: 'provider.tskconnect.webhookSecret' },
+  });
+  if (setting?.value) {
+    try {
+      return decrypt(setting.value).trim();
+    } catch {
+      return setting.value.trim();
+    }
+  }
+  return env.TSKCONNECT_WEBHOOK_SECRET?.trim() || undefined;
+};
+
+export const saveTskconnectWebhookSecret = async (secret: string): Promise<void> => {
+  await prisma.adminSettings.upsert({
+    where: { key: 'provider.tskconnect.webhookSecret' },
+    update: { value: encrypt(secret.trim()) },
+    create: { key: 'provider.tskconnect.webhookSecret', value: encrypt(secret.trim()) },
+  });
+};
+
 export const getProviderCredentialSummaries = async () => {
-  const [shank, bundleportal, bundlePortalWebhookSecret] = await Promise.all([
+  const [
+    shank,
+    bundleportal,
+    bundlePortalWebhookSecret,
+    tskconnect,
+    tskconnectWebhookSecret,
+  ] = await Promise.all([
     getProviderCredentials('shank'),
     getProviderCredentials('bundleportal'),
     getBundlePortalWebhookSecret(),
+    getProviderCredentials('tskconnect'),
+    getTskconnectWebhookSecret(),
   ]);
 
   return {
@@ -134,6 +178,13 @@ export const getProviderCredentialSummaries = async () => {
       baseUrl: bundleportal.baseUrl,
       source: bundleportal.source,
       webhookConfigured: Boolean(bundlePortalWebhookSecret),
+    },
+    tskconnect: {
+      configured: Boolean(tskconnect.apiKey),
+      apiKeyMasked: maskApiKey(tskconnect.apiKey),
+      baseUrl: tskconnect.baseUrl,
+      source: tskconnect.source,
+      webhookConfigured: Boolean(tskconnectWebhookSecret),
     },
   };
 };

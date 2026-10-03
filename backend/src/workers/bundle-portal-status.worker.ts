@@ -4,7 +4,10 @@ import { bundlePortalClient, BundlePortalError } from '../services/bundle-portal
 import { createNotification } from '../services/notification.service.js';
 import { createWalletTransaction } from '../services/wallet.service.js';
 import { maybeCreditStorefrontCommission } from '../services/commission.service.js';
-import { getBundlePortalFulfilledOrderIds } from '../services/provider.service.js';
+import {
+  getBundlePortalFulfilledOrderIds,
+  getTskconnectFulfilledOrderIds,
+} from '../services/provider.service.js';
 import { env } from '../config/env.js';
 import { phonesMatch } from '../utils/phone.js';
 
@@ -363,18 +366,20 @@ export const pollBundlePortalOrderStatuses = async (): Promise<{ checked: number
       return { checked: 0, updated: 0 };
     }
 
-    // Only MTN orders that were actually placed through Bundle Portal may be checked here;
-    // Shank-placed MTN orders belong to the Shank status worker.
-    const mtnCandidates = activeOrders.filter((o) => o.product.network.code.toUpperCase() === 'MTN');
-    let eligibleOrders = activeOrders;
-    if (mtnCandidates.length > 0) {
-      const bundlePortalOrderIds = await getBundlePortalFulfilledOrderIds(
-        mtnCandidates.map((o) => o.id),
-      );
-      eligibleOrders = activeOrders.filter(
-        (o) => o.product.network.code.toUpperCase() !== 'MTN' || bundlePortalOrderIds.has(o.id),
-      );
-    }
+    // Only orders placed through Bundle Portal may be checked here;
+    // Shank and Tskconnect placed orders belong to their respective status workers.
+    const [bundlePortalOrderIds, tskconnectOrderIds] = await Promise.all([
+      getBundlePortalFulfilledOrderIds(activeOrders.map((o) => o.id)),
+      getTskconnectFulfilledOrderIds(activeOrders.map((o) => o.id)),
+    ]);
+
+    const eligibleOrders = activeOrders.filter((o) => {
+      if (tskconnectOrderIds.has(o.id)) return false;
+      if (o.product.network.code.toUpperCase() === 'MTN') {
+        return bundlePortalOrderIds.has(o.id);
+      }
+      return true;
+    });
 
     if (eligibleOrders.length === 0) {
       return { checked: 0, updated: 0 };

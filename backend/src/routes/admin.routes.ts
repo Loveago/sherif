@@ -14,7 +14,9 @@ import { exportToCSV, exportToExcel } from '../services/export.service.js';
 import { shankClient } from '../services/shank.service.js';
 import { pollOrderStatuses } from '../workers/shank-status.worker.js';
 import { pollBundlePortalOrderStatuses } from '../workers/bundle-portal-status.worker.js';
+import { pollTskconnectOrderStatuses } from '../workers/tskconnect-status.worker.js';
 import { bundlePortalClient } from '../services/bundle-portal.service.js';
+import { tskconnectClient } from '../services/tskconnect.service.js';
 import { normalizeDataSize } from '../utils/shank-mapping.js';
 import {
   getReconcilerStatus,
@@ -33,6 +35,8 @@ import {
   saveProviderCredentials,
   getBundlePortalWebhookSecret,
   saveBundlePortalWebhookSecret,
+  getTskconnectWebhookSecret,
+  saveTskconnectWebhookSecret,
 } from '../services/provider-credentials.service.js';
 
 const toDecimal = (value: number) => new Prisma.Decimal(value.toFixed(2));
@@ -749,7 +753,8 @@ adminRouter.get('/settings', async (_request, response, next) => {
         providerStrategy: {
           mode: map.providerMode ?? 'priority-failover',
           activeProviderReference: map.activeProviderReference || generateReference('CFG'),
-          mtnProvider: map.mtnProvider === 'bundleportal' ? 'bundleportal' : 'shank',
+          mtnProvider: map.mtnProvider === 'bundleportal' ? 'bundleportal' : map.mtnProvider === 'tskconnect' ? 'tskconnect' : 'shank',
+          otherNetworksProvider: map.otherNetworksProvider === 'tskconnect' ? 'tskconnect' : 'bundleportal',
         },
         momoSettings: {
           momoNumber: map.momoNumber || '',
@@ -1777,6 +1782,171 @@ adminRouter.post('/bundle-portal/verify-number', async (request, response, next)
     return response.json(createSuccessResponse(res.data));
   } catch (error) {
     return response.status(502).json({ success: false, message: bundlePortalClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.post('/tskconnect/poll-now', async (_request, response, next) => {
+  try {
+    if (!(await tskconnectClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'TSKCONNECT_API_KEY not configured' });
+    }
+    const result = await pollTskconnectOrderStatuses();
+    return response.json(
+      createSuccessResponse(result, `Checked ${result.checked} orders, updated ${result.updated}`),
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
+
+adminRouter.get('/tskconnect/balance', async (_request, response, next) => {
+  try {
+    if (!(await tskconnectClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'TSKCONNECT_API_KEY not configured' });
+    }
+    const res = await tskconnectClient.checkBalance();
+    return response.json(createSuccessResponse(res, 'Wallet balance retrieved'));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: tskconnectClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.get('/tskconnect/packages', async (request, response, next) => {
+  try {
+    if (!(await tskconnectClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'TSKCONNECT_API_KEY not configured' });
+    }
+    const network = typeof request.query.network === 'string' ? request.query.network : undefined;
+    const available = request.query.available === 'false' ? false : true;
+    const packages = await tskconnectClient.getPackages(network, available);
+    return response.json(createSuccessResponse(packages, 'Packages retrieved'));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: tskconnectClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.get('/tskconnect/networks', async (_request, response, next) => {
+  try {
+    if (!(await tskconnectClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'TSKCONNECT_API_KEY not configured' });
+    }
+    const networks = await tskconnectClient.getNetworks();
+    return response.json(createSuccessResponse(networks, 'Networks retrieved'));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: tskconnectClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.post('/tskconnect/verify-number', async (request, response, next) => {
+  try {
+    if (!(await tskconnectClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'TSKCONNECT_API_KEY not configured' });
+    }
+    const { numbers, number, network } = request.body;
+    const phoneList = Array.isArray(numbers)
+      ? numbers
+      : typeof numbers === 'string'
+        ? [numbers]
+        : typeof number === 'string'
+          ? [number]
+          : [];
+
+    if (phoneList.length === 0) {
+      return response.status(400).json({ success: false, message: 'numbers is required' });
+    }
+
+    const res = await tskconnectClient.verifyNumbers(phoneList, network);
+    return response.json(createSuccessResponse(res));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: tskconnectClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.post('/tskconnect/webhook/register', async (request, response, next) => {
+  try {
+    if (!(await tskconnectClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'TSKCONNECT_API_KEY not configured' });
+    }
+    const { webhookUrl, events } = request.body;
+    if (!webhookUrl || typeof webhookUrl !== 'string') {
+      return response.status(400).json({ success: false, message: 'webhookUrl is required' });
+    }
+
+    const res = await tskconnectClient.setWebhook(
+      webhookUrl.trim(),
+      Array.isArray(events) ? events : ['order.created', 'order.completed', 'order.failed'],
+    );
+
+    const secret = res.data?.secret || (res as any).secret;
+    if (secret) {
+      await saveTskconnectWebhookSecret(secret);
+    }
+
+    return response.json(createSuccessResponse(res.data, 'Webhook registered successfully with Tskconnect'));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: tskconnectClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.get('/tskconnect/webhook', async (_request, response, next) => {
+  try {
+    if (!(await tskconnectClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'TSKCONNECT_API_KEY not configured' });
+    }
+    const [res, secret] = await Promise.all([
+      tskconnectClient.getWebhook().catch(() => null),
+      getTskconnectWebhookSecret(),
+    ]);
+
+    return response.json(
+      createSuccessResponse({
+        registeredUrl: res?.data?.url ?? null,
+        events: res?.data?.events ?? [],
+        hasSecretConfigured: Boolean(secret),
+      }),
+    );
+  } catch (error) {
+    return response.status(502).json({ success: false, message: tskconnectClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.post('/tskconnect/webhook/test', async (_request, response, next) => {
+  try {
+    if (!(await tskconnectClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'TSKCONNECT_API_KEY not configured' });
+    }
+    const res = await tskconnectClient.testWebhook();
+    return response.json(createSuccessResponse(res.data, 'Test webhook ping dispatched'));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: tskconnectClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.get('/tskconnect/orders', async (request, response, next) => {
+  try {
+    if (!(await tskconnectClient.isConfigured())) {
+      return response.status(400).json({ success: false, message: 'TSKCONNECT_API_KEY not configured' });
+    }
+    const page = Number(request.query.page) || 1;
+    const limit = Number(request.query.limit) || 20;
+    const status = typeof request.query.status === 'string' ? request.query.status : undefined;
+    const network = typeof request.query.network === 'string' ? request.query.network : undefined;
+    const reference = typeof request.query.reference === 'string' ? request.query.reference : undefined;
+    const recipient = typeof request.query.recipient === 'string' ? request.query.recipient : undefined;
+
+    const res = await tskconnectClient.listOrders({ page, limit, status, network, reference, recipient });
+    return response.json(createSuccessResponse(res, 'Tskconnect orders retrieved'));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: tskconnectClient.getErrorMessage(error) });
+  }
+});
+
+adminRouter.get('/tskconnect/status', async (_request, response, next) => {
+  try {
+    const res = await tskconnectClient.getSystemStatus();
+    return response.json(createSuccessResponse(res, 'System status retrieved'));
+  } catch (error) {
+    return response.status(502).json({ success: false, message: tskconnectClient.getErrorMessage(error) });
   }
 });
 

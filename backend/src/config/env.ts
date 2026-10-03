@@ -30,6 +30,10 @@ const envSchema = z.object({
   BUNDLE_PORTAL_API_BASE_URL: z.string().url().default('https://api.bundleportal.com/v2'),
   BUNDLE_PORTAL_WORKER_INTERVAL_MS: z.coerce.number().default(30000),
   BUNDLE_PORTAL_WEBHOOK_SECRET: z.string().optional(),
+  TSKCONNECT_API_KEY: z.string().optional(),
+  TSKCONNECT_API_BASE_URL: z.string().url().default('https://tsk05.net/v1'),
+  TSKCONNECT_WORKER_INTERVAL_MS: z.coerce.number().default(30000),
+  TSKCONNECT_WEBHOOK_SECRET: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

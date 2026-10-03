@@ -4,6 +4,7 @@ import { prisma } from './lib/prisma.js';
 import { ensureSeed } from './lib/startup-seed.js';
 import { startShankStatusWorker } from './workers/shank-status.worker.js';
 import { startBundlePortalStatusWorker } from './workers/bundle-portal-status.worker.js';
+import { startTskconnectStatusWorker } from './workers/tskconnect-status.worker.js';
 import { startPaymentReconciler } from './workers/payment-reconciler.worker.js';
 
 const startServer = async () => {
@@ -14,6 +15,7 @@ const startServer = async () => {
     console.log(`API listening on http://localhost:${env.PORT}`);
     startShankStatusWorker();
     startBundlePortalStatusWorker();
+    startTskconnectStatusWorker();
     startPaymentReconciler();
   });
 };

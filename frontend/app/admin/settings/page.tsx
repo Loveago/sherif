@@ -24,7 +24,12 @@ type AdminSettings = {
   commissionRules: { type: string; value: string | number }[];
   paymentSettings: { paystackEnabled: boolean; momoEnabled: boolean };
   branding: { appName: string; theme: string };
-  providerStrategy: { mode: string; activeProviderReference: string; mtnProvider: 'shank' | 'bundleportal' };
+  providerStrategy: {
+    mode: string;
+    activeProviderReference: string;
+    mtnProvider: 'shank' | 'bundleportal' | 'tskconnect';
+    otherNetworksProvider?: 'bundleportal' | 'tskconnect';
+  };
   momoSettings: { momoNumber: string; momoName: string; momoEnabled: boolean };
   whatsappNumber: string;
   afaRegistrationFee: number;
@@ -33,6 +38,7 @@ type AdminSettings = {
   providerCredentials: {
     shank: ProviderCredentialSummary;
     bundleportal: ProviderCredentialSummary;
+    tskconnect?: ProviderCredentialSummary;
   };
   catalog: {
     productsEnabled: boolean;
@@ -118,7 +124,15 @@ export default function AdminSettingsPage() {
     defaultValues: { apiKey: '', baseUrl: '' },
     values: {
       apiKey: '',
-      baseUrl: data?.providerCredentials?.bundleportal.baseUrl ?? 'https://api.bundleportal.com/v1',
+      baseUrl: data?.providerCredentials?.bundleportal.baseUrl ?? 'https://api.bundleportal.com/v2',
+    },
+  });
+
+  const tskconnectForm = useForm({
+    defaultValues: { apiKey: '', baseUrl: '' },
+    values: {
+      apiKey: '',
+      baseUrl: data?.providerCredentials?.tskconnect?.baseUrl ?? 'https://tsk05.net/v1',
     },
   });
 
@@ -126,6 +140,13 @@ export default function AdminSettingsPage() {
     defaultValues: { mtnProvider: data?.providerStrategy?.mtnProvider ?? 'shank' },
     values: {
       mtnProvider: data?.providerStrategy?.mtnProvider ?? 'shank',
+    },
+  });
+
+  const otherRoutingForm = useForm({
+    defaultValues: { otherNetworksProvider: data?.providerStrategy?.otherNetworksProvider ?? 'bundleportal' },
+    values: {
+      otherNetworksProvider: data?.providerStrategy?.otherNetworksProvider ?? 'bundleportal',
     },
   });
 
@@ -141,7 +162,7 @@ export default function AdminSettingsPage() {
   });
 
   const providerMutation = useMutation({
-    mutationFn: ({ provider, values }: { provider: 'shank' | 'bundleportal'; values: { apiKey: string; baseUrl: string } }) =>
+    mutationFn: ({ provider, values }: { provider: 'shank' | 'bundleportal' | 'tskconnect'; values: { apiKey: string; baseUrl: string } }) =>
       apiRequest('/admin/settings/providers/' + provider, {
         method: 'PUT',
         body: JSON.stringify(values),
@@ -150,6 +171,7 @@ export default function AdminSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
       if (variables.provider === 'shank') shankForm.resetField('apiKey');
       if (variables.provider === 'bundleportal') bundlePortalForm.resetField('apiKey');
+      if (variables.provider === 'tskconnect') tskconnectForm.resetField('apiKey');
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     },
@@ -236,8 +258,64 @@ export default function AdminSettingsPage() {
     providerMutation.mutate({ provider: 'shank', values });
   });
 
+  const [tskStatusMsg, setTskStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const checkTskBalanceMutation = useMutation({
+    mutationFn: () => apiRequest<{ balance: number; currency: string; environment?: string }>('/admin/tskconnect/balance'),
+    onSuccess: (res) => {
+      setTskStatusMsg({
+        type: 'success',
+        text: `Balance: ${res.currency} ${Number(res.balance).toFixed(2)}${res.environment ? ` (${res.environment})` : ''}`,
+      });
+    },
+    onError: (err: any) => {
+      setTskStatusMsg({ type: 'error', text: err?.message || 'Failed to check balance' });
+    },
+  });
+
+  const registerTskWebhookMutation = useMutation({
+    mutationFn: () => {
+      const webhookUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/webhooks/tskconnect`;
+      return apiRequest<{ url: string; events?: string[] }>('/admin/tskconnect/webhook/register', {
+        method: 'POST',
+        body: JSON.stringify({ webhookUrl }),
+      });
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
+      setTskStatusMsg({ type: 'success', text: `Webhook synced successfully: ${res.url || 'Active'}` });
+    },
+    onError: (err: any) => {
+      setTskStatusMsg({ type: 'error', text: err?.message || 'Failed to register webhook' });
+    },
+  });
+
+  const testTskWebhookMutation = useMutation({
+    mutationFn: () => apiRequest('/admin/tskconnect/webhook/test', { method: 'POST' }),
+    onSuccess: () => {
+      setTskStatusMsg({ type: 'success', text: 'Test webhook ping dispatched successfully!' });
+    },
+    onError: (err: any) => {
+      setTskStatusMsg({ type: 'error', text: err?.message || 'Test webhook failed' });
+    },
+  });
+
+  const pollTskOrdersMutation = useMutation({
+    mutationFn: () => apiRequest<{ checked: number; updated: number }>('/admin/tskconnect/poll-now', { method: 'POST' }),
+    onSuccess: (res) => {
+      setTskStatusMsg({ type: 'success', text: `Reconciled ${res.checked} orders (${res.updated} updated)` });
+    },
+    onError: (err: any) => {
+      setTskStatusMsg({ type: 'error', text: err?.message || 'Reconciliation failed' });
+    },
+  });
+
   const onSaveBundlePortal = bundlePortalForm.handleSubmit((values) => {
     providerMutation.mutate({ provider: 'bundleportal', values });
+  });
+
+  const onSaveTskconnect = tskconnectForm.handleSubmit((values) => {
+    providerMutation.mutate({ provider: 'tskconnect', values });
   });
 
   const onSaveMtnRouting = mtnRoutingForm.handleSubmit((values) => {
@@ -246,11 +324,24 @@ export default function AdminSettingsPage() {
     });
   });
 
+  const onSaveOtherRouting = otherRoutingForm.handleSubmit((values) => {
+    updateMutation.mutate({
+      otherNetworksProvider: values.otherNetworksProvider,
+    });
+  });
+
   const mtnProviderOptions = [
-    { value: 'shank' as const, label: 'Shanka5', hint: 'Current default Shank fulfillment' },
-    { value: 'bundleportal' as const, label: 'Bundle Portal', hint: 'Same channel as Telecel / AT orders' },
+    { value: 'shank' as const, label: 'Shanka5', hint: 'Traditional Shank fulfillment' },
+    { value: 'bundleportal' as const, label: 'Bundle Portal', hint: 'Bundle Portal API v2' },
+    { value: 'tskconnect' as const, label: 'Tskconnect', hint: 'Tskconnect API with number pre-verification' },
   ];
   const selectedMtnProvider = mtnRoutingForm.watch('mtnProvider');
+
+  const otherProviderOptions = [
+    { value: 'bundleportal' as const, label: 'Bundle Portal', hint: 'Default Telecel & AT fulfillment' },
+    { value: 'tskconnect' as const, label: 'Tskconnect', hint: 'Fulfill Telecel & AT via Tskconnect' },
+  ];
+  const selectedOtherProvider = otherRoutingForm.watch('otherNetworksProvider');
 
   return (
     <AuthGuard requiredRole="ADMIN">
@@ -513,13 +604,12 @@ export default function AdminSettingsPage() {
               <p className="text-sm font-semibold text-white">MTN Order Routing</p>
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              Choose which provider fulfills MTN data orders. Telecel and AirtelTigo always go through Bundle Portal.
-              Switching only affects new orders — in-flight orders keep the provider they were placed with.
+              Choose which provider fulfills MTN data orders. Switching only affects new orders — in-flight orders keep the provider they were placed with.
             </p>
             <div className="mt-4 grid gap-4 md:grid-cols-3">
               <div className="md:col-span-2">
                 <label className="mb-1.5 block text-xs text-gray-400">Fulfill MTN orders via</label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {mtnProviderOptions.map((option) => {
                     const isSelected = selectedMtnProvider === option.value;
                     return (
@@ -551,6 +641,16 @@ export default function AdminSettingsPage() {
                     Bundle Portal API key is not configured yet — save it below before switching MTN traffic.
                   </p>
                 )}
+                {selectedMtnProvider === 'tskconnect' && !data?.providerCredentials?.tskconnect?.configured && (
+                  <p className="mt-2 text-xs text-amber-300">
+                    Tskconnect API key is not configured yet — save it below before switching MTN traffic.
+                  </p>
+                )}
+                {selectedMtnProvider === 'shank' && !data?.providerCredentials?.shank.configured && (
+                  <p className="mt-2 text-xs text-amber-300">
+                    Shank API key is not configured yet — save it below before switching MTN traffic.
+                  </p>
+                )}
               </div>
               <div className="flex items-end">
                 <Button
@@ -568,6 +668,72 @@ export default function AdminSettingsPage() {
             </div>
           </GlassCard>
 
+          {/* Telecel & AirtelTigo Order Routing */}
+          <GlassCard className="p-6 md:col-span-2 xl:col-span-3">
+            <div className="flex items-center gap-2">
+              <ArrowLeftRight className="h-5 w-5 text-emerald-400" />
+              <p className="text-sm font-semibold text-white">Telecel & AirtelTigo Order Routing</p>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Choose which provider fulfills Telecel and AirtelTigo data orders.
+            </p>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <div className="md:col-span-2">
+                <label className="mb-1.5 block text-xs text-gray-400">Fulfill Telecel & AT orders via</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {otherProviderOptions.map((option) => {
+                    const isSelected = selectedOtherProvider === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => otherRoutingForm.setValue('otherNetworksProvider', option.value)}
+                        className={`rounded-2xl border p-4 text-left transition-colors ${
+                          isSelected
+                            ? 'border-emerald-400/60 bg-emerald-500/15 text-white'
+                            : 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/25'
+                        }`}
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium">{option.label}</span>
+                          <span
+                            className={`h-4 w-4 rounded-full border ${
+                              isSelected ? 'border-emerald-300 bg-emerald-400' : 'border-white/30'
+                            }`}
+                          />
+                        </span>
+                        <span className="mt-1 block text-xs text-gray-500">{option.hint}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedOtherProvider === 'bundleportal' && !data?.providerCredentials?.bundleportal.configured && (
+                  <p className="mt-2 text-xs text-amber-300">
+                    Bundle Portal API key is not configured yet — save it below before routing orders here.
+                  </p>
+                )}
+                {selectedOtherProvider === 'tskconnect' && !data?.providerCredentials?.tskconnect?.configured && (
+                  <p className="mt-2 text-xs text-amber-300">
+                    Tskconnect API key is not configured yet — save it below before routing orders here.
+                  </p>
+                )}
+              </div>
+              <div className="flex items-end">
+                <Button
+                  onClick={onSaveOtherRouting}
+                  disabled={updateMutation.isPending}
+                  className="w-full"
+                >
+                  {updateMutation.isPending ? 'Saving...' : saved ? (
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle className="h-4 w-4" /> Saved
+                    </span>
+                  ) : 'Save Non-MTN Routing'}
+                </Button>
+              </div>
+            </div>
+          </GlassCard>
+
           {/* Data Provider API Keys */}
           <GlassCard className="p-6 md:col-span-2 xl:col-span-3">
             <div className="flex items-center gap-2">
@@ -575,10 +741,11 @@ export default function AdminSettingsPage() {
               <p className="text-sm font-semibold text-white">Data Provider API Credentials</p>
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              Configure Shank and Bundle Portal without editing environment files. Saved API keys are encrypted and take effect immediately. Leave an API key blank to keep the current key.
+              Configure Shank, Bundle Portal, and Tskconnect without editing environment files. Saved API keys are encrypted and take effect immediately. Leave an API key blank to keep the current key.
             </p>
 
-            <div className="mt-5 grid gap-5 lg:grid-cols-2">
+            <div className="mt-5 grid gap-5 xl:grid-cols-3">
+              {/* Shank Card */}
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-medium text-white">Shank</p>
@@ -604,11 +771,12 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
 
+              {/* Bundle Portal Card */}
               <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/[0.04] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-white">Bundle Portal (API v2)</p>
-                    <p className="text-[11px] text-cyan-300/80">Telecel, AT & optional MTN fulfillment</p>
+                    <p className="text-[11px] text-cyan-300/80">Telecel, AT & optional MTN</p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <span className={`rounded-full px-2.5 py-1 text-[11px] ${data?.providerCredentials?.bundleportal.configured ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'}`}>
@@ -683,6 +851,105 @@ export default function AdminSettingsPage() {
                         <RefreshCw className={`h-3.5 w-3.5 text-emerald-400 ${pollBpOrdersMutation.isPending ? 'animate-spin' : ''}`} />
                         {pollBpOrdersMutation.isPending ? 'Reconciling...' : 'Reconcile Orders Now'}
                       </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Tskconnect Card */}
+              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/[0.04] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">Tskconnect (v1)</p>
+                    <p className="text-[11px] text-emerald-300/80">MTN, Telecel & AirtelTigo</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] ${data?.providerCredentials?.tskconnect?.configured ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'}`}>
+                      {data?.providerCredentials?.tskconnect?.configured ? `Configured via ${data.providerCredentials.tskconnect.source}` : 'Not configured'}
+                    </span>
+                    {data?.providerCredentials?.tskconnect?.webhookConfigured && (
+                      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-300">
+                        Webhook Active
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {data?.providerCredentials?.tskconnect?.apiKeyMasked && (
+                  <p className="mt-2 font-mono text-xs text-slate-400">Current key: {data.providerCredentials.tskconnect.apiKeyMasked}</p>
+                )}
+
+                {tskStatusMsg && (
+                  <div className={`mt-3 rounded-xl p-3 text-xs ${tskStatusMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-red-500/10 text-red-300 border border-red-500/20'}`}>
+                    {tskStatusMsg.text}
+                  </div>
+                )}
+
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <label className="mb-1.5 block text-xs text-gray-400">Tskconnect API Key</label>
+                    <Input type="password" autoComplete="new-password" placeholder="ck_live_... or ck_test_..." {...tskconnectForm.register('apiKey')} />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs text-gray-400">API URL (v1)</label>
+                    <Input type="url" placeholder="https://tsk05.net/v1" {...tskconnectForm.register('baseUrl', { required: true })} />
+                  </div>
+                  <Button onClick={onSaveTskconnect} disabled={providerMutation.isPending} className="w-full">
+                    {providerMutation.isPending && providerMutation.variables?.provider === 'tskconnect' ? 'Saving...' : saved ? 'Saved' : 'Save Tskconnect Credentials'}
+                  </Button>
+
+                  {data?.providerCredentials?.tskconnect?.configured && (
+                    <div className="mt-3 pt-3 border-t border-emerald-500/20 space-y-2">
+                      <p className="text-[11px] font-medium text-emerald-200 uppercase tracking-wider">Tskconnect Tools</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => checkTskBalanceMutation.mutate()}
+                          disabled={checkTskBalanceMutation.isPending}
+                          className="text-xs flex items-center justify-center gap-1.5"
+                        >
+                          <Wallet className="h-3.5 w-3.5 text-emerald-400" />
+                          {checkTskBalanceMutation.isPending ? 'Checking...' : 'Check Balance'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => registerTskWebhookMutation.mutate()}
+                          disabled={registerTskWebhookMutation.isPending}
+                          className="text-xs flex items-center justify-center gap-1.5"
+                          title="Registers your server webhook URL with Tskconnect"
+                        >
+                          <Radio className="h-3.5 w-3.5 text-sky-400" />
+                          {registerTskWebhookMutation.isPending ? 'Registering...' : 'Sync Webhook'}
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => testTskWebhookMutation.mutate()}
+                          disabled={testTskWebhookMutation.isPending}
+                          className="text-xs flex items-center justify-center gap-1.5"
+                          title="Sends a test webhook ping from Tskconnect"
+                        >
+                          <Radio className="h-3.5 w-3.5 text-violet-400" />
+                          {testTskWebhookMutation.isPending ? 'Testing...' : 'Test Ping'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => pollTskOrdersMutation.mutate()}
+                          disabled={pollTskOrdersMutation.isPending}
+                          className="text-xs flex items-center justify-center gap-1.5"
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 text-emerald-400 ${pollTskOrdersMutation.isPending ? 'animate-spin' : ''}`} />
+                          {pollTskOrdersMutation.isPending ? 'Reconciling...' : 'Reconcile Now'}
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>

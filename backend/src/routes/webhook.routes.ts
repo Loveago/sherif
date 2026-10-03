@@ -11,7 +11,15 @@ import {
   applyBundlePortalOrderStatusUpdate,
   mapBundlePortalStatusToOrderStatus,
 } from '../workers/bundle-portal-status.worker.js';
-import { getBundlePortalWebhookSecret } from '../services/provider-credentials.service.js';
+import {
+  applyTskconnectOrderStatusUpdate,
+  mapTskconnectStatusToOrderStatus,
+} from '../workers/tskconnect-status.worker.js';
+import {
+  getBundlePortalWebhookSecret,
+  getTskconnectWebhookSecret,
+} from '../services/provider-credentials.service.js';
+import { verifyTskconnectWebhook } from '../services/tskconnect.service.js';
 import { getPaystackSecretKey } from '../services/paystack.service.js';
 import { emitWebhookEvent } from '../services/webhook.service.js';
 import { queueFulfillment } from '../queues/index.js';
@@ -555,4 +563,83 @@ const handleBundlePortalWebhook = async (request: Request, response: Response, n
 
 webhookRouter.post('/webhooks/bundleportal', handleBundlePortalWebhook);
 webhookRouter.post('/webhooks/bundle-portal', handleBundlePortalWebhook);
+
+const handleTskconnectWebhook = async (request: Request, response: Response, next: NextFunction) => {
+  try {
+    const rawBody = (request as any).rawBody || Buffer.from(JSON.stringify(request.body));
+    const signatureHeader = (request.headers['x-tskconnect-signature'] || '') as string;
+    const timestampHeader = (request.headers['x-tskconnect-timestamp'] || '') as string;
+
+    const secret = await getTskconnectWebhookSecret();
+    if (secret) {
+      const isValid = verifyTskconnectWebhook(rawBody, signatureHeader, timestampHeader, secret);
+      if (!isValid) {
+        console.warn('[TskconnectWebhook] Received callback with invalid HMAC signature');
+        return response.status(401).json({ success: false, message: 'Invalid webhook signature' });
+      }
+    }
+
+    const payload = request.body || {};
+    console.log('[TskconnectWebhook] Received event:', payload.event, 'orderId:', payload.orderId || payload.data?.orderId);
+
+    // Fast 200 response to prevent provider retries/timeouts
+    response.status(200).json({ success: true, message: 'Webhook received' });
+
+    // Handle test / ping webhook
+    if (payload.event === 'webhook.test' || payload.type === 'test') {
+      console.log('[TskconnectWebhook] Successfully verified test webhook ping');
+      return;
+    }
+
+    // Process order update asynchronously
+    const data = (payload.data && typeof payload.data === 'object') ? payload.data : payload;
+    const orderId = data.orderId || payload.orderId;
+    const reference = data.reference || payload.reference || data.externalReference || payload.externalReference;
+    const rawStatus = data.status || payload.status || (typeof payload.event === 'string' ? payload.event.replace('order.', '') : null);
+
+    if (!orderId && !reference) {
+      return;
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        status: { in: [OrderStatus.PENDING, OrderStatus.PROCESSING] },
+        OR: [
+          ...(orderId ? [{ receiptNumber: String(orderId) }, { externalReference: String(orderId) }, { providerReference: String(orderId) }] : []),
+          ...(reference ? [{ externalReference: String(reference) }, { providerReference: String(reference) }, { receiptNumber: String(reference) }] : []),
+        ],
+      },
+      include: {
+        product: { include: { network: true } },
+        user: { include: { wallet: true } },
+      },
+    });
+
+    if (!order) {
+      console.log(`[TskconnectWebhook] No pending order found matching orderId "${orderId}" / ref "${reference}"`);
+      return;
+    }
+
+    const mappedStatus = mapTskconnectStatusToOrderStatus(rawStatus);
+    if (!mappedStatus) {
+      console.warn(`[TskconnectWebhook] Could not map status "${rawStatus}" for order ${order.receiptNumber}`);
+      return;
+    }
+
+    await applyTskconnectOrderStatusUpdate(
+      order as any,
+      mappedStatus,
+      data.failureReason || data.reason || payload.failureReason,
+    );
+    console.log(`[TskconnectWebhook] Updated order ${order.receiptNumber} -> ${mappedStatus}`);
+  } catch (error) {
+    console.error('[TskconnectWebhook] Error processing webhook:', error);
+    if (!response.headersSent) {
+      return next(error);
+    }
+  }
+};
+
+webhookRouter.post('/webhooks/tskconnect', handleTskconnectWebhook);
+webhookRouter.post('/webhooks/tsk-connect', handleTskconnectWebhook);
 

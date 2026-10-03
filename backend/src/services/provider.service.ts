@@ -7,6 +7,13 @@ import {
   BundlePortalError,
   type BundlePortalNetwork,
 } from './bundle-portal.service.js';
+import {
+  tskconnectClient,
+  isRetryableTskconnectError,
+  TskconnectError,
+  type TskconnectNetwork,
+  type TskconnectOrder,
+} from './tskconnect.service.js';
 import { dataSizeToVolumeMb, normalizeDataSize } from '../utils/shank-mapping.js';
 import {
   isBundlePortalNetwork,
@@ -53,25 +60,39 @@ export const isInsufficientBalanceError = (message: string | null | undefined): 
   );
 };
 
-export type MtnProviderChoice = 'shank' | 'bundleportal';
+export type MtnProviderChoice = 'shank' | 'bundleportal' | 'tskconnect';
+export type OtherNetworksProviderChoice = 'bundleportal' | 'tskconnect';
 
 /** AdminSettings key that controls which provider fulfills MTN orders. */
 export const MTN_PROVIDER_SETTING_KEY = 'mtnProvider';
 
+/** AdminSettings key that controls which provider fulfills Telecel and AirtelTigo orders. */
+export const OTHER_NETWORKS_PROVIDER_SETTING_KEY = 'otherNetworksProvider';
+
 /**
  * Read the admin-controlled MTN routing preference.
- * Defaults to Shank; anything other than "bundleportal" falls back to Shank.
+ * Defaults to Shank; accepts 'bundleportal', 'tskconnect', or 'shank'.
  */
 export const resolveMtnProvider = async (): Promise<MtnProviderChoice> => {
   const setting = await prisma.adminSettings.findUnique({ where: { key: MTN_PROVIDER_SETTING_KEY } });
-  return setting?.value === 'bundleportal' ? 'bundleportal' : 'shank';
+  if (setting?.value === 'bundleportal') return 'bundleportal';
+  if (setting?.value === 'tskconnect') return 'tskconnect';
+  return 'shank';
+};
+
+/**
+ * Read the admin-controlled Non-MTN (Telecel & AirtelTigo) routing preference.
+ * Defaults to Bundle Portal; accepts 'bundleportal' or 'tskconnect'.
+ */
+export const resolveOtherNetworksProvider = async (): Promise<OtherNetworksProviderChoice> => {
+  const setting = await prisma.adminSettings.findUnique({ where: { key: OTHER_NETWORKS_PROVIDER_SETTING_KEY } });
+  if (setting?.value === 'tskconnect') return 'tskconnect';
+  return 'bundleportal';
 };
 
 /**
  * Collect order IDs whose fulfillment went through Bundle Portal (marked in the
- * ProviderTransaction response payload). Status workers use this so MTN orders are
- * only polled by the worker that actually placed them, even if the admin routing
- * toggle was flipped after the order was created.
+ * ProviderTransaction response payload).
  */
 export const getBundlePortalFulfilledOrderIds = async (orderIds: string[]): Promise<Set<string>> => {
   const fulfilled = new Set<string>();
@@ -86,6 +107,31 @@ export const getBundlePortalFulfilledOrderIds = async (orderIds: string[]): Prom
     if (!tx.orderId) continue;
     const payload = tx.responsePayload as Record<string, unknown> | null;
     if (payload && typeof payload === 'object' && payload.provider === 'BUNDLE_PORTAL') {
+      fulfilled.add(tx.orderId);
+    }
+  }
+
+  return fulfilled;
+};
+
+/**
+ * Collect order IDs whose fulfillment went through Tskconnect (marked in the
+ * ProviderTransaction response payload). Status workers use this to avoid polling
+ * orders handled by other providers.
+ */
+export const getTskconnectFulfilledOrderIds = async (orderIds: string[]): Promise<Set<string>> => {
+  const fulfilled = new Set<string>();
+  if (orderIds.length === 0) return fulfilled;
+
+  const transactions = await prisma.providerTransaction.findMany({
+    where: { orderId: { in: orderIds } },
+    select: { orderId: true, responsePayload: true },
+  });
+
+  for (const tx of transactions) {
+    if (!tx.orderId) continue;
+    const payload = tx.responsePayload as Record<string, unknown> | null;
+    if (payload && typeof payload === 'object' && payload.provider === 'TSKCONNECT') {
       fulfilled.add(tx.orderId);
     }
   }
@@ -131,17 +177,19 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
   const networkCode = order.product.network.code.toUpperCase();
   const bundlePortalNetworkCode = toProviderNetwork(networkCode);
 
-  // Admin toggle: MTN orders can be routed to Bundle Portal instead of Shank.
-  const useBundlePortalForMtn =
-    networkCode === 'MTN' && (await resolveMtnProvider()) === 'bundleportal';
+  const [mtnChoice, otherChoice] = await Promise.all([
+    resolveMtnProvider(),
+    resolveOtherNetworksProvider(),
+  ]);
 
-  const [shankConfigured, bundlePortalConfigured] = await Promise.all([
+  const [shankConfigured, bundlePortalConfigured, tskconnectConfigured] = await Promise.all([
     shankClient.isConfigured(),
     bundlePortalClient.isConfigured(),
+    tskconnectClient.isConfigured(),
   ]);
 
   // When no external provider is configured, behave as instant success (mock)
-  if (!shankConfigured && !bundlePortalConfigured) {
+  if (!shankConfigured && !bundlePortalConfigured && !tskconnectConfigured) {
     console.warn('[Provider] No external provider API configured, using mock fulfillment');
     const mockResponsePayload = {
       providerReference: generateReference('PRV'),
@@ -162,8 +210,205 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
     return mockResponsePayload;
   }
 
-  // MTN is fulfilled by Shank unless the admin routing toggle selects Bundle Portal
-  if (networkCode === 'MTN' && !useBundlePortalForMtn) {
+  // Tskconnect fulfillment (when selected for MTN or for Telecel/AirtelTigo)
+  const useTskconnectForThisOrder =
+    (networkCode === 'MTN' && mtnChoice === 'tskconnect') ||
+    (networkCode !== 'MTN' && otherChoice === 'tskconnect');
+
+  if (useTskconnectForThisOrder) {
+    if (!tskconnectConfigured) {
+      throw new Error(`TSKCONNECT_API_KEY is not configured for ${networkCode} orders`);
+    }
+
+    const tskNetwork: TskconnectNetwork =
+      networkCode === 'MTN'
+        ? 'MTN'
+        : bundlePortalNetworkCode === 'AT'
+          ? 'AIRTELTIGO'
+          : 'TELECEL';
+
+    const recipientNumber = normalizeProviderRecipient(order.phoneNumber);
+    const normalizedSize = (order.product.dataSize || resolvedDataSize).toUpperCase().replace(/\s/g, '');
+    const gbMatch = normalizedSize.match(/(\d+(?:\.\d+)?)GB/);
+    const mbMatch = normalizedSize.match(/(\d+(?:\.\d+)?)MB/);
+    const packageSizeGb = gbMatch ? Number(gbMatch[1]) : mbMatch ? Number(mbMatch[1]) / 1000 : Number(normalizedSize);
+
+    if (!Number.isFinite(packageSizeGb) || packageSizeGb <= 0) {
+      throw new Error(`Cannot derive Tskconnect package size from "${normalizedSize}"`);
+    }
+
+    try {
+      if (tskNetwork === 'MTN') {
+        try {
+          const verifyRes = await tskconnectClient.verifyNumbers([recipientNumber], 'MTN');
+          const item = verifyRes.results?.[0];
+          if (item && item.canOrder === false) {
+            throw new TskconnectError(
+              item.note || 'This MTN number is not verified in provider database. Ordering cannot proceed.',
+              'UNVERIFIED_NUMBER',
+              400,
+            );
+          }
+        } catch (vErr) {
+          if (vErr instanceof TskconnectError && vErr.code === 'UNVERIFIED_NUMBER') {
+            throw vErr;
+          }
+        }
+      }
+
+      const packageId = await tskconnectClient.resolvePackageId(tskNetwork, packageSizeGb);
+
+      const MAX_PLACE_ATTEMPTS = 3;
+      let orderResponse: TskconnectOrder | undefined;
+      let lastError: unknown;
+
+      for (let attempt = 1; attempt <= MAX_PLACE_ATTEMPTS; attempt++) {
+        try {
+          orderResponse = await tskconnectClient.placeOrder(
+            tskNetwork,
+            packageId,
+            recipientNumber,
+            order.receiptNumber,
+            order.receiptNumber,
+          );
+          lastError = undefined;
+          break;
+        } catch (error) {
+          lastError = error;
+          const retryable = isRetryableTskconnectError(error);
+          console.warn(
+            `[Provider] Tskconnect placeOrder attempt ${attempt}/${MAX_PLACE_ATTEMPTS} failed:`,
+            tskconnectClient.getErrorMessage(error),
+          );
+          if (!retryable) {
+            throw error;
+          }
+          if (attempt < MAX_PLACE_ATTEMPTS) {
+            await new Promise((resolve) => setTimeout(resolve, 800 * attempt));
+          }
+        }
+      }
+
+      if (!orderResponse) {
+        throw lastError;
+      }
+
+      const externalReference = orderResponse.reference || orderResponse.orderId || order.receiptNumber;
+      const providerReference = orderResponse.orderId || generateReference('PRV');
+      const status =
+        orderResponse.status === 'COMPLETED' || orderResponse.status === 'TEST_COMPLETED'
+          ? ('SUCCESSFUL' as const)
+          : orderResponse.status === 'FAILED'
+            ? ('FAILED' as const)
+            : ('PROCESSING' as const);
+
+      const responsePayload = {
+        providerReference,
+        externalReference,
+        status,
+        provider: 'TSKCONNECT',
+        tskNetwork,
+        packageId,
+        packageSizeGb,
+        orderResponse,
+      };
+
+      await prisma.providerTransaction.create({
+        data: {
+          providerId: provider.id,
+          orderId: order.id,
+          requestPayload: toJson({
+            ...requestPayloadBase,
+            tskNetwork,
+            packageId,
+            packageSizeGb,
+            recipientNumber,
+            provider: 'TSKCONNECT',
+          }),
+          responsePayload: toJson(responsePayload),
+          status,
+        },
+      });
+
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { externalReference, providerReference },
+      });
+
+      return { providerReference, externalReference, status };
+    } catch (error) {
+      const errorMessage = tskconnectClient.getErrorMessage(error);
+
+      if (isRetryableTskconnectError(error)) {
+        const deferredPayload = {
+          providerReference: generateReference('PRV'),
+          externalReference: order.receiptNumber as string | null,
+          status: 'PROCESSING' as const,
+          error: errorMessage,
+          retryable: true,
+          provider: 'TSKCONNECT',
+          tskNetwork,
+          packageSizeGb,
+          recipientNumber,
+        };
+
+        await prisma.providerTransaction.create({
+          data: {
+            providerId: provider.id,
+            orderId: order.id,
+            requestPayload: toJson({
+              ...requestPayloadBase,
+              tskNetwork,
+              packageSizeGb,
+              recipientNumber,
+              provider: 'TSKCONNECT',
+            }),
+            responsePayload: toJson(deferredPayload),
+            status: 'PROCESSING',
+          },
+        });
+
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { externalReference: order.receiptNumber },
+        });
+
+        return deferredPayload;
+      }
+
+      const failPayload = {
+        providerReference: generateReference('PRV'),
+        externalReference: null as string | null,
+        status: 'FAILED' as const,
+        error: errorMessage,
+        provider: 'TSKCONNECT',
+        tskNetwork,
+        packageSizeGb,
+        recipientNumber,
+      };
+
+      await prisma.providerTransaction.create({
+        data: {
+          providerId: provider.id,
+          orderId: order.id,
+          requestPayload: toJson({
+            ...requestPayloadBase,
+            tskNetwork,
+            packageSizeGb,
+            recipientNumber,
+            provider: 'TSKCONNECT',
+          }),
+          responsePayload: toJson(failPayload),
+          status: 'FAILED',
+        },
+      });
+
+      return failPayload;
+    }
+  }
+
+  // MTN is fulfilled by Shank unless the admin routing toggle selects Bundle Portal or Tskconnect
+  if (networkCode === 'MTN' && mtnChoice === 'shank') {
     if (!shankConfigured) {
       throw new Error('SHANK_API_KEY is not configured for MTN orders');
     }
@@ -260,9 +505,12 @@ export const fulfillOrderWithProvider = async (orderId: string) => {
     }
   }
 
-  // Telecel and AirtelTigo are always fulfilled through Bundle Portal;
+  // Telecel and AirtelTigo default to Bundle Portal unless routed to Tskconnect;
   // MTN joins them when the admin routing toggle selects Bundle Portal.
-  if (isBundlePortalNetwork(networkCode) || useBundlePortalForMtn) {
+  const useBundlePortalForMtn = networkCode === 'MTN' && mtnChoice === 'bundleportal';
+  const useBundlePortalForOther = isBundlePortalNetwork(networkCode) && otherChoice === 'bundleportal';
+
+  if (useBundlePortalForOther || useBundlePortalForMtn) {
     const bundlePortalConfigured = await bundlePortalClient.isConfigured();
     if (!bundlePortalConfigured) {
       throw new Error(`BUNDLE_PORTAL_API_KEY is not configured for ${networkCode} orders`);

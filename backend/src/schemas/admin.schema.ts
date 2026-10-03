@@ -69,6 +69,6 @@ export const updateProviderCredentialsSchema = z.object({
   }),
   query: z.object({}).optional().default({}),
   params: z.object({
-    provider: z.enum(['shank', 'bundleportal']),
+    provider: z.enum(['shank', 'bundleportal', 'tskconnect']),
   }),
 });
