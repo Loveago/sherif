@@ -40,15 +40,116 @@ export function resetFailedClaimAttempts(key: string): void {
 }
 
 let hasEnsuredColumn = false;
-export async function ensureSendClaimSchema() {
-  if (hasEnsuredColumn) return;
+export async function ensureSendClaimSchema(force = false) {
+  if (hasEnsuredColumn && !force) return;
   try {
+    // 1. IncomingMomoTransaction table
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "IncomingMomoTransaction" (
+        "id" TEXT NOT NULL,
+        "transactionReference" TEXT NOT NULL,
+        "network" TEXT NOT NULL,
+        "amount" DECIMAL(12,2) NOT NULL,
+        "currency" TEXT NOT NULL DEFAULT 'GHS',
+        "senderPhone" TEXT,
+        "recipientPhone" TEXT,
+        "transactionAt" TIMESTAMP(3),
+        "rawSms" TEXT NOT NULL,
+        "parsedData" TEXT,
+        "source" TEXT NOT NULL DEFAULT 'SMS_FORWARDER',
+        "status" TEXT NOT NULL DEFAULT 'AVAILABLE',
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "IncomingMomoTransaction_pkey" PRIMARY KEY ("id")
+      );
+    `);
+
+    // 2. IncomingMomoTransaction indexes
+    await prisma.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "IncomingMomoTransaction_transactionReference_key" ON "IncomingMomoTransaction"("transactionReference");
+      CREATE INDEX IF NOT EXISTS "IncomingMomoTransaction_transactionReference_idx" ON "IncomingMomoTransaction"("transactionReference");
+      CREATE INDEX IF NOT EXISTS "IncomingMomoTransaction_network_idx" ON "IncomingMomoTransaction"("network");
+      CREATE INDEX IF NOT EXISTS "IncomingMomoTransaction_status_idx" ON "IncomingMomoTransaction"("status");
+      CREATE INDEX IF NOT EXISTS "IncomingMomoTransaction_createdAt_idx" ON "IncomingMomoTransaction"("createdAt");
+    `);
+
+    // 3. SendClaim table
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "SendClaim" (
+        "id" TEXT NOT NULL,
+        "userId" TEXT NOT NULL,
+        "incomingMomoTransactionId" TEXT,
+        "walletTransactionId" TEXT,
+        "transactionReference" TEXT NOT NULL,
+        "claimedAmount" DECIMAL(12,2) NOT NULL,
+        "network" TEXT NOT NULL,
+        "senderPhone" TEXT,
+        "status" TEXT NOT NULL DEFAULT 'APPROVED',
+        "rejectionReason" TEXT,
+        "ipAddress" TEXT,
+        "userAgent" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "processedAt" TIMESTAMP(3),
+        CONSTRAINT "SendClaim_pkey" PRIMARY KEY ("id")
+      );
+    `);
+
+    // 4. SendClaim indexes
+    await prisma.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "SendClaim_walletTransactionId_key" ON "SendClaim"("walletTransactionId");
+      CREATE INDEX IF NOT EXISTS "SendClaim_userId_idx" ON "SendClaim"("userId");
+      CREATE INDEX IF NOT EXISTS "SendClaim_status_idx" ON "SendClaim"("status");
+      CREATE INDEX IF NOT EXISTS "SendClaim_createdAt_idx" ON "SendClaim"("createdAt");
+      CREATE INDEX IF NOT EXISTS "SendClaim_transactionReference_idx" ON "SendClaim"("transactionReference");
+      CREATE INDEX IF NOT EXISTS "SendClaim_incomingMomoTransactionId_idx" ON "SendClaim"("incomingMomoTransactionId");
+    `);
+
+    // 5. SendClaim foreign keys (idempotent)
+    await prisma.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SendClaim_userId_fkey') THEN
+          ALTER TABLE "SendClaim" ADD CONSTRAINT "SendClaim_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SendClaim_incomingMomoTransactionId_fkey') THEN
+          ALTER TABLE "SendClaim" ADD CONSTRAINT "SendClaim_incomingMomoTransactionId_fkey" FOREIGN KEY ("incomingMomoTransactionId") REFERENCES "IncomingMomoTransaction"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SendClaim_walletTransactionId_fkey') THEN
+          ALTER TABLE "SendClaim" ADD CONSTRAINT "SendClaim_walletTransactionId_fkey" FOREIGN KEY ("walletTransactionId") REFERENCES "WalletTransaction"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
+      EXCEPTION
+        WHEN duplicate_object THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+
+    // 6. SendClaimSettings table
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "SendClaimSettings" (
+        "id" TEXT NOT NULL DEFAULT 'default',
+        "enabled" BOOLEAN NOT NULL DEFAULT true,
+        "network" TEXT NOT NULL DEFAULT 'MTN',
+        "momoNumber" TEXT NOT NULL DEFAULT '0240000000',
+        "accountName" TEXT NOT NULL DEFAULT 'CheapDataPacks',
+        "instructions" TEXT,
+        "minimumAmount" DECIMAL(12,2) NOT NULL DEFAULT 1.00,
+        "maximumAmount" DECIMAL(12,2) NOT NULL DEFAULT 5000.00,
+        "claimExpiryHours" INTEGER NOT NULL DEFAULT 168,
+        "forwarderSecret" TEXT DEFAULT 'tskconnect_forwarder_secret_2026',
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "SendClaimSettings_pkey" PRIMARY KEY ("id")
+      );
+    `);
+
+    // 7. Ensure forwarderSecret column on SendClaimSettings
     await prisma.$executeRawUnsafe(
       `ALTER TABLE "SendClaimSettings" ADD COLUMN IF NOT EXISTS "forwarderSecret" TEXT DEFAULT 'tskconnect_forwarder_secret_2026'`
     );
+
     hasEnsuredColumn = true;
-  } catch {
-    // Ignore if not supported or permission denied
+  } catch (err: any) {
+    console.warn('[ensureSendClaimSchema] Warning during schema self-healing:', err?.message || err);
   }
 }
 
@@ -226,12 +327,28 @@ export async function updateSendClaimSettings(data: {
       },
     });
   } catch (err: any) {
-    console.warn('[updateSendClaimSettings] Upsert with forwarderSecret failed, retrying without column:', err?.message);
-    updated = await prisma.sendClaimSettings.upsert({
-      where: { id: existingId },
-      update: updateData,
-      create: createData,
-    });
+    console.warn('[updateSendClaimSettings] Initial upsert failed, ensuring schema and retrying:', err?.message);
+    await ensureSendClaimSchema(true);
+    try {
+      updated = await prisma.sendClaimSettings.upsert({
+        where: { id: existingId },
+        update: {
+          ...updateData,
+          ...(secret !== undefined && { forwarderSecret: secret }),
+        },
+        create: {
+          ...createData,
+          forwarderSecret: secret || DEFAULT_FORWARDER_SECRET,
+        },
+      });
+    } catch (retryErr: any) {
+      console.warn('[updateSendClaimSettings] Upsert with forwarderSecret failed, retrying without column:', retryErr?.message);
+      updated = await prisma.sendClaimSettings.upsert({
+        where: { id: existingId },
+        update: updateData,
+        create: createData,
+      });
+    }
   }
 
   return {
@@ -796,6 +913,7 @@ export async function getUserClaimsHistory(
   userId: string,
   options: { page?: number; pageSize?: number } = {},
 ) {
+  await ensureSendClaimSchema();
   const page = Math.max(1, options.page ?? 1);
   const pageSize = Math.min(50, Math.max(1, options.pageSize ?? 20));
   const skip = (page - 1) * pageSize;
@@ -849,6 +967,7 @@ export async function getAdminClaims(options: {
   network?: string;
   q?: string;
 }) {
+  await ensureSendClaimSchema();
   const page = Math.max(1, options.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 20));
   const skip = (page - 1) * pageSize;
@@ -945,6 +1064,7 @@ export async function getAdminIncomingMomo(options: {
   network?: string;
   q?: string;
 }) {
+  await ensureSendClaimSchema();
   const page = Math.max(1, options.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 20));
   const skip = (page - 1) * pageSize;
@@ -1007,6 +1127,7 @@ export async function getAdminIncomingMomo(options: {
  * Manually approve a rejected/pending claim by admin
  */
 export async function approveClaimManually(claimId: string, adminUserId: string) {
+  await ensureSendClaimSchema();
   const claim = await prisma.sendClaim.findUnique({
     where: { id: claimId },
     include: { user: { include: { wallet: true } }, incomingTransaction: true },
@@ -1081,6 +1202,7 @@ export async function approveClaimManually(claimId: string, adminUserId: string)
  * Manually reject a claim by admin
  */
 export async function rejectClaimManually(claimId: string, reason: string, adminUserId: string) {
+  await ensureSendClaimSchema();
   const claim = await prisma.sendClaim.findUnique({
     where: { id: claimId },
   });
