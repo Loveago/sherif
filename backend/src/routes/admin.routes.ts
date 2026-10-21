@@ -2444,7 +2444,7 @@ adminRouter.get('/claims/settings', async (_request, response, next) => {
       maximumAmount,
       claimExpiryHours: settings.claimExpiryHours,
       forwarderSecret,
-      webhookUrl: '/webhooks/momo/sms',
+      webhookUrl: '/api/v1/webhooks/momo/sms',
     }));
   } catch (error) {
     return next(error);
@@ -2494,7 +2494,7 @@ adminRouter.put('/claims/settings', async (request, response, next) => {
       maximumAmount,
       claimExpiryHours: updated.claimExpiryHours,
       forwarderSecret,
-      webhookUrl: '/webhooks/momo/sms',
+      webhookUrl: '/api/v1/webhooks/momo/sms',
     }, 'Send & Claim settings updated successfully'));
   } catch (error: any) {
     console.error('[PUT /claims/settings] Error updating settings:', error);

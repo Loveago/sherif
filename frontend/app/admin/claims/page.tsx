@@ -261,9 +261,11 @@ export default function AdminClaimsPage() {
   };
 
   const forwarderSecret = settingsForm.forwarderSecret ?? settingsData?.forwarderSecret ?? 'tskconnect_forwarder_secret_2026';
+  const rawWebhookPath = settingsData?.webhookUrl || '/api/v1/webhooks/momo/sms';
+  const normalizedWebhookPath = rawWebhookPath.startsWith('/') ? rawWebhookPath : `/${rawWebhookPath}`;
   const webhookUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/webhooks/momo/sms`
-    : 'https://cheapdatapacks.com/webhooks/momo/sms';
+    ? `${window.location.origin}${normalizedWebhookPath}`
+    : `https://cheapdatapacks.com${normalizedWebhookPath}`;
 
   const fullUrlWithSecret = webhookUrl.includes('?')
     ? `${webhookUrl}&secret=${forwarderSecret}`
