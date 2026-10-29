@@ -11,7 +11,8 @@ apiRouter.get('/health', (_request, response) => {
   return response.json(createSuccessResponse({ status: 'ok' }, 'CheapDataPacks Ghana API is healthy'));
 });
 
-apiRouter.use('/auth', authRouter);
-apiRouter.use('/', agentRouter);
-apiRouter.use('/admin', adminRouter);
+// Mount webhookRouter before agentRouter so webhooks are never blocked by requireAuth
 apiRouter.use('/', webhookRouter);
+apiRouter.use('/auth', authRouter);
+apiRouter.use('/admin', adminRouter);
+apiRouter.use('/', agentRouter);

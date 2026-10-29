@@ -332,53 +332,247 @@ webhookRouter.post('/webhooks/paystack', handlePaystackWebhook);
 webhookRouter.post('/paystack/webhook', handlePaystackWebhook);
 webhookRouter.post('/paystack', handlePaystackWebhook);
 
-webhookRouter.post('/webhooks/:event', async (request, response, next) => {
+const handleBundlePortalWebhook = async (request: Request, response: Response, next: NextFunction) => {
   try {
-    const event = request.params.event;
-    const signature = request.headers['x-webhook-signature'] as string | undefined;
+    const rawBody = (request as any).rawBody || Buffer.from(JSON.stringify(request.body));
+    const signatureHeader = (request.headers['x-bundleportal-signature'] || '') as string;
 
-    const payload = JSON.stringify(request.body);
+    const secret = await getBundlePortalWebhookSecret();
+    if (secret) {
+      const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+      const signatureBuf = Buffer.from(signatureHeader);
+      const expectedBuf = Buffer.from(expected);
+      if (
+        signatureBuf.length !== expectedBuf.length ||
+        !crypto.timingSafeEqual(signatureBuf, expectedBuf)
+      ) {
+        console.warn('[BundlePortalWebhook] Received callback with invalid HMAC signature');
+        return response.status(401).json({ success: false, message: 'Invalid webhook signature' });
+      }
+    }
 
-    await prisma.webhookLog.create({
-      data: {
-        event,
-        statusCode: 200,
-        success: true,
-        responseBody: payload,
-        webhook: {
-          connectOrCreate: {
-            where: { id: 'incoming-default' },
-            create: {
-              id: 'incoming-default',
-              event,
-              url: request.originalUrl,
-              secret: signature || '',
-              active: true,
-            },
-          },
-        },
+    const payload = request.body || {};
+    console.log('[BundlePortalWebhook] Received event:', payload.event, 'order_id:', payload.order_id, 'status:', payload.status);
+
+    // Respond 200 quickly within the 5 second timeout requirement
+    response.status(200).json({ success: true, message: 'Webhook received' });
+
+    // Process order update asynchronously
+    const orderId = payload.order_id;
+    const reference = payload.reference;
+    const rawStatus = payload.status || (typeof payload.event === 'string' ? payload.event.replace('order.', '') : null);
+
+    if (!orderId && !reference) {
+      return;
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        status: { in: [OrderStatus.PENDING, OrderStatus.PROCESSING] },
+        OR: [
+          ...(orderId ? [{ receiptNumber: String(orderId) }, { externalReference: String(orderId) }, { providerReference: String(orderId) }] : []),
+          ...(reference ? [{ externalReference: String(reference) }, { providerReference: String(reference) }] : []),
+        ],
+      },
+      include: {
+        product: { include: { network: true } },
+        user: { include: { wallet: true } },
       },
     });
 
-    return response.status(200).json(createSuccessResponse({ received: true, event }, 'Webhook received'));
-  } catch (error) {
-    return next(error);
-  }
-});
+    if (!order) {
+      console.log(`[BundlePortalWebhook] No pending order found matching order_id "${orderId}" / ref "${reference}"`);
+      return;
+    }
 
-webhookRouter.get('/webhooks/logs', async (_request, response, next) => {
+    const mappedStatus = mapBundlePortalStatusToOrderStatus(rawStatus);
+    if (!mappedStatus) {
+      console.warn(`[BundlePortalWebhook] Could not map status "${rawStatus}" for order ${order.receiptNumber}`);
+      return;
+    }
+
+    await applyBundlePortalOrderStatusUpdate(order as any, mappedStatus, payload.failure_reason);
+    console.log(`[BundlePortalWebhook] Updated order ${order.receiptNumber} -> ${mappedStatus}`);
+  } catch (error) {
+    console.error('[BundlePortalWebhook] Error processing webhook:', error);
+    if (!response.headersSent) {
+      return next(error);
+    }
+  }
+};
+
+const handleTskconnectWebhook = async (request: Request, response: Response, next: NextFunction) => {
   try {
-    const logs = await prisma.webhookLog.findMany({
-      include: { webhook: true },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
+    const rawBody = (request as any).rawBody || Buffer.from(JSON.stringify(request.body));
+    const signatureHeader = (
+      request.headers['x-tskconnect-signature'] ||
+      request.headers['x-tsk-signature'] ||
+      request.headers['x-signature'] ||
+      request.headers['x-webhook-signature'] ||
+      ''
+    ) as string;
+    const timestampHeader = (
+      request.headers['x-tskconnect-timestamp'] ||
+      request.headers['x-timestamp'] ||
+      ''
+    ) as string;
+
+    const payload = request.body || {};
+
+    // Handle test / ping webhook immediately
+    const isTestPing =
+      payload.event === 'webhook.test' ||
+      payload.event === 'test' ||
+      payload.event === 'ping' ||
+      payload.type === 'test';
+
+    if (isTestPing) {
+      console.log('[TskconnectWebhook] Successfully verified test webhook ping');
+      return response.status(200).json({ success: true, message: 'Test webhook verified successfully' });
+    }
+
+    const secret = await getTskconnectWebhookSecret();
+    if (secret && signatureHeader) {
+      const isValid = verifyTskconnectWebhook(rawBody, signatureHeader, timestampHeader, secret);
+      if (!isValid) {
+        console.warn('[TskconnectWebhook] Received callback with invalid HMAC signature');
+        return response.status(401).json({ success: false, message: 'Invalid webhook signature' });
+      }
+    }
+
+    console.log('[TskconnectWebhook] Received event:', payload.event, 'orderId:', payload.orderId || payload.data?.orderId);
+
+    // Fast 200 response to prevent provider retries/timeouts
+    response.status(200).json({ success: true, message: 'Webhook received' });
+
+    // Process order update asynchronously
+    const data = (payload.data && typeof payload.data === 'object') ? payload.data : payload;
+    const orderId = data.orderId || payload.orderId;
+    const reference = data.reference || payload.reference || data.externalReference || payload.externalReference;
+    const rawStatus =
+      data.status ||
+      payload.status ||
+      (typeof payload.event === 'string' ? payload.event.replace(/^order\./, '') : null);
+
+    if (!orderId && !reference) {
+      return;
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        status: { in: [OrderStatus.PENDING, OrderStatus.PROCESSING] },
+        OR: [
+          ...(orderId ? [{ receiptNumber: String(orderId) }, { externalReference: String(orderId) }, { providerReference: String(orderId) }] : []),
+          ...(reference ? [{ externalReference: String(reference) }, { providerReference: String(reference) }, { receiptNumber: String(reference) }] : []),
+        ],
+      },
+      include: {
+        product: { include: { network: true } },
+        user: { include: { wallet: true } },
+      },
     });
 
-    return response.json(createSuccessResponse(logs));
+    if (!order) {
+      console.log(`[TskconnectWebhook] No pending order found matching orderId "${orderId}" / ref "${reference}"`);
+      return;
+    }
+
+    const mappedStatus = mapTskconnectStatusToOrderStatus(rawStatus);
+    if (!mappedStatus) {
+      console.warn(`[TskconnectWebhook] Could not map status "${rawStatus}" for order ${order.receiptNumber}`);
+      return;
+    }
+
+    await applyTskconnectOrderStatusUpdate(
+      order as any,
+      mappedStatus,
+      data.failureReason || data.reason || payload.failureReason,
+    );
+    console.log(`[TskconnectWebhook] Updated order ${order.receiptNumber} -> ${mappedStatus}`);
   } catch (error) {
-    return next(error);
+    console.error('[TskconnectWebhook] Error processing webhook:', error);
+    if (!response.headersSent) {
+      return next(error);
+    }
   }
-});
+};
+
+// BundlePortal webhook routes
+const bundlePortalPaths = [
+  '/webhooks/bundleportal',
+  '/webhooks/bundle-portal',
+  '/bundleportal/webhook',
+  '/bundle-portal/webhook',
+];
+for (const bpPath of bundlePortalPaths) {
+  webhookRouter.post(bpPath, handleBundlePortalWebhook);
+  webhookRouter.get(bpPath, (_req, res) =>
+    res.status(200).json({ status: 'ok', service: 'bundleportal-webhook', timestamp: new Date().toISOString() })
+  );
+  webhookRouter.head(bpPath, (_req, res) => res.status(200).end());
+}
+
+// Tskconnect / TSK05 webhook routes
+const tskconnectPaths = [
+  '/webhooks/tskconnect',
+  '/webhooks/tsk-connect',
+  '/webhooks/tsk05',
+  '/webhooks/tsk',
+  '/tskconnect/webhook',
+  '/tskconnect',
+];
+for (const tskPath of tskconnectPaths) {
+  webhookRouter.post(tskPath, handleTskconnectWebhook);
+  webhookRouter.get(tskPath, (_req, res) =>
+    res.status(200).json({ status: 'ok', service: 'tskconnect-webhook', timestamp: new Date().toISOString() })
+  );
+  webhookRouter.head(tskPath, (_req, res) => res.status(200).end());
+}
+
+// Generic root webhook handler: auto-dispatches based on payload and headers
+const handleGenericWebhook = async (request: Request, response: Response, next: NextFunction) => {
+  const payload = request.body || {};
+  const sig =
+    request.headers['x-tskconnect-signature'] ||
+    request.headers['x-tsk-signature'] ||
+    request.headers['x-signature'];
+
+  const isTsk =
+    Boolean(sig) ||
+    Boolean(payload.network) ||
+    Boolean(payload.orderId) ||
+    Boolean(payload.data?.orderId) ||
+    Boolean(payload.data?.network) ||
+    (typeof payload.event === 'string' && (payload.event.startsWith('order.') || payload.event.startsWith('webhook.'))) ||
+    payload.type === 'test' ||
+    payload.event === 'test' ||
+    payload.event === 'ping';
+
+  if (isTsk) {
+    return handleTskconnectWebhook(request, response, next);
+  }
+
+  if (request.headers['x-bundleportal-signature'] || payload.order_id) {
+    return handleBundlePortalWebhook(request, response, next);
+  }
+
+  if (request.headers['x-paystack-signature']) {
+    return handlePaystackWebhook(request, response, next);
+  }
+
+  return response.status(200).json({ success: true, message: 'Webhook received' });
+};
+
+webhookRouter.post('/webhooks', handleGenericWebhook);
+webhookRouter.post('/', handleGenericWebhook);
+webhookRouter.get('/webhooks', (_req, res) =>
+  res.status(200).json({ status: 'ok', service: 'webhooks-root', timestamp: new Date().toISOString() })
+);
+webhookRouter.head('/webhooks', (_req, res) => res.status(200).end());
+webhookRouter.get('/', (_req, res) =>
+  res.status(200).json({ status: 'ok', service: 'webhooks-root', timestamp: new Date().toISOString() })
+);
+webhookRouter.head('/', (_req, res) => res.status(200).end());
 
 webhookRouter.post('/webhooks/shank/orders-processed', async (request, response, next) => {
   try {
@@ -493,156 +687,54 @@ webhookRouter.post('/webhooks/shank/orders-processed', async (request, response,
   }
 });
 
-const handleBundlePortalWebhook = async (request: Request, response: Response, next: NextFunction) => {
+// Fallback webhook route for arbitrary events (only catches unhandled :event names)
+webhookRouter.post('/webhooks/:event', async (request, response, next) => {
   try {
-    const rawBody = (request as any).rawBody || Buffer.from(JSON.stringify(request.body));
-    const signatureHeader = (request.headers['x-bundleportal-signature'] || '') as string;
+    const event = request.params.event;
+    const signature = request.headers['x-webhook-signature'] as string | undefined;
 
-    const secret = await getBundlePortalWebhookSecret();
-    if (secret) {
-      const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-      const signatureBuf = Buffer.from(signatureHeader);
-      const expectedBuf = Buffer.from(expected);
-      if (
-        signatureBuf.length !== expectedBuf.length ||
-        !crypto.timingSafeEqual(signatureBuf, expectedBuf)
-      ) {
-        console.warn('[BundlePortalWebhook] Received callback with invalid HMAC signature');
-        return response.status(401).json({ success: false, message: 'Invalid webhook signature' });
-      }
-    }
+    const payload = JSON.stringify(request.body);
 
-    const payload = request.body || {};
-    console.log('[BundlePortalWebhook] Received event:', payload.event, 'order_id:', payload.order_id, 'status:', payload.status);
-
-    // Respond 200 quickly within the 5 second timeout requirement
-    response.status(200).json({ success: true, message: 'Webhook received' });
-
-    // Process order update asynchronously
-    const orderId = payload.order_id;
-    const reference = payload.reference;
-    const rawStatus = payload.status || (typeof payload.event === 'string' ? payload.event.replace('order.', '') : null);
-
-    if (!orderId && !reference) {
-      return;
-    }
-
-    const order = await prisma.order.findFirst({
-      where: {
-        status: { in: [OrderStatus.PENDING, OrderStatus.PROCESSING] },
-        OR: [
-          ...(orderId ? [{ receiptNumber: String(orderId) }, { externalReference: String(orderId) }, { providerReference: String(orderId) }] : []),
-          ...(reference ? [{ externalReference: String(reference) }, { providerReference: String(reference) }] : []),
-        ],
-      },
-      include: {
-        product: { include: { network: true } },
-        user: { include: { wallet: true } },
+    await prisma.webhookLog.create({
+      data: {
+        event,
+        statusCode: 200,
+        success: true,
+        responseBody: payload,
+        webhook: {
+          connectOrCreate: {
+            where: { id: 'incoming-default' },
+            create: {
+              id: 'incoming-default',
+              event,
+              url: request.originalUrl,
+              secret: signature || '',
+              active: true,
+            },
+          },
+        },
       },
     });
 
-    if (!order) {
-      console.log(`[BundlePortalWebhook] No pending order found matching order_id "${orderId}" / ref "${reference}"`);
-      return;
-    }
-
-    const mappedStatus = mapBundlePortalStatusToOrderStatus(rawStatus);
-    if (!mappedStatus) {
-      console.warn(`[BundlePortalWebhook] Could not map status "${rawStatus}" for order ${order.receiptNumber}`);
-      return;
-    }
-
-    await applyBundlePortalOrderStatusUpdate(order as any, mappedStatus, payload.failure_reason);
-    console.log(`[BundlePortalWebhook] Updated order ${order.receiptNumber} -> ${mappedStatus}`);
+    return response.status(200).json(createSuccessResponse({ received: true, event }, 'Webhook received'));
   } catch (error) {
-    console.error('[BundlePortalWebhook] Error processing webhook:', error);
-    if (!response.headersSent) {
-      return next(error);
-    }
+    return next(error);
   }
-};
+});
 
-webhookRouter.post('/webhooks/bundleportal', handleBundlePortalWebhook);
-webhookRouter.post('/webhooks/bundle-portal', handleBundlePortalWebhook);
-
-const handleTskconnectWebhook = async (request: Request, response: Response, next: NextFunction) => {
+webhookRouter.get('/webhooks/logs', async (_request, response, next) => {
   try {
-    const rawBody = (request as any).rawBody || Buffer.from(JSON.stringify(request.body));
-    const signatureHeader = (request.headers['x-tskconnect-signature'] || '') as string;
-    const timestampHeader = (request.headers['x-tskconnect-timestamp'] || '') as string;
-
-    const secret = await getTskconnectWebhookSecret();
-    if (secret) {
-      const isValid = verifyTskconnectWebhook(rawBody, signatureHeader, timestampHeader, secret);
-      if (!isValid) {
-        console.warn('[TskconnectWebhook] Received callback with invalid HMAC signature');
-        return response.status(401).json({ success: false, message: 'Invalid webhook signature' });
-      }
-    }
-
-    const payload = request.body || {};
-    console.log('[TskconnectWebhook] Received event:', payload.event, 'orderId:', payload.orderId || payload.data?.orderId);
-
-    // Fast 200 response to prevent provider retries/timeouts
-    response.status(200).json({ success: true, message: 'Webhook received' });
-
-    // Handle test / ping webhook
-    if (payload.event === 'webhook.test' || payload.type === 'test') {
-      console.log('[TskconnectWebhook] Successfully verified test webhook ping');
-      return;
-    }
-
-    // Process order update asynchronously
-    const data = (payload.data && typeof payload.data === 'object') ? payload.data : payload;
-    const orderId = data.orderId || payload.orderId;
-    const reference = data.reference || payload.reference || data.externalReference || payload.externalReference;
-    const rawStatus = data.status || payload.status || (typeof payload.event === 'string' ? payload.event.replace('order.', '') : null);
-
-    if (!orderId && !reference) {
-      return;
-    }
-
-    const order = await prisma.order.findFirst({
-      where: {
-        status: { in: [OrderStatus.PENDING, OrderStatus.PROCESSING] },
-        OR: [
-          ...(orderId ? [{ receiptNumber: String(orderId) }, { externalReference: String(orderId) }, { providerReference: String(orderId) }] : []),
-          ...(reference ? [{ externalReference: String(reference) }, { providerReference: String(reference) }, { receiptNumber: String(reference) }] : []),
-        ],
-      },
-      include: {
-        product: { include: { network: true } },
-        user: { include: { wallet: true } },
-      },
+    const logs = await prisma.webhookLog.findMany({
+      include: { webhook: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
     });
 
-    if (!order) {
-      console.log(`[TskconnectWebhook] No pending order found matching orderId "${orderId}" / ref "${reference}"`);
-      return;
-    }
-
-    const mappedStatus = mapTskconnectStatusToOrderStatus(rawStatus);
-    if (!mappedStatus) {
-      console.warn(`[TskconnectWebhook] Could not map status "${rawStatus}" for order ${order.receiptNumber}`);
-      return;
-    }
-
-    await applyTskconnectOrderStatusUpdate(
-      order as any,
-      mappedStatus,
-      data.failureReason || data.reason || payload.failureReason,
-    );
-    console.log(`[TskconnectWebhook] Updated order ${order.receiptNumber} -> ${mappedStatus}`);
+    return response.json(createSuccessResponse(logs));
   } catch (error) {
-    console.error('[TskconnectWebhook] Error processing webhook:', error);
-    if (!response.headersSent) {
-      return next(error);
-    }
+    return next(error);
   }
-};
-
-webhookRouter.post('/webhooks/tskconnect', handleTskconnectWebhook);
-webhookRouter.post('/webhooks/tsk-connect', handleTskconnectWebhook);
+});
 
 /**
  * Handle incoming SMS Forwarder webhook for Send & Claim Mobile Money deposits.

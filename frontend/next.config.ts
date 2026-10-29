@@ -20,8 +20,24 @@ const nextConfig: NextConfig = {
         destination: `${backendBase}/webhooks/:path*`,
       },
       {
+        source: '/webhooks',
+        destination: `${backendBase}/webhooks`,
+      },
+      {
+        source: '/api/v1/webhooks/:path*',
+        destination: `${backendBase}/api/v1/webhooks/:path*`,
+      },
+      {
+        source: '/api/v1/webhooks',
+        destination: `${backendBase}/api/v1/webhooks`,
+      },
+      {
         source: '/momo/:path*',
         destination: `${backendBase}/momo/:path*`,
+      },
+      {
+        source: '/momo',
+        destination: `${backendBase}/momo`,
       },
     ];
   },

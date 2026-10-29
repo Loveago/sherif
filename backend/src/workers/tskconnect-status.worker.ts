@@ -190,14 +190,29 @@ export const pollTskconnectOrderStatuses = async (): Promise<{ checked: number; 
     const orderIds = activeOrders.map((o) => o.id);
     const transactions = await prisma.providerTransaction.findMany({
       where: { orderId: { in: orderIds } },
-      select: { orderId: true, responsePayload: true },
+      select: {
+        orderId: true,
+        responsePayload: true,
+        requestPayload: true,
+        provider: { select: { name: true, code: true } },
+      },
     });
 
     const tskOrderIds = new Set<string>();
     for (const tx of transactions) {
       if (!tx.orderId) continue;
-      const payload = tx.responsePayload as Record<string, unknown> | null;
-      if (payload && typeof payload === 'object' && payload.provider === 'TSKCONNECT') {
+      const resPayload = tx.responsePayload as Record<string, unknown> | null;
+      const reqPayload = tx.requestPayload as Record<string, unknown> | null;
+      const providerName = tx.provider?.name?.toLowerCase() || '';
+      const providerCode = tx.provider?.code?.toLowerCase() || '';
+
+      const isTsk =
+        (resPayload && (String(resPayload.provider).toUpperCase() === 'TSKCONNECT' || Boolean(resPayload.tskNetwork))) ||
+        (reqPayload && (String(reqPayload.provider).toUpperCase() === 'TSKCONNECT' || Boolean(reqPayload.tskNetwork))) ||
+        providerName.includes('tsk') ||
+        providerCode.includes('tsk');
+
+      if (isTsk) {
         tskOrderIds.add(tx.orderId);
       }
     }
@@ -208,9 +223,12 @@ export const pollTskconnectOrderStatuses = async (): Promise<{ checked: number; 
     }
 
     let updatedCount = 0;
+    const settledOrderIds = new Set<string>();
 
-    // Collect order IDs (API-xxxx or stored in providerReference)
-    const ordersWithOrderId = ordersToPoll.filter((o) => o.providerReference && o.providerReference.startsWith('API-'));
+    // Collect order IDs (stored in providerReference, excluding local PRV- fallbacks)
+    const ordersWithOrderId = ordersToPoll.filter(
+      (o) => o.providerReference && !o.providerReference.startsWith('PRV-'),
+    );
     const tskOrderIdsList = ordersWithOrderId.map((o) => o.providerReference!);
 
     // 1. Bulk check with POST /orders/status (up to 100 at a time)
@@ -220,10 +238,14 @@ export const pollTskconnectOrderStatuses = async (): Promise<{ checked: number; 
         const statusMap = new Map<string, TskconnectOrder>();
         for (const st of statuses) {
           if (st.orderId) statusMap.set(st.orderId, st);
+          if (st.reference) statusMap.set(st.reference, st);
         }
 
         for (const order of ordersWithOrderId) {
-          const remoteOrder = statusMap.get(order.providerReference!);
+          const remoteOrder =
+            statusMap.get(order.providerReference!) ||
+            (order.externalReference ? statusMap.get(order.externalReference) : undefined) ||
+            statusMap.get(order.receiptNumber);
           if (!remoteOrder) continue;
 
           const mappedStatus = mapTskconnectStatusToOrderStatus(remoteOrder.status);
@@ -233,7 +255,13 @@ export const pollTskconnectOrderStatuses = async (): Promise<{ checked: number; 
               mappedStatus,
               (remoteOrder as any).failureReason || (remoteOrder as any).reason,
             );
-            if (didUpdate) updatedCount++;
+            if (didUpdate) {
+              settledOrderIds.add(order.id);
+              updatedCount++;
+              console.log(`[TskconnectWorker] Bulk poll: Order ${order.receiptNumber} updated to ${mappedStatus}`);
+            }
+          } else if (mappedStatus === order.status) {
+            settledOrderIds.add(order.id);
           }
         }
       } catch (err) {
@@ -241,24 +269,36 @@ export const pollTskconnectOrderStatuses = async (): Promise<{ checked: number; 
       }
     }
 
-    // 2. Individual check for orders without an orderId or not covered by bulk check
-    const remainingOrders = ordersToPoll.filter(
-      (o) => !o.providerReference || !o.providerReference.startsWith('API-'),
-    );
-
-    for (const order of remainingOrders) {
+    // 2. Individual check for orders not resolved by bulk check
+    for (const order of ordersToPoll) {
+      if (settledOrderIds.has(order.id)) continue;
       try {
-        const ref = order.externalReference || order.receiptNumber;
-        const remoteOrder = await tskconnectClient.getOrderByReference(ref);
-        const mappedStatus = mapTskconnectStatusToOrderStatus(remoteOrder.status);
+        let remoteOrder: TskconnectOrder | null = null;
+        if (order.providerReference && !order.providerReference.startsWith('PRV-')) {
+          try {
+            remoteOrder = await tskconnectClient.getOrder(order.providerReference);
+          } catch {
+            // Fall through to reference lookup
+          }
+        }
 
+        if (!remoteOrder) {
+          const ref = order.externalReference || order.receiptNumber;
+          remoteOrder = await tskconnectClient.getOrderByReference(ref);
+        }
+
+        const mappedStatus = mapTskconnectStatusToOrderStatus(remoteOrder.status);
         if (mappedStatus && mappedStatus !== order.status) {
           const didUpdate = await applyTskconnectOrderStatusUpdate(
             order as any,
             mappedStatus,
-            (remoteOrder as any).failureReason,
+            (remoteOrder as any).failureReason || (remoteOrder as any).reason,
           );
-          if (didUpdate) updatedCount++;
+          if (didUpdate) {
+            settledOrderIds.add(order.id);
+            updatedCount++;
+            console.log(`[TskconnectWorker] Single poll: Order ${order.receiptNumber} updated to ${mappedStatus}`);
+          }
         }
       } catch (err) {
         // Not found or transient error
@@ -278,20 +318,33 @@ export const pollTskconnectOrderStatuses = async (): Promise<{ checked: number; 
   }
 };
 
+let workerTimer: NodeJS.Timeout | null = null;
+
 export const startTskconnectStatusWorker = () => {
-  const intervalMs = env.TSKCONNECT_WORKER_INTERVAL_MS || 30000;
-  console.log(`[TskconnectWorker] Starting status worker (interval: ${intervalMs}ms)`);
+  if (workerTimer) {
+    console.log('[TskconnectWorker] Already running');
+    return;
+  }
 
-  // Initial poll on startup
-  setTimeout(() => {
-    pollTskconnectOrderStatuses().catch((err) => {
-      console.error('[TskconnectWorker] Initial poll error:', err);
-    });
-  }, 5000);
+  const intervalMs = env.TSKCONNECT_WORKER_INTERVAL_MS || 60000;
+  console.log(`[TskconnectWorker] Starting status worker fallback (polling every ${intervalMs}ms)`);
 
-  setInterval(() => {
-    pollTskconnectOrderStatuses().catch((err) => {
-      console.error('[TskconnectWorker] Interval poll error:', err);
-    });
-  }, intervalMs);
+  const tick = async () => {
+    try {
+      await pollTskconnectOrderStatuses();
+    } catch (error) {
+      console.error('[TskconnectWorker] Unexpected error during polling cycle:', error);
+    }
+  };
+
+  workerTimer = setInterval(tick, intervalMs);
+  setTimeout(tick, 5000);
+};
+
+export const stopTskconnectStatusWorker = () => {
+  if (workerTimer) {
+    clearInterval(workerTimer);
+    workerTimer = null;
+    console.log('[TskconnectWorker] Stopped');
+  }
 };

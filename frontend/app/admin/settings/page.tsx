@@ -287,7 +287,7 @@ export default function AdminSettingsPage() {
 
   const registerTskWebhookMutation = useMutation({
     mutationFn: () => {
-      const webhookUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/webhooks/tskconnect`;
+      const webhookUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/webhooks/tskconnect`;
       return apiRequest<{ url: string; events?: string[] }>('/admin/tskconnect/webhook/register', {
         method: 'POST',
         body: JSON.stringify({ webhookUrl }),
@@ -937,6 +937,12 @@ export default function AdminSettingsPage() {
                     </div>
                     <Input type="password" autoComplete="new-password" placeholder="whsec_... or secret (leave empty to keep current)" {...tskconnectForm.register('webhookSecret')} />
                     <p className="mt-1 text-[11px] text-slate-500">Paste your Tskconnect webhook secret to verify HMAC-SHA256 signatures (X-Tskconnect-Signature).</p>
+                    <div className="mt-2 rounded-lg bg-black/30 p-2 text-[11px] border border-white/5">
+                      <span className="text-slate-400">Webhook URL for TSK05:</span>{' '}
+                      <span className="font-mono text-emerald-400 select-all font-semibold">
+                        {typeof window !== 'undefined' ? `${window.location.origin}/webhooks/tskconnect` : 'https://cleandatapacks.com/webhooks/tskconnect'}
+                      </span>
+                    </div>
                   </div>
                   <Button onClick={onSaveTskconnect} disabled={providerMutation.isPending} className="w-full">
                     {providerMutation.isPending && providerMutation.variables?.provider === 'tskconnect' ? 'Saving...' : saved ? 'Saved' : 'Save Tskconnect Credentials'}
