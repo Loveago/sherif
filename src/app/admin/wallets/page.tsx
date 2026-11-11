@@ -152,9 +152,18 @@ export default function AdminWalletsPage() {
   const [dirQuery, setDirQuery] = React.useState("");
   const [overviewLoading, setOverviewLoading] = React.useState(false);
 
-  // Credit / Debit Dialog
+  // Credit / Debit / Set Balance Dialog
   const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [dialogMode, setDialogMode] = React.useState<"CREDIT" | "DEBIT">("CREDIT");
+  const [dialogMode, setDialogMode] = React.useState<"CREDIT" | "DEBIT" | "SET">("CREDIT");
+  const [dialogTargetUser, setDialogTargetUser] = React.useState<{
+    id: string;
+    name: string;
+    email: string;
+    phone?: string | null;
+    role?: string;
+    status?: string;
+    balance: number;
+  } | null>(null);
   const [busyActionId, setBusyActionId] = React.useState<string | null>(null);
 
   // Load live autocomplete suggestions when typing in search bar
@@ -259,7 +268,11 @@ export default function AdminWalletsPage() {
     router.push("/admin/wallets");
   };
 
-  const openAdjustDialog = (mode: "CREDIT" | "DEBIT") => {
+  const openAdjustDialog = (
+    mode: "CREDIT" | "DEBIT" | "SET",
+    targetUser: UserProfile | UserDirectoryItem | null = userProfile
+  ) => {
+    setDialogTargetUser(targetUser);
     setDialogMode(mode);
     setDialogOpen(true);
   };
@@ -350,7 +363,7 @@ export default function AdminWalletsPage() {
         description="Search any user to monitor their live wallet balance, inspect ledger transactions, and track order activity"
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {activeUserId && (
+            {activeUserId ? (
               <>
                 <Button
                   variant="outline"
@@ -379,7 +392,20 @@ export default function AdminWalletsPage() {
                 >
                   <MinusCircle className="h-3.5 w-3.5 mr-1" /> Debit User
                 </Button>
+                <Button
+                  onClick={() => openAdjustDialog("SET")}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 shadow-xs cursor-pointer"
+                >
+                  <ArrowLeftRight className="h-3.5 w-3.5 mr-1" /> Set Balance
+                </Button>
               </>
+            ) : (
+              <Button
+                onClick={() => openAdjustDialog("SET", null)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 shadow-xs cursor-pointer"
+              >
+                <ArrowLeftRight className="h-3.5 w-3.5 mr-1" /> Credit / Debit / Set Balance
+              </Button>
             )}
           </div>
         }
@@ -1040,7 +1066,15 @@ export default function AdminWalletsPage() {
                               <StatusBadge status={u.status} />
                             </div>
                           </td>
-                          <td className="px-4 py-3.5 font-bold text-emerald-600 dark:text-emerald-400 text-base">
+                          <td
+                            className={`px-4 py-3.5 font-bold text-base ${
+                              u.balance < 0
+                                ? "text-rose-600 dark:text-rose-400"
+                                : u.balance === 0
+                                ? "text-slate-500 dark:text-slate-400"
+                                : "text-emerald-600 dark:text-emerald-400"
+                            }`}
+                          >
                             {formatGHS(u.balance)}
                           </td>
                           <td className="px-4 py-3.5 text-xs text-slate-600 dark:text-slate-300">
@@ -1050,13 +1084,24 @@ export default function AdminWalletsPage() {
                             {u._count.walletTransactions} entries
                           </td>
                           <td className="px-4 py-3.5 text-right">
-                            <Button
-                              size="sm"
-                              onClick={() => selectUser(u.id)}
-                              className="bg-brand-50 hover:bg-brand-100 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300 dark:hover:bg-brand-500/20 text-xs h-8 cursor-pointer"
-                            >
-                              <Wallet className="h-3.5 w-3.5 mr-1" /> Track Wallet
-                            </Button>
+                            <div className="inline-flex items-center justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openAdjustDialog("SET", u)}
+                                className="text-xs h-8 cursor-pointer"
+                                title="Credit, debit, or set exact balance"
+                              >
+                                <ArrowLeftRight className="h-3.5 w-3.5 mr-1 text-indigo-600 dark:text-indigo-400" /> Set / Adjust
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => selectUser(u.id)}
+                                className="bg-brand-50 hover:bg-brand-100 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300 dark:hover:bg-brand-500/20 text-xs h-8 cursor-pointer"
+                              >
+                                <Wallet className="h-3.5 w-3.5 mr-1" /> Track Wallet
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1098,12 +1143,12 @@ export default function AdminWalletsPage() {
         </div>
       )}
 
-      {/* Manual Credit / Debit Dialog */}
+      {/* Manual Credit / Debit / Set Balance Dialog */}
       {dialogOpen && (
         <ManualCreditDialog
           open={dialogOpen}
           onClose={() => setDialogOpen(false)}
-          user={userProfile}
+          user={dialogTargetUser}
           initialMode={dialogMode}
           onAdjusted={() => {
             setDialogOpen(false);

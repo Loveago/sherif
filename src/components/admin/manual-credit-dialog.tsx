@@ -41,13 +41,13 @@ export function ManualCreditDialog({
   open: boolean;
   onClose: () => void;
   user: UserSummary | null;
-  initialMode?: "CREDIT" | "DEBIT";
+  initialMode?: "CREDIT" | "DEBIT" | "SET";
   onCredited?: () => void;
   onAdjusted?: () => void;
 }) {
   const { toast } = useToast();
   const [selectedUser, setSelectedUser] = React.useState<UserSummary | null>(user);
-  const [mode, setMode] = React.useState<"CREDIT" | "DEBIT">(initialMode);
+  const [mode, setMode] = React.useState<"CREDIT" | "DEBIT" | "SET">(initialMode);
   const [amount, setAmount] = React.useState("");
   const [reason, setReason] = React.useState("");
   const [reference, setReference] = React.useState("");
@@ -122,28 +122,46 @@ export function ManualCreditDialog({
     return () => clearTimeout(timer);
   }, [searchQuery, open, selectedUser, toast]);
 
-  const parsedAmount = Number(amount) || 0;
+  const parsedAmount = Number(amount);
   const isDebit = mode === "DEBIT";
+  const isSet = mode === "SET";
   const currentBalance = selectedUser?.balance ?? 0;
-  const projectedBalance = isDebit ? currentBalance - parsedAmount : currentBalance + parsedAmount;
-  const isInsufficient = isDebit && parsedAmount > currentBalance;
+  const projectedBalance = isSet
+    ? (Number.isFinite(parsedAmount) ? parsedAmount : currentBalance)
+    : isDebit
+    ? currentBalance - (parsedAmount || 0)
+    : currentBalance + (parsedAmount || 0);
+  const deltaAmount = projectedBalance - currentBalance;
+  const isInsufficient = isDebit && (parsedAmount || 0) > currentBalance;
+  const isValidInput = isSet
+    ? amount.trim() !== "" && Number.isFinite(parsedAmount) && Math.abs(deltaAmount) >= 0.01
+    : Number.isFinite(parsedAmount) && parsedAmount > 0 && !isInsufficient;
 
   const handleProceed = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) return;
 
     if (!confirmed) {
-      if (parsedAmount <= 0) {
-        return toast(`Enter a valid ${isDebit ? "debit" : "credit"} amount`, "error");
-      }
-      if (isDebit && isInsufficient) {
-        return toast(
-          `Insufficient balance. User has ${formatGHS(currentBalance)}, cannot debit ${formatGHS(parsedAmount)}`,
-          "error"
-        );
+      if (isSet) {
+        if (amount.trim() === "" || !Number.isFinite(parsedAmount)) {
+          return toast("Enter a valid target balance", "error");
+        }
+        if (Math.abs(deltaAmount) < 0.01) {
+          return toast("New balance is the same as current balance", "error");
+        }
+      } else {
+        if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+          return toast(`Enter a valid ${isDebit ? "debit" : "credit"} amount`, "error");
+        }
+        if (isDebit && isInsufficient) {
+          return toast(
+            `Insufficient balance. User has ${formatGHS(currentBalance)}, cannot debit ${formatGHS(parsedAmount)}`,
+            "error"
+          );
+        }
       }
       if (!reason.trim()) {
-        return toast(`Enter a reason for this ${isDebit ? "debit" : "credit"}`, "error");
+        return toast("Enter a reason for this wallet adjustment", "error");
       }
       setConfirmed(true);
       return;
@@ -151,29 +169,42 @@ export function ManualCreditDialog({
 
     setSaving(true);
     try {
-      const endpoint = isDebit
+      const endpoint = isSet
+        ? "/api/admin/wallet/set-balance"
+        : isDebit
         ? "/api/admin/wallet/manual-debit"
         : "/api/admin/wallet/manual-credit";
+
+      const payload = isSet
+        ? {
+            userId: selectedUser.id,
+            targetBalance: parsedAmount,
+            reason: reason.trim(),
+            reference: reference.trim() || undefined,
+          }
+        : {
+            userId: selectedUser.id,
+            amount: parsedAmount,
+            reason: reason.trim(),
+            reference: reference.trim() || undefined,
+          };
 
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: selectedUser.id,
-          amount: parsedAmount,
-          reason: reason.trim(),
-          reference: reference.trim() || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const json = await res.json();
       if (!res.ok) {
-        toast(json.error ?? `Failed to ${isDebit ? "debit" : "credit"} wallet`, "error");
+        toast(json.error ?? "Failed to update wallet balance", "error");
         return;
       }
 
       toast(
-        isDebit
+        isSet
+          ? `Set ${selectedUser.name}'s balance to ${formatGHS(projectedBalance)}`
+          : isDebit
           ? `Successfully debited ${formatGHS(parsedAmount)} from ${selectedUser.name}`
           : `Successfully credited ${formatGHS(parsedAmount)} to ${selectedUser.name}`,
         "success"
@@ -189,8 +220,10 @@ export function ManualCreditDialog({
   };
 
   const dialogTitle = selectedUser
-    ? `Manual Wallet ${isDebit ? "Debit" : "Credit"}: ${selectedUser.name}`
-    : "Credit / Debit User Wallet";
+    ? isSet
+      ? `Set Exact Balance: ${selectedUser.name}`
+      : `Manual Wallet ${isDebit ? "Debit" : "Credit"}: ${selectedUser.name}`
+    : "Manage User Wallet Balance";
 
   return (
     <Dialog
@@ -350,23 +383,23 @@ export function ManualCreditDialog({
             </div>
           </div>
 
-          {/* Credit / Debit Segmented Selector */}
+          {/* Credit / Debit / Set Exact Balance Segmented Selector */}
           {!confirmed && (
-            <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
+            <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
               <button
                 type="button"
                 onClick={() => {
                   setMode("CREDIT");
                   setConfirmed(false);
                 }}
-                className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition cursor-pointer ${
+                className={`flex items-center justify-center gap-1 rounded-lg py-2 text-xs font-semibold transition cursor-pointer ${
                   mode === "CREDIT"
                     ? "bg-white text-emerald-700 shadow-xs dark:bg-slate-800 dark:text-emerald-400"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
-                <PlusCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                Credit Account (+)
+                <PlusCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                Credit (+)
               </button>
               <button
                 type="button"
@@ -374,14 +407,29 @@ export function ManualCreditDialog({
                   setMode("DEBIT");
                   setConfirmed(false);
                 }}
-                className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition cursor-pointer ${
+                className={`flex items-center justify-center gap-1 rounded-lg py-2 text-xs font-semibold transition cursor-pointer ${
                   mode === "DEBIT"
                     ? "bg-white text-rose-700 shadow-xs dark:bg-slate-800 dark:text-rose-400"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
-                <MinusCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-                Debit Account (-)
+                <MinusCircle className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+                Debit (-)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("SET");
+                  setConfirmed(false);
+                }}
+                className={`flex items-center justify-center gap-1 rounded-lg py-2 text-xs font-semibold transition cursor-pointer ${
+                  mode === "SET"
+                    ? "bg-white text-indigo-700 shadow-xs dark:bg-slate-800 dark:text-indigo-400"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                }`}
+              >
+                <ArrowLeftRight className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                Set Exact
               </button>
             </div>
           )}
@@ -391,9 +439,13 @@ export function ManualCreditDialog({
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="adjustmentAmt">
-                    {isDebit ? "Debit Amount (GHS) *" : "Credit Amount (GHS) *"}
+                    {isSet
+                      ? "Target Balance (GHS) *"
+                      : isDebit
+                      ? "Debit Amount (GHS) *"
+                      : "Credit Amount (GHS) *"}
                   </Label>
-                  {amount && (
+                  {amount !== "" && Number.isFinite(parsedAmount) && (
                     <span
                       className={`text-xs font-medium ${
                         isInsufficient
@@ -401,7 +453,9 @@ export function ManualCreditDialog({
                           : "text-slate-600 dark:text-slate-300"
                       }`}
                     >
-                      Est. New Balance: {formatGHS(projectedBalance)}
+                      {isSet
+                        ? `Change: ${deltaAmount >= 0 ? "+" : ""}${formatGHS(deltaAmount)}`
+                        : `Est. New Balance: ${formatGHS(projectedBalance)}`}
                     </span>
                   )}
                 </div>
@@ -409,8 +463,8 @@ export function ManualCreditDialog({
                   id="adjustmentAmt"
                   type="number"
                   step="0.01"
-                  min="0.01"
-                  placeholder={isDebit ? "e.g. 50.00" : "e.g. 100.00"}
+                  min={isSet ? undefined : "0.01"}
+                  placeholder={isSet ? "e.g. 500.00 or 0.00" : isDebit ? "e.g. 50.00" : "e.g. 100.00"}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   required
@@ -427,7 +481,9 @@ export function ManualCreditDialog({
                 <Input
                   id="adjustmentReason"
                   placeholder={
-                    isDebit
+                    isSet
+                      ? "e.g. Balance restoration / Admin correction"
+                      : isDebit
                       ? "e.g. Reversal of duplicate deposit / Administrative correction"
                       : "e.g. Offline MoMo deposit / Telecom compensation"
                   }
@@ -441,7 +497,7 @@ export function ManualCreditDialog({
                 <Label htmlFor="adjustmentRef">Reference (Optional)</Label>
                 <Input
                   id="adjustmentRef"
-                  placeholder={isDebit ? "e.g. DEBIT-12345" : "e.g. MOMO-REF-12345"}
+                  placeholder={isSet ? "e.g. ADJ-RESTORE" : isDebit ? "e.g. DEBIT-12345" : "e.g. MOMO-REF-12345"}
                   value={reference}
                   onChange={(e) => setReference(e.target.value)}
                 />
@@ -458,9 +514,11 @@ export function ManualCreditDialog({
                 </Button>
                 <Button
                   type="submit"
-                  disabled={isInsufficient || !amount || Number(amount) <= 0 || !reason.trim()}
+                  disabled={!isValidInput || !reason.trim()}
                   className={`flex-1 text-white cursor-pointer ${
-                    isDebit
+                    isSet
+                      ? "bg-indigo-600 hover:bg-indigo-700"
+                      : isDebit
                       ? "bg-rose-600 hover:bg-rose-700"
                       : "bg-emerald-600 hover:bg-emerald-700"
                   }`}
@@ -473,7 +531,9 @@ export function ManualCreditDialog({
             <div className="space-y-4">
               <div
                 className={`rounded-xl border p-4 ${
-                  isDebit
+                  isSet
+                    ? "border-indigo-200 bg-indigo-50 text-indigo-900 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-200"
+                    : isDebit
                     ? "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
                     : "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200"
                 }`}
@@ -481,14 +541,27 @@ export function ManualCreditDialog({
                 <div className="flex items-start gap-2.5">
                   <AlertTriangle
                     className={`h-5 w-5 shrink-0 mt-0.5 ${
-                      isDebit ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
+                      isSet
+                        ? "text-indigo-600 dark:text-indigo-400"
+                        : isDebit
+                        ? "text-rose-600 dark:text-rose-400"
+                        : "text-emerald-600 dark:text-emerald-400"
                     }`}
                   />
                   <div>
                     <p className="font-bold text-sm">
-                      You are about to {isDebit ? "debit" : "credit"}{" "}
-                      <span className="underline font-black">{formatGHS(parsedAmount)}</span>{" "}
-                      {isDebit ? "from" : "to"} {selectedUser.name}&apos;s wallet.
+                      {isSet ? (
+                        <>
+                          You are about to set {selectedUser.name}&apos;s balance to{" "}
+                          <span className="underline font-black">{formatGHS(projectedBalance)}</span>.
+                        </>
+                      ) : (
+                        <>
+                          You are about to {isDebit ? "debit" : "credit"}{" "}
+                          <span className="underline font-black">{formatGHS(parsedAmount)}</span>{" "}
+                          {isDebit ? "from" : "to"} {selectedUser.name}&apos;s wallet.
+                        </>
+                      )}
                     </p>
                     <p className="mt-1 text-xs opacity-90">Reason: {reason}</p>
                     {reference && <p className="text-xs opacity-80">Reference: {reference}</p>}
@@ -496,7 +569,9 @@ export function ManualCreditDialog({
                       <p>Current balance: {formatGHS(currentBalance)}</p>
                       <p
                         className={
-                          isDebit
+                          isSet
+                            ? "text-indigo-700 dark:text-indigo-300 font-bold"
+                            : isDebit
                             ? "text-rose-700 dark:text-rose-300 font-bold"
                             : "text-emerald-700 dark:text-emerald-300 font-bold"
                         }
@@ -521,7 +596,9 @@ export function ManualCreditDialog({
                 <Button
                   type="submit"
                   className={`flex-1 text-white cursor-pointer ${
-                    isDebit
+                    isSet
+                      ? "bg-indigo-600 hover:bg-indigo-700"
+                      : isDebit
                       ? "bg-rose-600 hover:bg-rose-700"
                       : "bg-emerald-600 hover:bg-emerald-700"
                   }`}
@@ -535,7 +612,7 @@ export function ManualCreditDialog({
                   ) : (
                     <>
                       <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                      {isDebit ? "Confirm & Debit" : "Confirm & Credit"}
+                      {isSet ? "Confirm & Set Balance" : isDebit ? "Confirm & Debit" : "Confirm & Credit"}
                     </>
                   )}
                 </Button>

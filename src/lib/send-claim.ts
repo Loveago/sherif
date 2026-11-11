@@ -816,3 +816,83 @@ export async function adminManualDebitWallet(input: {
     { maxWait: 15000, timeout: 20000 }
   );
 }
+
+export async function adminSetUserBalance(input: {
+  adminId: string;
+  adminEmail: string;
+  userId: string;
+  targetBalance: number;
+  reason: string;
+  reference?: string;
+  ip?: string | null;
+}) {
+  const target = Math.round(input.targetBalance * 100) / 100;
+  if (!Number.isFinite(target)) {
+    throw new Error("Target balance must be a valid number");
+  }
+
+  return prisma.$transaction(
+    async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: input.userId } });
+      if (!user) throw new Error("User not found");
+
+      const previousBalance = Math.round(user.balance * 100) / 100;
+      const delta = Math.round((target - previousBalance) * 100) / 100;
+      if (delta === 0) {
+        throw new Error(`User balance is already GHS ${previousBalance.toFixed(2)}`);
+      }
+
+      const ref = input.reference?.trim() || `SETBAL-${Date.now()}`;
+
+      const walletTx = await tx.walletTransaction.create({
+        data: {
+          userId: input.userId,
+          type: "ADJUSTMENT",
+          amount: delta,
+          status: "APPROVED",
+          reference: ref,
+          note: `${input.reason} (Set balance: GHS ${previousBalance.toFixed(2)} -> GHS ${target.toFixed(2)})`,
+        },
+      });
+
+      const updatedUser = await tx.user.update({
+        where: { id: input.userId },
+        data: { balance: target },
+        select: { balance: true, email: true, name: true },
+      });
+
+      try {
+        await tx.auditLog.create({
+          data: {
+            userId: input.userId,
+            actorLabel: input.adminEmail,
+            action: "wallet.admin_set_balance",
+            target: `user:${input.userId}`,
+            previousValue: JSON.stringify({ balance: previousBalance }),
+            newValue: JSON.stringify({
+              previousBalance,
+              newBalance: updatedUser.balance,
+              delta,
+              reason: input.reason,
+              reference: ref,
+              walletTransactionId: walletTx.id,
+            }),
+            ip: input.ip ?? null,
+          },
+        });
+      } catch {
+        // Audit log fallback
+      }
+
+      return {
+        success: true,
+        previousBalance,
+        newBalance: updatedUser.balance,
+        delta,
+        walletTransactionId: walletTx.id,
+        reference: ref,
+      };
+    },
+    { maxWait: 15000, timeout: 20000 }
+  );
+}

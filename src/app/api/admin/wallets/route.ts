@@ -15,9 +15,9 @@ export async function GET(request: NextRequest) {
       const suggestions = await prisma.user.findMany({
         where: {
           OR: [
-            { name: { contains: search } },
-            { email: { contains: search } },
-            { phone: { contains: search } },
+            { name: { contains: search, mode: "insensitive" } },
+            { email: { contains: search, mode: "insensitive" } },
+            { phone: { contains: search, mode: "insensitive" } },
           ],
         },
         take: 8,
@@ -258,9 +258,9 @@ export async function GET(request: NextRequest) {
 
     if (q) {
       where.OR = [
-        { name: { contains: q } },
-        { email: { contains: q } },
-        { phone: { contains: q } },
+        { name: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+        { phone: { contains: q, mode: "insensitive" } },
       ];
     }
 

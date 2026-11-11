@@ -58,10 +58,10 @@ export async function GET(request: NextRequest) {
 
     if (q) {
       where.OR = [
-        { email: { contains: q } },
-        { name: { contains: q } },
-        { phone: { contains: q } },
-        { walletTransactions: { some: { type: "SIGNUP_FEE", reference: { contains: q } } } },
+        { email: { contains: q, mode: "insensitive" } },
+        { name: { contains: q, mode: "insensitive" } },
+        { phone: { contains: q, mode: "insensitive" } },
+        { walletTransactions: { some: { type: "SIGNUP_FEE", reference: { contains: q, mode: "insensitive" } } } },
       ];
     }
 

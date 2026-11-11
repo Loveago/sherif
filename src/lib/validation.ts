@@ -560,6 +560,13 @@ export const manualDebitSchema = z.object({
   reference: z.string().trim().max(100).optional().or(z.literal("")),
 });
 
+export const setBalanceSchema = z.object({
+  userId: z.string().min(1, "User ID is required"),
+  targetBalance: z.coerce.number().finite("Enter a valid balance"),
+  reason: z.string().trim().min(3, "Reason is required").max(300),
+  reference: z.string().trim().max(100).optional().or(z.literal("")),
+});
+
 // ---------- Sign-up Codes ----------
 export const signupCodeCreateSchema = z.object({
   code: z.string().trim().min(3, "Code must be at least 3 characters").max(40),
