@@ -1296,7 +1296,7 @@ export default function AdminSettingsPage() {
                   type="email"
                   value={settings.contact_email ?? ""}
                   onChange={(e) => setSettings((s) => ({ ...s, contact_email: e.target.value }))}
-                  placeholder="support@cleandatapacks.com"
+                  placeholder="sherifbraimah1@gmail.com"
                 />
               </div>
             </div>
@@ -1882,7 +1882,7 @@ export default function AdminSettingsPage() {
                 <Input
                   value={settings.support_email ?? ""}
                   onChange={(e) => setSettings((s) => ({ ...s, support_email: e.target.value }))}
-                  placeholder="support@cleandatapacks.com"
+                  placeholder="sherifbraimah1@gmail.com"
                 />
               </div>
               <div className="space-y-1.5">

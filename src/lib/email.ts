@@ -25,7 +25,7 @@ export async function getBrevoConfig(): Promise<BrevoConfig> {
   const dbSenderEmail = (await getSetting("brevo_sender_email")).trim();
   const envSenderEmail = process.env.BREVO_SENDER_EMAIL?.trim();
   const supportEmail = (await getSetting("support_email")).trim();
-  const senderEmail = dbSenderEmail || envSenderEmail || supportEmail || "support@cleandatapacks.com";
+  const senderEmail = dbSenderEmail || envSenderEmail || supportEmail || "sherifbraimah1@gmail.com";
 
   const dbSenderName = (await getSetting("brevo_sender_name")).trim();
   const envSenderName = process.env.BREVO_SENDER_NAME?.trim();

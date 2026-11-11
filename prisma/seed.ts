@@ -8,7 +8,7 @@ async function main() {
 
   // Password hashes
   const adminPassword = process.env.ADMIN_PASSWORD || "ChooseAStrongPassword123!";
-  const adminEmail = process.env.ADMIN_EMAIL || "admin@cleandatapacks.com";
+  const adminEmail = process.env.ADMIN_EMAIL || "sherifbraimah1@gmail.com";
   const adminName = process.env.ADMIN_NAME || "Super Admin";
   const adminPasswordHash = await bcrypt.hash(adminPassword, 10);
   const userPasswordHash = await bcrypt.hash("UserPass123!", 10);
@@ -52,7 +52,7 @@ async function main() {
     site_announcement: "⚡ Welcome to CleanDataPacks! Instant automated telecom data dispatch across MTN, Telecel, and AirtelTigo.",
     support_whatsapp: "+233242075374",
     support_phone: "0242075374",
-    support_email: "support@cleandatapacks.com",
+    support_email: "sherifbraimah1@gmail.com",
     support_telegram: "@cleandatapacks",
   };
 

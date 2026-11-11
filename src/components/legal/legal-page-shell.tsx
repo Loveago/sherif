@@ -299,11 +299,11 @@ export function LegalPageShell({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <a
-                href="mailto:support@cleandatapacks.com"
+                href="mailto:sherifbraimah1@gmail.com"
                 className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-500 transition-colors"
               >
                 <Mail className="h-3.5 w-3.5" />
-                <span>support@cleandatapacks.com</span>
+                <span>sherifbraimah1@gmail.com</span>
               </a>
               <a
                 href="https://wa.me/233242075374"

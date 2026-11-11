@@ -208,8 +208,8 @@ export default function PrivacyPolicyPage() {
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4 dark:border-white/5 dark:bg-slate-950/40 space-y-1">
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Privacy &amp; Compliance Email</span>
                 <p className="font-bold text-slate-900 dark:text-white text-sm break-all">
-                  <a href="mailto:support@cleandatapacks.com" className="hover:text-emerald-600 dark:hover:text-emerald-400">
-                    support@cleandatapacks.com
+                  <a href="mailto:sherifbraimah1@gmail.com" className="hover:text-emerald-600 dark:hover:text-emerald-400">
+                    sherifbraimah1@gmail.com
                   </a>
                 </p>
               </div>
