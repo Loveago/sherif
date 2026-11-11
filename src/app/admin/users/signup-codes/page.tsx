@@ -97,7 +97,7 @@ export default function AdminSignupCodesPage() {
 
   // Bulk form state
   const [bulkQuantity, setBulkQuantity] = React.useState("50");
-  const [bulkPrefix, setBulkPrefix] = React.useState("CRAZY");
+  const [bulkPrefix, setBulkPrefix] = React.useState("CDP");
   const [bulkLength, setBulkLength] = React.useState("8");
   const [bulkMaxUses, setBulkMaxUses] = React.useState("1");
   const [bulkExpiresAt, setBulkExpiresAt] = React.useState("");
@@ -608,7 +608,7 @@ export default function AdminSignupCodesPage() {
               <Input
                 id="bPrefix"
                 className="uppercase font-mono"
-                placeholder="CRAZY"
+                placeholder="CDP"
                 value={bulkPrefix}
                 onChange={(e) => setBulkPrefix(e.target.value)}
               />

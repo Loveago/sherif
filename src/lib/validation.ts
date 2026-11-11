@@ -570,7 +570,7 @@ export const signupCodeCreateSchema = z.object({
 
 export const signupCodeBulkSchema = z.object({
   quantity: z.coerce.number().int().min(1).max(500).default(10),
-  prefix: z.string().trim().max(15).default("CRAZY"),
+  prefix: z.string().trim().max(15).default("CDP"),
   length: z.coerce.number().int().min(4).max(16).default(8),
   maxUses: z.coerce.number().int().positive().nullable().optional(),
   expiresAt: z.string().nullable().optional(),

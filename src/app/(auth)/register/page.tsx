@@ -194,9 +194,9 @@ function RegisterForm() {
           <BrandMark size="lg" className="shadow-2xl shadow-indigo-500/30 mb-2" />
           <div className="flex items-center gap-2">
             <span className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-              CRAZY<span className="text-indigo-600 dark:text-indigo-400">TECH</span>
+              CLEAN<span className="text-emerald-600 dark:text-[#00df82]">DATAPACKS</span>
             </span>
-            <span className="rounded bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider">
+            <span className="rounded bg-emerald-500/15 text-emerald-600 dark:text-[#00df82] border border-emerald-500/30 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider">
               TELECOM
             </span>
           </div>

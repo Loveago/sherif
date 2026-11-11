@@ -244,7 +244,7 @@ export async function bulkGenerateSignupCodes(input: {
   notes?: string | null;
   createdBy?: string | null;
 }): Promise<string[]> {
-  const { quantity, prefix = "CRAZY", length = 8, maxUses = null, expiresAt = null, notes = null, createdBy = null } = input;
+  const { quantity, prefix = "CDP", length = 8, maxUses = null, expiresAt = null, notes = null, createdBy = null } = input;
   const cleanPrefix = prefix.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
   const codeLen = Math.max(4, Math.min(20, length));
   const count = Math.max(1, Math.min(1000, quantity));

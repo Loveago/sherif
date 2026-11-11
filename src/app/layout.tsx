@@ -17,13 +17,11 @@ export const metadata: Metadata = {
     "Ghana's high-performance data bundle distribution platform for MTN, Telecel, and AirtelTigo.",
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/favicon.svg", type: "image/svg+xml" },
       { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/icon.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
     ],
     apple: [
-      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/icon.svg", type: "image/svg+xml" },
     ],
   },
 };

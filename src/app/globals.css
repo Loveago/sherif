@@ -18,9 +18,9 @@
   --color-cyan-brand-500: #06b6d4;
   --color-cyan-brand-600: #0891b2;
 
-  --color-crazy-indigo: #6366f1;
-  --color-crazy-violet: #8b5cf6;
-  --color-crazy-cyan: #06b6d4;
+  --color-cdp-indigo: #6366f1;
+  --color-cdp-violet: #8b5cf6;
+  --color-cdp-cyan: #06b6d4;
 
   --animate-marquee: marquee 26s linear infinite;
 }
