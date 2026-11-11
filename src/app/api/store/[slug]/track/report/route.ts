@@ -1,0 +1,148 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { handleRouteError, apiError } from "@/lib/api-helpers";
+import { getEnabledStorefrontBySlug } from "@/lib/storefront";
+import { ACTIVE_DELIVERY_REPORT_STATUSES, deliveryReportCode, isWithinReportWindow } from "@/lib/types";
+import { deriveCompletedAt } from "@/lib/orders";
+import { recordAudit } from "@/lib/audit";
+
+/**
+ * Public storefront endpoint for buyers to report an order as Not Received.
+ * Authenticated securely using the storefront slug and unique paymentReference.
+ */
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  try {
+    const { slug } = await params;
+    const body = await request.json().catch(() => ({}));
+    const reference = typeof body.reference === "string" ? body.reference.trim() : "";
+    const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : "Data not received";
+    const message = typeof body.message === "string" && body.message.trim() ? body.message.trim() : null;
+
+    if (!reference) {
+      return apiError(400, "Order payment reference is required");
+    }
+
+    const storefront = await getEnabledStorefrontBySlug(slug);
+    if (!storefront || storefront.status !== "ENABLED") {
+      return apiError(404, "Store not found");
+    }
+
+    // Check system-wide reports enabled switch
+    const reportsEnabledSetting = await prisma.systemSetting.findUnique({
+      where: { key: "reports_enabled" },
+    });
+    if (reportsEnabledSetting?.value === "false") {
+      return apiError(400, "Report submission is currently disabled by system administrator.");
+    }
+
+    // Lookup StorefrontOrder
+    const storefrontOrder = await prisma.storefrontOrder.findFirst({
+      where: {
+        storefrontId: storefront.id,
+        paymentReference: reference,
+      },
+      include: {
+        underlyingOrder: {
+          include: {
+            history: { select: { status: true, createdAt: true }, orderBy: { createdAt: "asc" } },
+          },
+        },
+      },
+    });
+
+    if (!storefrontOrder || !storefrontOrder.underlyingOrder) {
+      return apiError(404, "Order not found or not yet processed for fulfillment");
+    }
+
+    const order = storefrontOrder.underlyingOrder;
+
+    // Verify order is COMPLETED / SUCCESS
+    const isCompleted = order.status === "SUCCESS" || storefrontOrder.status === "COMPLETED";
+    if (!isCompleted) {
+      return apiError(409, "Not Received can only be reported for completed orders");
+    }
+
+    // Verify report window (default 24h)
+    const windowHoursSetting = await prisma.systemSetting.findUnique({
+      where: { key: "report_not_received_window_hours" },
+    });
+    const windowHours = parseInt(windowHoursSetting?.value || "24", 10);
+    const completedAt = storefrontOrder.completedAt ?? deriveCompletedAt(order);
+    if (!isWithinReportWindow(completedAt, new Date(), windowHours)) {
+      return apiError(409, `The ${windowHours}-hour reporting window for this order has ended`);
+    }
+
+    // Check if an active report already exists
+    const existing = await prisma.deliveryReport.findFirst({
+      where: { orderId: order.id, status: { in: ACTIVE_DELIVERY_REPORT_STATUSES } },
+      select: { id: true, seq: true, status: true },
+    });
+    if (existing) {
+      return apiError(409, `A report for this order already exists (${deliveryReportCode(existing.seq)})`);
+    }
+
+    // Generate report seq (max + 1)
+    const max = await prisma.deliveryReport.aggregate({ _max: { seq: true } });
+    const seq = (max._max.seq ?? 0) + 1;
+
+    // Create report linked to the store owner's account and order
+    const report = await prisma.deliveryReport.create({
+      data: {
+        orderId: order.id,
+        seq,
+        userId: storefront.userId,
+        status: "UNDER_REVIEW",
+        reason,
+        message,
+        events: {
+          create: {
+            type: "SUBMITTED",
+            message: `Report submitted via Storefront (${storefront.name}) — ${reason}`,
+            actorLabel: `Storefront Buyer (${storefrontOrder.customerPhone})`,
+          },
+        },
+      },
+    });
+
+    await recordAudit({
+      userId: storefront.userId,
+      actorLabel: `Storefront Buyer (${storefrontOrder.customerPhone})`,
+      action: "delivery_report.create_storefront",
+      target: `delivery_report:${report.id}`,
+      newValue: JSON.stringify({
+        orderId: order.id,
+        storefrontOrderId: storefrontOrder.id,
+        seq,
+        reason,
+        phone: storefrontOrder.customerPhone,
+      }),
+    });
+
+    // If order was fulfilled via Tskconnect, forward dispute to provider
+    if (order.providerReference?.startsWith("TSKCONNECT:")) {
+      const { forwardNotReceivedToProvider } = await import("@/lib/provider-apis/router");
+      forwardNotReceivedToProvider(order.id, {
+        reason,
+        note: message || undefined,
+      }).catch((err) => {
+        console.warn("[StoreTrackReport] Failed to forward dispute to provider:", err);
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      report: {
+        id: report.id,
+        seq: report.seq,
+        code: deliveryReportCode(report.seq),
+        status: report.status,
+        createdAt: report.createdAt.toISOString(),
+      },
+    });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}

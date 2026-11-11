@@ -1,0 +1,284 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-brand-50: #f5f3ff;
+  --color-brand-100: #ede9fe;
+  --color-brand-200: #ddd6fe;
+  --color-brand-300: #c4b5fd;
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+  --color-brand-950: #1e1b4b;
+
+  --color-cyan-brand-500: #06b6d4;
+  --color-cyan-brand-600: #0891b2;
+
+  --color-crazy-indigo: #6366f1;
+  --color-crazy-violet: #8b5cf6;
+  --color-crazy-cyan: #06b6d4;
+
+  --animate-marquee: marquee 26s linear infinite;
+}
+
+@keyframes marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes banner-slide-fade {
+  0% {
+    transform: translate3d(100vw, 0, 0);
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(-100%, 0, 0);
+    opacity: 0;
+  }
+}
+
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+.banner-container {
+  contain: paint layout;
+  isolation: isolate;
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.animate-banner-slide {
+  display: inline-block;
+  white-space: nowrap;
+  animation: banner-slide-fade 22s linear infinite;
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  will-change: transform;
+}
+
+.animate-banner-slide:hover {
+  animation-play-state: paused;
+}
+
+@media (min-width: 1440px), (-webkit-min-device-pixel-ratio: 1.5) and (min-width: 1280px), (min-resolution: 144dpi) and (min-width: 1280px) {
+  .animate-banner-slide {
+    animation-duration: 26s;
+  }
+}
+
+@media (min-width: 1920px), (-webkit-min-device-pixel-ratio: 1.5) and (min-width: 1600px), (min-resolution: 144dpi) and (min-width: 1600px) {
+  .animate-banner-slide {
+    animation-duration: 32s;
+  }
+}
+
+@media (min-width: 2560px), (-webkit-min-device-pixel-ratio: 2) and (min-width: 1920px), (min-resolution: 192dpi) and (min-width: 1920px) {
+  .animate-banner-slide {
+    animation-duration: 38s;
+  }
+}
+
+@media (min-width: 3840px) {
+  .animate-banner-slide {
+    animation-duration: 48s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-banner-slide {
+    animation: none;
+  }
+}
+
+html.dark, .dark {
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    border-color: #e2e8f0;
+  }
+  :where(.dark, .dark *) * {
+    border-color: #14233a;
+  }
+  body {
+    background-color: #f3f6fa;
+    color: #0f172a;
+  }
+  :where(.dark, .dark *) body {
+    background-color: #060b13;
+    color: #f1f5f9;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  input, textarea, select {
+    color: var(--color-slate-900);
+    caret-color: var(--color-slate-900);
+  }
+  :is(.dark, .dark *) input,
+  :is(.dark, .dark *) textarea,
+  :is(.dark, .dark *) select,
+  html.dark input,
+  html.dark textarea,
+  html.dark select {
+    color: var(--color-slate-100);
+    caret-color: var(--color-brand-400, #818cf8);
+  }
+  ::placeholder {
+    color: var(--color-slate-400);
+  }
+  :is(.dark, .dark *) ::placeholder,
+  html.dark ::placeholder {
+    color: var(--color-slate-500);
+  }
+
+  /* Autofill styling so browser defaults don't hide typed/filled text in dark mode */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus {
+    -webkit-text-fill-color: #0f172a !important;
+    caret-color: #0f172a !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+  :is(.dark, .dark *) input:-webkit-autofill,
+  :is(.dark, .dark *) input:-webkit-autofill:hover,
+  :is(.dark, .dark *) input:-webkit-autofill:focus,
+  :is(.dark, .dark *) textarea:-webkit-autofill,
+  :is(.dark, .dark *) textarea:-webkit-autofill:hover,
+  :is(.dark, .dark *) textarea:-webkit-autofill:focus,
+  :is(.dark, .dark *) select:-webkit-autofill,
+  :is(.dark, .dark *) select:-webkit-autofill:hover,
+  :is(.dark, .dark *) select:-webkit-autofill:focus,
+  html.dark input:-webkit-autofill,
+  html.dark input:-webkit-autofill:hover,
+  html.dark input:-webkit-autofill:focus,
+  html.dark textarea:-webkit-autofill,
+  html.dark textarea:-webkit-autofill:hover,
+  html.dark textarea:-webkit-autofill:focus,
+  html.dark select:-webkit-autofill,
+  html.dark select:-webkit-autofill:hover,
+  html.dark select:-webkit-autofill:focus {
+    -webkit-text-fill-color: #f1f5f9 !important;
+    caret-color: #818cf8 !important;
+    -webkit-box-shadow: 0 0 0px 1000px #09121d inset !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+  ::selection {
+    background-color: #c7d2fe;
+    color: #1e1b4b;
+  }
+  :where(.dark, .dark *) ::selection {
+    background-color: rgba(99, 102, 241, 0.45);
+    color: #e0e7ff;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  /* Modern brand glows over the page background (electric indigo / cyan pulse) */
+  .app-bg {
+    background-image:
+      radial-gradient(1100px 440px at 50% -160px, rgba(99, 102, 241, 0.12), transparent 65%),
+      radial-gradient(820px 420px at 88% -80px, rgba(6, 182, 212, 0.08), transparent 60%);
+  }
+  .dark .app-bg {
+    background-image:
+      radial-gradient(1100px 480px at 50% -180px, rgba(99, 102, 241, 0.22), transparent 65%),
+      radial-gradient(900px 440px at 88% -60px, rgba(6, 182, 212, 0.14), transparent 62%);
+  }
+
+  .glow-border {
+    position: relative;
+  }
+  .glow-border::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.45), rgba(6, 182, 212, 0.25), transparent);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Telecom Network Carousel & Carrier Nodes
+ * ------------------------------------------------------------------------- */
+@keyframes wheel-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes wheel-rotate-rev {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
+  }
+}
+.wheel-spin {
+  animation: wheel-rotate 28s linear infinite;
+  transform-origin: center center;
+  will-change: transform;
+}
+.wheel-counter {
+  animation: wheel-rotate-rev 28s linear infinite;
+  transform-origin: center center;
+  will-change: transform;
+}
+.wheel-wrap:hover .wheel-spin,
+.wheel-wrap:hover .wheel-counter,
+.wheel-wrap:focus-within .wheel-spin,
+.wheel-wrap:focus-within .wheel-counter {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wheel-spin,
+  .wheel-counter {
+    animation: none;
+  }
+}

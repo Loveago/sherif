@@ -1,52 +1,36 @@
-# CheapDataPacks Ghana
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-Premium full-stack data bundle marketplace, agent platform, storefront system, and enterprise admin panel for Ghana.
+## Getting Started
 
-## Stack
+First, run the development server:
 
-- Frontend: Next.js 15, TypeScript, Tailwind CSS, TanStack Query, Zustand, React Hook Form, Zod, Framer Motion
-- Backend: Express, TypeScript, PostgreSQL, Prisma, Redis, BullMQ, JWT
-- Infrastructure: Docker Compose for PostgreSQL and Redis
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-## Workspace Structure
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-- `frontend` - Next.js application
-- `backend` - Express API, Prisma schema, queue workers, seed data
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-## Local Setup
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-1. Copy environment files:
-   - `backend/.env.example` to `backend/.env`
-   - `frontend/.env.example` to `frontend/.env.local`
-2. Install dependencies from the repo root:
-   - `npm install`
-3. Start infrastructure:
-   - `npm run infra:up`
-4. Push the Prisma schema and seed demo data:
-   - `npm run db:push`
-   - `npm run db:seed`
-5. Start both apps:
-   - `npm run dev`
+## Learn More
 
-## Demo Credentials
+To learn more about Next.js, take a look at the following resources:
 
-- Agent
-  - Email: `agent@cheappacksgh.com`
-  - Password: `Agent@123`
-- Admin
-  - Email: `admin@cheappacksgh.com`
-  - Password: `Admin@123`
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-## Environment Notes
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-- Payments default to mock mode so wallet funding works without external API keys.
-- Provider fulfillment defaults to mock mode so order processing works out of the box.
-- You can switch to real integrations later by providing production credentials in backend environment variables.
+## Deploy on Vercel
 
-## Main URLs
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-- Landing page: `http://localhost:3000`
-- Agent dashboard: `http://localhost:3000/dashboard`
-- Admin dashboard: `http://localhost:3000/admin`
-- Sample storefront: `http://localhost:3000/store/kwame-mensah`
-- API health: `http://localhost:4000/api/v1/health`
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

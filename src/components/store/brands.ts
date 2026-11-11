@@ -1,0 +1,34 @@
+import type { NetworkProvider } from "@/lib/types";
+
+/** Public-facing network metadata for the storefront (Clequa-style tiles). */
+export const NETWORK_BRANDS: Record<
+  NetworkProvider,
+  { label: string; slug: string; tile: string; dim: string }
+> = {
+  MTN: { label: "MTN", slug: "mtn", tile: "bg-[#FFCB05]", dim: "bg-[#a5830b]" },
+  TELECEL: { label: "Telecel", slug: "telecel", tile: "bg-[#E4002B]", dim: "bg-[#9c0020]" },
+  AIRTELTIGO: { label: "AT iShare", slug: "airteltigo", tile: "bg-[#005fb8]", dim: "bg-[#004280]" },
+  AIRTELTIGO_BIGTIME: { label: "AT Big Time", slug: "at-bigtime", tile: "bg-[#005fb8]", dim: "bg-[#004280]" },
+};
+
+export const NETWORK_ORDER: NetworkProvider[] = ["MTN", "TELECEL", "AIRTELTIGO", "AIRTELTIGO_BIGTIME"];
+
+export function networkBySlug(slug: string): NetworkProvider | null {
+  const entry = (Object.entries(NETWORK_BRANDS) as [NetworkProvider, { slug: string }][]).find(
+    ([, brand]) => brand.slug === slug
+  );
+  return entry?.[0] ?? null;
+}
+
+export function networkHref(storeSlug: string, network: NetworkProvider): string {
+  return `/store/${storeSlug}/${NETWORK_BRANDS[network].slug}`;
+}
+
+export function storeHref(storeSlug: string, subpath: string = ""): string {
+  const cleanSub = subpath ? (subpath.startsWith("/") ? subpath : `/${subpath}`) : "";
+  return `/store/${storeSlug}${cleanSub}`;
+}
+
+export function ghs(amount: number): string {
+  return `₵${amount.toFixed(2)}`;
+}

@@ -1,0 +1,756 @@
+"use client";
+
+import * as React from "react";
+import { PageHeader } from "@/components/shared";
+import { BatchesTable, type BatchRow } from "@/components/admin/batches-table";
+import { SingleOrdersTable, type AdminOrderRow } from "@/components/admin/single-orders-table";
+import { ApiOrdersTable } from "@/components/admin/api-orders-table";
+import { StorefrontOrdersTable, type StorefrontOrderRow } from "@/components/admin/storefront-orders-table";
+import { BatchDetailSheet } from "@/components/admin/batch-detail-sheet";
+import { QuickExportPanel } from "@/components/admin/quick-export-panel";
+import { Pagination } from "@/components/ui/pagination";
+import { ScrollableTabs } from "@/components/ui/scrollable-tabs";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/toast";
+import Link from "next/link";
+import { Layers, Search, Store, RefreshCw, Activity, Pause, Play, Clock, Code2, Send } from "lucide-react";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
+import { OrderDateFilter, getTodayRange, type DateFilterValue } from "@/components/orders/order-date-filter";
+import { useNavBadges } from "@/components/app-nav";
+
+const NETWORKS = ["MTN", "TELECEL", "AIRTELTIGO", "AIRTELTIGO_BIGTIME"] as const;
+const BATCH_STATUSES = ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED"];
+const STOREFRONT_STATUSES = ["PENDING", "PROCESSING", "COMPLETED", "AWAITING_PAYMENT", "FAILED", "REFUNDED"];
+
+const selectCls =
+  "h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-brand-500 placeholder:text-slate-400 dark:border-white/10 dark:bg-[#0d1526] dark:text-slate-100 dark:placeholder:text-slate-500 caret-brand-600 dark:caret-brand-400 [&>option]:bg-white dark:[&>option]:bg-[#0d1526]";
+
+type ViewMode = "batches" | "single" | "storefront" | "api";
+
+export default function AdminOrdersPage() {
+  const { toast } = useToast();
+  const badges = useNavBadges(true);
+  const pendingOrdersCount = badges["/admin/orders"]?.count ?? 0;
+
+  // ── view toggle ─────────────────────────────────────────────
+  const [viewMode, setViewMode] = React.useState<ViewMode>("single");
+
+  // ── shared filters ───────────────────────────────────────────
+  const [network, setNetwork] = React.useState("");
+  const [status, setStatus] = React.useState("");
+  const [q, setQ] = React.useState("");
+  const [dateFilter, setDateFilter] = React.useState<DateFilterValue>(getTodayRange());
+  const [page, setPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(15);
+  const [loading, setLoading] = React.useState(true);
+  const [reconciling, setReconciling] = React.useState(false);
+  const [lastRefreshed, setLastRefreshed] = React.useState<Date | null>(null);
+  const [refreshInterval, setRefreshInterval] = React.useState(30);
+
+  // Load refresh interval from admin settings once on mount
+  React.useEffect(() => {
+    fetch("/api/admin/settings")
+      .then((r) => r.json())
+      .then((d) => {
+        const val = Number(d.settings?.admin_dashboard_refresh_interval ?? 30);
+        setRefreshInterval(Number.isFinite(val) && val >= 0 ? val : 30);
+      })
+      .catch(() => {/* use default */});
+  }, []);
+
+  // auto-switch to single view when a phone number is typed in
+  React.useEffect(() => {
+    if (viewMode !== "storefront" && /\d{3,}/.test(q.trim())) {
+      setViewMode("single");
+      setPageSize(100);
+    }
+  }, [q, viewMode]);
+
+  // ── batches state ────────────────────────────────────────────
+  const [batches, setBatches] = React.useState<BatchRow[]>([]);
+  const [batchTotal, setBatchTotal] = React.useState(0);
+  const [batchPages, setBatchPages] = React.useState(1);
+  const [detailId, setDetailId] = React.useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [selectedBatchIds, setSelectedBatchIds] = React.useState<Set<string>>(new Set());
+
+  // ── single orders state ──────────────────────────────────────
+  const [singleOrders, setSingleOrders] = React.useState<AdminOrderRow[]>([]);
+  const [singleTotal, setSingleTotal] = React.useState(0);
+  const [singlePages, setSinglePages] = React.useState(1);
+  const [selectedOrderIds, setSelectedOrderIds] = React.useState<Set<number>>(new Set());
+
+  // ── storefront orders state ──────────────────────────────────
+  const [sfOrders, setSfOrders] = React.useState<StorefrontOrderRow[]>([]);
+  const [sfTotal, setSfTotal] = React.useState(0);
+  const [sfPages, setSfPages] = React.useState(1);
+
+  // ── api orders state ─────────────────────────────────────────
+  const [apiOrders, setApiOrders] = React.useState<AdminOrderRow[]>([]);
+  const [apiTotal, setApiTotal] = React.useState(0);
+  const [apiPages, setApiPages] = React.useState(1);
+
+  // ── data fetcher ─────────────────────────────────────────────
+  const load = React.useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      if (viewMode === "api") {
+        const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), source: "API" });
+        if (network) params.set("network", network);
+        if (status) params.set("status", status);
+        if (q) params.set("q", q);
+        if (dateFilter.from) params.set("from", dateFilter.from);
+        if (dateFilter.to) params.set("to", dateFilter.to);
+        const res = await fetch(`/api/admin/orders?${params}`, { cache: "no-store" });
+        const json = await res.json();
+        setApiOrders(json.data ?? []);
+        setApiTotal(json.total ?? 0);
+        setApiPages(json.pages ?? 1);
+      } else if (viewMode === "storefront") {
+        const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+        if (network) params.set("network", network);
+        if (status) params.set("status", status);
+        if (q) params.set("q", q);
+        if (dateFilter.from) params.set("from", dateFilter.from);
+        if (dateFilter.to) params.set("to", dateFilter.to);
+        const res = await fetch(`/api/admin/storefront-orders?${params}`, { cache: "no-store" });
+        const json = await res.json();
+        setSfOrders(json.data ?? []);
+        setSfTotal(json.total ?? 0);
+        setSfPages(json.pages ?? 1);
+      } else if (viewMode === "single") {
+        const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+        if (network) params.set("network", network);
+        if (status) params.set("status", status);
+        if (q) params.set("q", q);
+        if (dateFilter.from) params.set("from", dateFilter.from);
+        if (dateFilter.to) params.set("to", dateFilter.to);
+        const res = await fetch(`/api/admin/orders?${params}`, { cache: "no-store" });
+        const json = await res.json();
+        setSingleOrders(json.data ?? []);
+        setSingleTotal(json.total ?? 0);
+        setSinglePages(json.pages ?? 1);
+      } else {
+        // batches
+        const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+        if (network) params.set("network", network);
+        if (status) params.set("status", status);
+        if (q) params.set("q", q);
+        if (dateFilter.from) params.set("from", dateFilter.from);
+        if (dateFilter.to) params.set("to", dateFilter.to);
+        const res = await fetch(`/api/admin/batches?${params}`, { cache: "no-store" });
+        const json = await res.json();
+        setBatches(json.data ?? []);
+        setBatchTotal(json.total ?? 0);
+        setBatchPages(json.pages ?? 1);
+      }
+      setLastRefreshed(new Date());
+      window.dispatchEvent(new CustomEvent("nav-counts-update"));
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [viewMode, page, pageSize, network, status, q, dateFilter]);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => { void load(false); }, 250);
+    return () => clearTimeout(t);
+  }, [load]);
+
+  // Efficient Auto-refresh with tab visibility awareness & silent background refresh
+  const {
+    secondsRemaining,
+    isRefreshing,
+    isPaused,
+    isManuallyPaused,
+    togglePause,
+    triggerRefresh,
+    intervalSeconds,
+    lastRefreshedAt,
+  } = useAutoRefresh({
+    intervalSeconds: refreshInterval,
+    onRefresh: () => load(true),
+    enabled: !sheetOpen,
+    pauseOnHidden: true,
+    refreshOnVisible: true,
+    pauseOnOffline: true,
+  });
+
+  const switchView = (v: ViewMode) => {
+    setViewMode(v);
+    setPage(1);
+    setStatus("");
+    if (v === "single" || v === "api") {
+      setPageSize(100);
+    } else {
+      setPageSize(15);
+    }
+    setSelectedOrderIds(new Set());
+    setSelectedBatchIds(new Set());
+  };
+
+  // ── batch actions ─────────────────────────────────────────────
+  const handleBatchStatusChange = async (batchId: string, action: string) => {
+    try {
+      const res = await fetch(`/api/admin/batches/${batchId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, force: true }),
+      });
+      const json = await res.json();
+      if (!res.ok) return toast(json.error ?? "Failed to update batch status", "error");
+      toast(`Batch status updated (${json.applied ?? 0} orders updated)`, "success");
+      load();
+    } catch {
+      toast("Error updating batch status", "error");
+    }
+  };
+
+  const handleBulkBatchStatus = async (action: string) => {
+    if (selectedBatchIds.size === 0) return;
+    try {
+      const ids = Array.from(selectedBatchIds);
+      let count = 0;
+      for (const id of ids) {
+        const res = await fetch(`/api/admin/batches/${id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, force: true }),
+        });
+        if (res.ok) count++;
+      }
+      toast(`Updated ${count} batch(es) successfully`, "success");
+      setSelectedBatchIds(new Set());
+      load();
+    } catch {
+      toast("Error updating batches in bulk", "error");
+    }
+  };
+
+  // ── single order actions ──────────────────────────────────────
+  const handleSingleOrderStatusChange = async (orderId: number, nextStatus: string) => {
+    try {
+      const res = await fetch(`/api/admin/orders`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: orderId, status: nextStatus, force: true }),
+      });
+      const json = await res.json();
+      if (!res.ok) return toast(json.error ?? "Failed to update order status", "error");
+      toast("Order status updated", "success");
+      load();
+    } catch {
+      toast("Error updating order status", "error");
+    }
+  };
+
+  const handleBulkSingleOrderStatus = async (nextStatus: string) => {
+    if (selectedOrderIds.size === 0) return;
+    try {
+      const res = await fetch(`/api/admin/orders`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderIds: Array.from(selectedOrderIds), status: nextStatus, force: true }),
+      });
+      const json = await res.json();
+      if (!res.ok) return toast(json.error ?? "Failed to bulk update orders", "error");
+      toast(`Bulk updated ${json.updatedCount ?? selectedOrderIds.size} orders`, "success");
+      setSelectedOrderIds(new Set());
+      load();
+    } catch {
+      toast("Error during bulk order update", "error");
+    }
+  };
+
+  const handleBulkDispatchToApi = async () => {
+    if (selectedOrderIds.size === 0) return;
+    try {
+      const res = await fetch(`/api/admin/provider-apis/dispatch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderIds: Array.from(selectedOrderIds) }),
+      });
+      const json = await res.json();
+      if (!res.ok) return toast(json.error ?? "Failed to dispatch orders", "error");
+      toast(
+        `Dispatched: ${json.dispatched} sent, ${json.skippedManual} manual, ${json.failed} failed`,
+        json.failed > 0 ? "error" : "success"
+      );
+      setSelectedOrderIds(new Set());
+      load();
+    } catch {
+      toast("Error during provider API dispatch", "error");
+    }
+  };
+
+  // ── storefront reconciliation action ─────────────────────────
+  const handleReconcileStorefront = async () => {
+    setReconciling(true);
+    try {
+      const res = await fetch("/api/admin/storefront-orders", {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast(json.error ?? "Failed to sync with Paystack", "error");
+        return;
+      }
+      if (json.settledCount > 0) {
+        toast(`Recovered & sent ${json.settledCount} paid storefront order(s) for processing!`, "success");
+      } else {
+        toast("Checked Paystack: all orders are up to date.", "info");
+      }
+      load();
+    } catch {
+      toast("Error checking Paystack orders", "error");
+    } finally {
+      setReconciling(false);
+    }
+  };
+
+  // ── derived ───────────────────────────────────────────────────
+  const pageTitle =
+    viewMode === "storefront"
+      ? "Storefront Orders"
+      : viewMode === "api"
+      ? "API Orders"
+      : viewMode === "single"
+      ? "Order Lookup"
+      : "Batch Ops Center";
+
+  const pageDesc =
+    viewMode === "storefront"
+      ? `${sfTotal} storefront sale${sfTotal === 1 ? "" : "s"} from all public storefronts`
+      : viewMode === "api"
+      ? `${apiTotal} API order${apiTotal === 1 ? "" : "s"} received via Developer API`
+      : viewMode === "single"
+      ? `${singleTotal} order${singleTotal === 1 ? "" : "s"}${q ? ` matching "${q}"` : ""}`
+      : `${batchTotal} batch${batchTotal === 1 ? "" : "es"} — orders grouped per network`;
+
+  const currentTotal =
+    viewMode === "storefront"
+      ? sfTotal
+      : viewMode === "api"
+      ? apiTotal
+      : viewMode === "single"
+      ? singleTotal
+      : batchTotal;
+  const currentPages =
+    viewMode === "storefront"
+      ? sfPages
+      : viewMode === "api"
+      ? apiPages
+      : viewMode === "single"
+      ? singlePages
+      : batchPages;
+
+  const displayTime = lastRefreshed || lastRefreshedAt;
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title={
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span>{pageTitle}</span>
+            {pendingOrdersCount > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+                <Clock className="h-3.5 w-3.5" />
+                {pendingOrdersCount} Pending
+              </span>
+            )}
+          </div>
+        }
+        description={pageDesc}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {displayTime && (
+              <span className="hidden text-xs text-slate-400 dark:text-slate-500 md:inline">
+                Updated {displayTime.toLocaleTimeString()}
+              </span>
+            )}
+            {intervalSeconds > 0 && (
+              <span className="hidden text-xs text-slate-400 dark:text-slate-500 sm:flex items-center gap-1 font-mono min-w-[50px]">
+                {isRefreshing ? (
+                  <span className="flex items-center gap-1 text-brand-600 dark:text-brand-400 font-medium">
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                    Updating...
+                  </span>
+                ) : isPaused ? (
+                  <span className="text-amber-500 font-medium">Paused</span>
+                ) : (
+                  <>
+                    <Clock className="h-3 w-3 text-slate-400" />
+                    {secondsRemaining}s
+                  </>
+                )}
+              </span>
+            )}
+            {intervalSeconds > 0 && (
+              <button
+                type="button"
+                onClick={togglePause}
+                className="rounded-lg border border-slate-200 bg-white p-1.5 text-xs text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 cursor-pointer"
+                title={isManuallyPaused ? "Resume auto-refresh" : "Pause auto-refresh"}
+              >
+                {isManuallyPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+              </button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                triggerRefresh();
+              }}
+              disabled={loading || isRefreshing}
+              className="gap-1.5"
+              title={displayTime ? `Last updated: ${displayTime.toLocaleTimeString()}` : "Refresh"}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading || isRefreshing ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
+            <Link
+              href="/admin/order-api-logs"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+              title="View provider dispatch logs and failures"
+            >
+              <Activity className="h-3.5 w-3.5 text-[#00df82]" />
+              <span>Provider API Logs</span>
+            </Link>
+            <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-1 text-xs font-semibold dark:border-white/10 dark:bg-white/5">
+              <button
+                onClick={() => switchView("single")}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 transition ${
+                  viewMode === "single"
+                    ? "bg-[#00df82] text-slate-950 font-bold shadow-xs"
+                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                <Search className="h-3.5 w-3.5" /> Single Orders
+              </button>
+              <button
+                onClick={() => switchView("api")}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 transition ${
+                  viewMode === "api"
+                    ? "bg-[#00df82] text-slate-950 font-bold shadow-xs"
+                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                <Code2 className="h-3.5 w-3.5" /> API Orders
+              </button>
+              <button
+                onClick={() => switchView("storefront")}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 transition ${
+                  viewMode === "storefront"
+                    ? "bg-[#00df82] text-slate-950 font-bold shadow-xs"
+                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                <Store className="h-3.5 w-3.5" /> Storefront
+              </button>
+              <button
+                onClick={() => switchView("batches")}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 transition ${
+                  viewMode === "batches"
+                    ? "bg-[#00df82] text-slate-950 font-bold shadow-xs"
+                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                <Layers className="h-3.5 w-3.5" /> Batches Archive
+              </button>
+            </div>
+          </div>
+        }
+      />
+
+      <QuickExportPanel onChanged={load} />
+
+      {/* Filters row */}
+      <div className="flex flex-wrap items-center gap-4">
+        {/* Network tabs — hidden for storefront view (they span all networks) */}
+        {viewMode !== "storefront" && (
+          <ScrollableTabs
+            tabs={[
+              { key: "", label: "All Networks" },
+              ...NETWORKS.map((n) => ({
+                key: n,
+                label: n === "AIRTELTIGO" ? "AT iShare" : n === "AIRTELTIGO_BIGTIME" ? "AT Big Time" : n,
+              })),
+            ]}
+            activeTab={network}
+            onChange={(n) => {
+              setNetwork(n);
+              setPage(1);
+            }}
+          />
+        )}
+
+        <div className={`${viewMode !== "storefront" ? "ml-auto" : ""} flex flex-wrap items-center gap-2`}>
+          {/* Date & Calendar Filter */}
+          <OrderDateFilter
+            value={dateFilter}
+            onChange={(df) => {
+              setDateFilter(df);
+              setPage(1);
+            }}
+          />
+
+          {/* Status filter */}
+          <select
+            className={selectCls}
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">All statuses</option>
+            {viewMode === "single"
+              ? [
+                  { value: "Pending", label: "Pending" },
+                  { value: "Processing", label: "Processing" },
+                  { value: "Processed", label: "Processed" },
+                  { value: "Failed", label: "Failed" },
+                  { value: "Cancelled", label: "Cancelled" },
+                  { value: "Refund", label: "Refund" },
+                ].map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))
+              : (viewMode === "storefront" ? STOREFRONT_STATUSES : BATCH_STATUSES).map((s) => (
+                  <option key={s} value={s}>
+                    {s.replaceAll("_", " ")}
+                  </option>
+                ))}
+          </select>
+
+          {/* Search */}
+          <input
+            className={selectCls + " w-60"}
+            placeholder={
+              viewMode === "storefront"
+                ? "Search phone, reference, store…"
+                : "Search phone number, code, user…"
+            }
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+          />
+
+          {/* Page size select */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-slate-500 dark:text-slate-400">Show:</span>
+            <select
+              className={selectCls}
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+                setSelectedOrderIds(new Set());
+                setSelectedBatchIds(new Set());
+              }}
+              title="Items per page"
+            >
+              <option value={15}>15 / page</option>
+              <option value={25}>25 / page</option>
+              <option value={50}>50 / page</option>
+              <option value={100}>100 / page</option>
+              <option value={200}>200 / page</option>
+            </select>
+          </div>
+
+          {/* Sync Paystack button for storefront */}
+          {viewMode === "storefront" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleReconcileStorefront}
+              disabled={reconciling}
+              className="flex items-center gap-1.5 border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${reconciling ? "animate-spin" : ""}`} />
+              {reconciling ? "Checking Paystack…" : "Sync Paystack"}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Bulk action bar — Batches */}
+      {viewMode === "batches" && selectedBatchIds.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-500/20 bg-brand-50/70 p-3 text-xs font-semibold text-brand-900 dark:bg-brand-500/10 dark:text-brand-200">
+          <span>{selectedBatchIds.size} batch(es) selected</span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button size="sm" variant="outline" onClick={() => handleBulkBatchStatus("Pending")}>
+              Pending
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => handleBulkBatchStatus("Processing")}>
+              Processing
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => handleBulkBatchStatus("Processed")}>
+              Processed
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => handleBulkBatchStatus("Refund")}>
+              Refund
+            </Button>
+            <button
+              type="button"
+              onClick={() => setSelectedBatchIds(new Set())}
+              className="ml-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk action bar — Single orders & API orders */}
+      {(viewMode === "single" || viewMode === "api") && selectedOrderIds.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-500/20 bg-brand-50/70 p-3 text-xs font-semibold text-brand-900 dark:bg-brand-500/10 dark:text-brand-200">
+          <div className="flex items-center gap-2">
+            <span>{selectedOrderIds.size} order(s) selected</span>
+            {(() => {
+              const currentList = viewMode === "api" ? apiOrders : singleOrders;
+              return selectedOrderIds.size < currentList.length ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderIds(new Set(currentList.map((o) => o.id)))}
+                  className="underline hover:text-brand-700 dark:hover:text-brand-300 cursor-pointer"
+                >
+                  (Select all {currentList.length} on this page)
+                </button>
+              ) : null;
+            })()}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button size="sm" variant="outline" onClick={() => handleBulkSingleOrderStatus("Pending")}>
+              Pending
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => handleBulkSingleOrderStatus("Processing")}>
+              Processing
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => handleBulkSingleOrderStatus("Processed")}>
+              Processed
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => handleBulkSingleOrderStatus("Refund")}>
+              Refund
+            </Button>
+            <Button
+              size="sm"
+              variant="default"
+              onClick={handleBulkDispatchToApi}
+              className="bg-brand-600 hover:bg-brand-700 text-white font-medium"
+            >
+              ⚡ Dispatch to API
+            </Button>
+            <button
+              type="button"
+              onClick={() => setSelectedOrderIds(new Set())}
+              className="ml-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tables */}
+      {viewMode === "storefront" ? (
+        <StorefrontOrdersTable orders={sfOrders} loading={loading} />
+      ) : viewMode === "api" ? (
+        <ApiOrdersTable
+          orders={apiOrders}
+          loading={loading}
+          selectedIds={selectedOrderIds}
+          onToggleSelectRow={(id) => {
+            setSelectedOrderIds((prev) => {
+              const next = new Set(prev);
+              if (next.has(id)) next.delete(id);
+              else next.add(id);
+              return next;
+            });
+          }}
+          onToggleSelectAll={() => {
+            if (selectedOrderIds.size === apiOrders.length && apiOrders.length > 0) {
+              setSelectedOrderIds(new Set());
+            } else {
+              setSelectedOrderIds(new Set(apiOrders.map((o) => o.id)));
+            }
+          }}
+          onChangeStatus={handleSingleOrderStatusChange}
+        />
+      ) : viewMode === "single" ? (
+        <SingleOrdersTable
+          orders={singleOrders}
+          loading={loading}
+          selectedIds={selectedOrderIds}
+          onToggleSelectRow={(id) => {
+            setSelectedOrderIds((prev) => {
+              const next = new Set(prev);
+              if (next.has(id)) next.delete(id);
+              else next.add(id);
+              return next;
+            });
+          }}
+          onToggleSelectAll={() => {
+            if (selectedOrderIds.size === singleOrders.length && singleOrders.length > 0) {
+              setSelectedOrderIds(new Set());
+            } else {
+              setSelectedOrderIds(new Set(singleOrders.map((o) => o.id)));
+            }
+          }}
+          onChangeStatus={handleSingleOrderStatusChange}
+        />
+      ) : (
+        <BatchesTable
+          data={batches}
+          loading={loading}
+          onOpen={(b) => { setDetailId(b.id); setSheetOpen(true); }}
+          selectedIds={selectedBatchIds}
+          onToggleSelectRow={(id) => {
+            setSelectedBatchIds((prev) => {
+              const next = new Set(prev);
+              if (next.has(id)) next.delete(id);
+              else next.add(id);
+              return next;
+            });
+          }}
+          onToggleSelectAll={() => {
+            if (selectedBatchIds.size === batches.length && batches.length > 0) {
+              setSelectedBatchIds(new Set());
+            } else {
+              setSelectedBatchIds(new Set(batches.map((b) => b.id)));
+            }
+          }}
+          onChangeStatus={handleBatchStatusChange}
+        />
+      )}
+
+      <Pagination
+        page={page}
+        pages={currentPages}
+        total={currentTotal}
+        onPage={(p) => {
+          setPage(p);
+          setSelectedOrderIds(new Set());
+          setSelectedBatchIds(new Set());
+        }}
+        pageSize={pageSize}
+        pageSizeOptions={[15, 25, 50, 100, 200]}
+        onPageSizeChange={(newSize) => {
+          setPageSize(newSize);
+          setPage(1);
+          setSelectedOrderIds(new Set());
+          setSelectedBatchIds(new Set());
+        }}
+      />
+
+      <BatchDetailSheet
+        batchId={detailId}
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        onChanged={load}
+      />
+    </div>
+  );
+}

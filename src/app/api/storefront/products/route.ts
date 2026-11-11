@@ -1,0 +1,150 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth";
+import { handleRouteError, apiError } from "@/lib/api-helpers";
+import { storefrontProductUpsertSchema, storefrontBulkPricingSchema } from "@/lib/validation";
+import { requireStorefront, getMarkupBounds, toPesewas, fromPesewas, syncStorefrontWithPricingProfile } from "@/lib/storefront";
+import { resolveUserWholesalePrice } from "@/lib/orders";
+
+function validateMarkup(price: number, cost: number, minP: number, maxP: number) {
+  const markupP = price - cost;
+  return markupP >= minP && (maxP === Number.MAX_SAFE_INTEGER || markupP <= maxP);
+}
+
+/** Owner product list with computed markup for the pricing screen. */
+export async function GET() {
+  try {
+    const user = await requireUser();
+    const storefront = await requireStorefront(user.id);
+
+    // Auto-seed missing packages or heal below-cost products with agent's pricing profile
+    await syncStorefrontWithPricingProfile(storefront.id, user.id, { force: false });
+
+    const [products, allPackages] = await Promise.all([
+      prisma.storefrontProduct.findMany({
+        where: { storefrontId: storefront.id },
+        include: { dataPackage: true },
+        orderBy: [
+          { dataPackage: { network: "asc" } },
+          { dataPackage: { gbAmount: "asc" } },
+          { dataPackage: { sortOrder: "asc" } },
+        ],
+      }),
+      prisma.dataPackage.findMany({
+        where: { active: true },
+        orderBy: [{ network: "asc" }, { gbAmount: "asc" }, { sortOrder: "asc" }],
+      }),
+    ]);
+
+    const packageCosts = (
+      await Promise.all(
+        allPackages.map(async (pkg) => ({
+          id: pkg.id,
+          network: pkg.network,
+          gbAmount: pkg.gbAmount,
+          name: pkg.name,
+          cost: await resolveUserWholesalePrice(user, pkg),
+        }))
+      )
+    ).sort((a, b) => {
+      if (a.network !== b.network) return a.network.localeCompare(b.network);
+      return a.gbAmount - b.gbAmount;
+    });
+
+    return NextResponse.json({ products, packages: packageCosts });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}
+
+/** Create or update one product's retail price (resellers choose whatever markup they want). */
+export async function PUT(request: NextRequest) {
+  try {
+    const user = await requireUser();
+    const storefront = await requireStorefront(user.id);
+    if (storefront.status !== "ENABLED") return apiError(403, "Storefront is not active");
+    const input = storefrontProductUpsertSchema.parse(await request.json());
+
+    const pkg = await prisma.dataPackage.findUnique({ where: { id: input.packageId } });
+    if (!pkg) return apiError(404, "Package not found");
+
+    const sellingPrice = toPesewas(input.sellingPrice);
+    const cost = toPesewas(await resolveUserWholesalePrice(user, pkg));
+    if (sellingPrice < cost) {
+      return apiError(400, `Price must be at least GHS ${fromPesewas(cost).toFixed(2)} to cover wholesale cost`);
+    }
+
+    const product = await prisma.storefrontProduct.upsert({
+      where: { storefrontId_packageId: { storefrontId: storefront.id, packageId: input.packageId } },
+      update: { sellingPrice, isActive: input.isActive },
+      create: {
+        storefrontId: storefront.id,
+        packageId: input.packageId,
+        sellingPrice,
+        isActive: input.isActive,
+      },
+    });
+    return NextResponse.json({ product });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}
+
+/** Bulk markup: apply one markup amount on top of wholesale cost for the selected packages. */
+export async function POST(request: NextRequest) {
+  try {
+    const user = await requireUser();
+    const storefront = await requireStorefront(user.id);
+    if (storefront.status !== "ENABLED") return apiError(403, "Storefront is not active");
+    const input = storefrontBulkPricingSchema.parse(await request.json());
+
+    const packages = await prisma.dataPackage.findMany({
+      where: { id: { in: input.packageIds } },
+    });
+    const markupP = toPesewas(input.markupPercent);
+
+    const packagesWithCost = await Promise.all(
+      packages.map(async (pkg) => ({
+        pkg,
+        cost: toPesewas(await resolveUserWholesalePrice(user, pkg)),
+      }))
+    );
+
+    await prisma.$transaction(
+      packagesWithCost.map(({ pkg, cost }) => {
+        const price = cost + markupP;
+        return prisma.storefrontProduct.upsert({
+          where: { storefrontId_packageId: { storefrontId: storefront.id, packageId: pkg.id } },
+          update: { sellingPrice: price },
+          create: {
+            storefrontId: storefront.id,
+            packageId: pkg.id,
+            sellingPrice: price,
+            isActive: true,
+          },
+        });
+      })
+    );
+    return NextResponse.json({ updated: packages.length });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}
+
+/** Deactivate a product (rows are kept for order history). */
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await requireUser();
+    const storefront = await requireStorefront(user.id);
+    const { packageId } = (await request.json()) as { packageId?: string };
+    if (!packageId) return apiError(400, "packageId is required");
+
+    await prisma.storefrontProduct.updateMany({
+      where: { storefrontId: storefront.id, packageId },
+      data: { isActive: false },
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}

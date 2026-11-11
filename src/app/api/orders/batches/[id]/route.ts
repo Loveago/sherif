@@ -1,0 +1,125 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth";
+import { getBatchAggregates, statsFromCounts, batchProgress } from "@/lib/batches";
+import { handleRouteError, apiError } from "@/lib/api-helpers";
+import { sanitizeCustomerRefundNote } from "@/lib/types";
+
+/** Batch detail for the owner: recipients + progress + export linkage. */
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await requireUser();
+    const { id } = await params;
+
+    const batch = await prisma.orderBatch.findUnique({ where: { id } });
+    if (!batch) return apiError(404, "Batch not found");
+    if (batch.userId !== user.id && user.role !== "ADMIN" && user.role !== "MANAGER") {
+      return apiError(403, "Not allowed");
+    }
+
+    const [orders, aggregates, exports] = await Promise.all([
+      prisma.order.findMany({
+        where: { batchId: id },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          phoneNumber: true,
+          network: true,
+          gbAmount: true,
+          amount: true,
+          status: true,
+          failureReason: true,
+          completedAt: true,
+          exportCount: true,
+          lastExportedAt: true,
+          createdAt: true,
+          providerReference: true,
+          updatedAt: true,
+          deliveryReports: {
+            orderBy: { createdAt: "desc" },
+            select: { id: true, seq: true, status: true, proofImageMime: true, createdAt: true },
+          },
+        },
+      }),
+      getBatchAggregates([id]),
+      prisma.exportBatch.findMany({
+        where: { batches: { some: { id } } },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, exportCode: true, network: true, isReexport: true, createdAt: true },
+      }),
+    ]);
+
+    // On-demand sync for in-flight Tskconnect orders in this batch (throttled to 120s and poller enabled)
+    const pollerSetting = await prisma.systemSetting.findUnique({
+      where: { key: "provider_sync_poller_enabled" },
+    });
+    const pollerEnabled = pollerSetting?.value !== "false";
+
+    const inFlight = pollerEnabled
+      ? orders.filter(
+          (o) =>
+            (o.status === "PENDING" || o.status === "PROCESSING") &&
+            o.providerReference?.startsWith("TSKCONNECT:") &&
+            Date.now() - new Date(o.updatedAt).getTime() > 120000
+        )
+      : [];
+
+    if (inFlight.length > 0) {
+      try {
+        const { syncTskconnectOrder } = await import("@/lib/provider-apis/router");
+        let anyChanged = false;
+        await Promise.allSettled(
+          inFlight.map(async (o) => {
+            const res = await syncTskconnectOrder(o, "Batch Detail View Sync");
+            if (res.changed && res.newStatus) {
+              o.status = res.newStatus;
+              anyChanged = true;
+            }
+          })
+        );
+        if (anyChanged) {
+          const freshAggs = await getBatchAggregates([id]);
+          const freshBatch = await prisma.orderBatch.findUnique({ where: { id } });
+          if (freshBatch) Object.assign(batch, freshBatch);
+          aggregates.set(id, freshAggs.get(id)!);
+        }
+      } catch (syncErr) {
+        console.error("Batch detail sync error:", syncErr);
+      }
+    }
+
+    const stats = statsFromCounts(aggregates.get(id)?.counts);
+    const isBatchCompleted = batch.status === "COMPLETED" || (stats.total > 0 && stats.completed === stats.total);
+    const latestDeliveredAt = orders
+      .filter((o) => o.status === "SUCCESS" || o.status === "COMPLETED")
+      .map((o) => o.completedAt ?? o.updatedAt)
+      .filter(Boolean)
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? (batch.status === "COMPLETED" ? batch.updatedAt : null);
+
+    const isStaff = user.role === "ADMIN" || user.role === "MANAGER";
+    return NextResponse.json({
+      batch: {
+        ...batch,
+        completedAt: isBatchCompleted && latestDeliveredAt ? new Date(latestDeliveredAt).toISOString() : null,
+      },
+      orders: orders.map((o) => {
+        const isDelivered = o.status === "SUCCESS" || o.status === "COMPLETED";
+        const deliveredAt = isDelivered ? (o.completedAt ?? o.updatedAt) : null;
+        return {
+          ...o,
+          providerReference: isStaff ? o.providerReference : null,
+          completedAt: deliveredAt ? new Date(deliveredAt).toISOString() : null,
+          failureReason: sanitizeCustomerRefundNote(o.failureReason, o.amount),
+        };
+      }),
+      stats,
+      progress: batchProgress(stats),
+      exports,
+    });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}
