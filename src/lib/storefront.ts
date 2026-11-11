@@ -214,6 +214,7 @@ export async function syncStorefrontWithPricingProfile(
   if (!owner || allActivePackages.length === 0) return { updated: 0 };
 
   const existingMap = new Map(existingProducts.map((p) => [p.packageId, p]));
+  const toCreate: Prisma.StorefrontProductCreateManyInput[] = [];
   const operations: Prisma.PrismaPromise<any>[] = [];
 
   for (const pkg of allActivePackages) {
@@ -235,23 +236,12 @@ export async function syncStorefrontWithPricingProfile(
       existing!.sellingPrice > costP;
 
     if (!existing) {
-      operations.push(
-        prisma.storefrontProduct.upsert({
-          where: {
-            storefrontId_packageId: {
-              storefrontId,
-              packageId: pkg.id,
-            },
-          },
-          update: {},
-          create: {
-            storefrontId,
-            packageId: pkg.id,
-            sellingPrice: costP + markupP,
-            isActive: true,
-          },
-        })
-      );
+      toCreate.push({
+        storefrontId,
+        packageId: pkg.id,
+        sellingPrice: costP + markupP,
+        isActive: true,
+      });
     } else if (force) {
       operations.push(
         prisma.storefrontProduct.update({
@@ -273,11 +263,21 @@ export async function syncStorefrontWithPricingProfile(
     }
   }
 
-  if (operations.length > 0) {
-    await prisma.$transaction(operations);
+  let updatedCount = 0;
+  if (toCreate.length > 0) {
+    const created = await prisma.storefrontProduct.createMany({
+      data: toCreate,
+      skipDuplicates: true,
+    });
+    updatedCount += created.count;
   }
 
-  return { updated: operations.length };
+  if (operations.length > 0) {
+    await prisma.$transaction(operations);
+    updatedCount += operations.length;
+  }
+
+  return { updated: updatedCount };
 }
 
 export async function nextStorefrontSeq(
