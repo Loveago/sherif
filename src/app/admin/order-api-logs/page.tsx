@@ -314,6 +314,7 @@ export default function OrderApiLogsPage() {
             >
               <option value="ALL">All Providers</option>
               <option value="TSKCONNECT">TSKCONNECT API</option>
+              <option value="BUNDLEPORTAL">Bundle Portal v2</option>
               <option value="BIGWINDATA">Bigwindata</option>
             </select>
 

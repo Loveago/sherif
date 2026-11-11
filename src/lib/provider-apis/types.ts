@@ -1,10 +1,19 @@
-export type ProviderType = "MANUAL" | "TSKCONNECT" | (string & {});
+export type ProviderType = "MANUAL" | "TSKCONNECT" | "BUNDLEPORTAL" | (string & {});
 
 export interface TskconnectConfig {
   enabled: boolean;
   apiKey: string;
   baseUrl: string;
   webhookSecret: string;
+  numberVerificationEnabled: boolean;
+}
+
+export interface BundlePortalConfig {
+  enabled: boolean;
+  apiKey: string;
+  baseUrl: string;
+  webhookSecret: string;
+  mtnRoute: "mtn" | "mtn_2" | "mtn_3";
   numberVerificationEnabled: boolean;
 }
 
@@ -24,6 +33,7 @@ export interface ProviderRoutingConfig {
   autoDispatch: boolean; // Dispatch immediately on order creation
   networkRoutes: Record<string, ProviderType>; // e.g. { "MTN": "TSKCONNECT", "TELECEL": "TSKCONNECT", "AIRTELTIGO_ISHARE": "MANUAL", ... }
   tskconnect: TskconnectConfig;
+  bundleportal: BundlePortalConfig;
   customProviders?: Record<string, unknown>;
   [key: string]: any;
 }

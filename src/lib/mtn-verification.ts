@@ -125,6 +125,26 @@ export async function validateMtnOrderRecipient(
           console.error("Tskconnect single number verification error:", tskErr);
         }
       }
+
+      // Fallback / Bundle Portal verification when routed to BUNDLEPORTAL or still unaccepted
+      if (
+        !isAccepted &&
+        config.bundleportal.enabled &&
+        config.bundleportal.numberVerificationEnabled &&
+        config.bundleportal.apiKey
+      ) {
+        try {
+          const { BundlePortalClient } = await import("./provider-apis/bundle-portal");
+          const bpClient = new BundlePortalClient(config.bundleportal);
+          const bpRes = await bpClient.verifyNumber(config.bundleportal.mtnRoute || "mtn", normalized);
+          if (bpRes.data?.allowed) {
+            await addAcceptedMtnNumber(normalized, "BUNDLEPORTAL_API", "Automated Bundle Portal Verification").catch(() => {});
+            isAccepted = true;
+          }
+        } catch (bpErr) {
+          console.error("Bundle Portal single number verification error:", bpErr);
+        }
+      }
     } catch (err) {
       console.error("Provider verification check error:", err);
     }

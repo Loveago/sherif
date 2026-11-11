@@ -12,7 +12,21 @@ import {
   mapTskconnectStatus,
   mapTskconnectDisputeStatus,
 } from "./tskconnect";
-import type { ProviderRoutingConfig, ProviderType, ProviderDispatchResult, TskconnectConfig } from "./types";
+import {
+  BundlePortalClient,
+  DEFAULT_BUNDLE_PORTAL_BASE_URL,
+  normalizeBundlePortalNetwork,
+  mapBundlePortalStatus,
+  generateBundlePortalReference,
+  normalizeGhanaRecipient0,
+} from "./bundle-portal";
+import type {
+  ProviderRoutingConfig,
+  ProviderType,
+  ProviderDispatchResult,
+  TskconnectConfig,
+  BundlePortalConfig,
+} from "./types";
 
 /**
  * Helper to get an instantiated Tskconnect client with current settings
@@ -48,6 +62,8 @@ export async function getProviderRoutingConfig(): Promise<ProviderRoutingConfig>
     const rawVal = getVal(`provider_route_${net}`, "TSKCONNECT");
     if (rawVal === "MANUAL") {
       networkRoutes[net] = "MANUAL";
+    } else if (rawVal === "BUNDLEPORTAL") {
+      networkRoutes[net] = "BUNDLEPORTAL";
     } else {
       networkRoutes[net] = "TSKCONNECT";
     }
@@ -58,13 +74,18 @@ export async function getProviderRoutingConfig(): Promise<ProviderRoutingConfig>
     if (key.startsWith("provider_route_")) {
       const net = key.replace("provider_route_", "").toUpperCase();
       if (!networkRoutes[net]) {
-        networkRoutes[net] = val === "MANUAL" ? "MANUAL" : "TSKCONNECT";
+        networkRoutes[net] =
+          val === "MANUAL" ? "MANUAL" : val === "BUNDLEPORTAL" ? "BUNDLEPORTAL" : "TSKCONNECT";
       }
     }
   }
 
   const rawDefault = getVal("provider_routing_default", "TSKCONNECT") as ProviderType;
-  const defaultProvider = rawDefault === "MANUAL" ? "MANUAL" : "TSKCONNECT";
+  const defaultProvider =
+    rawDefault === "MANUAL" ? "MANUAL" : rawDefault === "BUNDLEPORTAL" ? "BUNDLEPORTAL" : "TSKCONNECT";
+
+  const rawMtnRoute = getVal("bundleportal_mtn_route", "mtn");
+  const mtnRoute = rawMtnRoute === "mtn_2" || rawMtnRoute === "mtn_3" ? rawMtnRoute : "mtn";
 
   return {
     enabled: getVal("provider_routing_enabled", "true") === "true",
@@ -78,6 +99,14 @@ export async function getProviderRoutingConfig(): Promise<ProviderRoutingConfig>
       webhookSecret: getVal("tskconnect_webhook_secret", process.env.TSKCONNECT_WEBHOOK_SECRET || ""),
       numberVerificationEnabled: getVal("tskconnect_number_verification_enabled", "true") === "true",
     },
+    bundleportal: {
+      enabled: getVal("bundleportal_enabled", "true") === "true",
+      apiKey: getVal("bundleportal_api_key", process.env.BUNDLE_PORTAL_API_KEY || ""),
+      baseUrl: getVal("bundleportal_base_url", DEFAULT_BUNDLE_PORTAL_BASE_URL),
+      webhookSecret: getVal("bundleportal_webhook_secret", process.env.BUNDLE_PORTAL_WEBHOOK_SECRET || ""),
+      mtnRoute,
+      numberVerificationEnabled: getVal("bundleportal_number_verification_enabled", "true") === "true",
+    },
   };
 }
 
@@ -89,6 +118,13 @@ export function isTskconnectActive(tskconnect: TskconnectConfig): boolean {
 }
 
 /**
+ * Check if Bundle Portal integration is configured with an active API key
+ */
+export function isBundlePortalActive(bundleportal: BundlePortalConfig): boolean {
+  return bundleportal.enabled && Boolean(bundleportal.apiKey && bundleportal.apiKey.trim().length > 0);
+}
+
+/**
  * Determines whether auto-dispatch should trigger on order creation.
  * If provider routing master switch is disabled, returns false.
  */
@@ -96,7 +132,7 @@ export function shouldAutoDispatch(config: ProviderRoutingConfig): boolean {
   if (!config.enabled) {
     return false;
   }
-  if (isTskconnectActive(config.tskconnect)) {
+  if (isTskconnectActive(config.tskconnect) || isBundlePortalActive(config.bundleportal)) {
     return true;
   }
   return config.autoDispatch;
@@ -171,9 +207,12 @@ export async function getProviderForNetwork(
     return config.defaultProvider;
   }
 
-  // 5. Fallback: If Tskconnect is active, return TSKCONNECT; else MANUAL
+  // 5. Fallback: If Tskconnect or Bundle Portal is active, return it; else MANUAL
   if (isTskconnectActive(config.tskconnect)) {
     return "TSKCONNECT";
+  }
+  if (isBundlePortalActive(config.bundleportal)) {
+    return "BUNDLEPORTAL";
   }
 
   return "MANUAL";
@@ -217,7 +256,11 @@ export async function dispatchOrder(
   if (order.providerReference && !options.force) {
     return {
       success: true,
-      provider: order.providerReference.startsWith("TSKCONNECT:") ? "TSKCONNECT" : "MANUAL",
+      provider: order.providerReference.startsWith("TSKCONNECT:")
+        ? "TSKCONNECT"
+        : order.providerReference.startsWith("BUNDLEPORTAL:")
+        ? "BUNDLEPORTAL"
+        : "MANUAL",
       status: order.status,
       error: `Order already dispatched to provider (${order.providerReference})`,
     };
@@ -409,6 +452,176 @@ export async function dispatchOrder(
       return {
         success: false,
         provider: "TSKCONNECT",
+        error: errMsg,
+      };
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Dispatched to BUNDLEPORTAL
+  // -------------------------------------------------------------------------
+  if (provider === "BUNDLEPORTAL") {
+    if (!config.bundleportal.enabled || !config.bundleportal.apiKey) {
+      return {
+        success: false,
+        provider: "BUNDLEPORTAL",
+        error: "Bundle Portal integration is disabled or missing API key in settings.",
+      };
+    }
+
+    const client = new BundlePortalClient(config.bundleportal);
+    const bpStartTime = Date.now();
+    const bpNetwork = normalizeBundlePortalNetwork(
+      order.network,
+      config.bundleportal.mtnRoute,
+      order.dataPackage?.name || order.dataPackage?.description
+    );
+    const cleanRecipient = normalizeGhanaRecipient0(order.phoneNumber);
+    const reference = order.externalReference || generateBundlePortalReference(order.id);
+    const endpointUrl = config.bundleportal.baseUrl || DEFAULT_BUNDLE_PORTAL_BASE_URL;
+
+    const placePayload = {
+      action: "place_order",
+      network: bpNetwork,
+      recipient: cleanRecipient,
+      package_size: order.gbAmount,
+      order_id: reference,
+    };
+
+    try {
+      if (config.bundleportal.numberVerificationEnabled) {
+        try {
+          const vRes = await client.verifyNumber(bpNetwork, cleanRecipient);
+          if (vRes.data && !vRes.data.can_order) {
+            const reasonMsg = vRes.data.allowlist_message
+              ? `Unverified number: ${vRes.data.allowlist_message}`
+              : vRes.data.pending_order
+              ? "Another order for this number is still delivering on Bundle Portal."
+              : "Recipient number is not approved for this network on Bundle Portal.";
+            throw Object.assign(new Error(reasonMsg), {
+              statusCode: 403,
+              code: vRes.data.allowed ? "pending_order" : "not_allowlisted",
+              raw: vRes,
+            });
+          }
+        } catch (vErr: any) {
+          if (vErr?.code === "not_allowlisted" || vErr?.code === "pending_order") {
+            throw vErr;
+          }
+          // Non-blocking fallback if verify_number itself had a transient network issue
+        }
+      }
+
+      const submitRes = await client.placeOrder({
+        network: bpNetwork,
+        recipient: cleanRecipient,
+        package_size: order.gbAmount,
+        order_id: reference,
+      });
+      const durationMs = Date.now() - bpStartTime;
+
+      const bpRef = submitRes.data?.reference || reference;
+      const providerRef = `BUNDLEPORTAL:${bpRef}`;
+      const mappedStatus = mapBundlePortalStatus(submitRes.data?.status || "processing");
+
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          provider: "BUNDLEPORTAL",
+          providerReference: providerRef,
+          externalReference: submitRes.data?.order_id || reference,
+          failureReason: null,
+        },
+      });
+
+      await recordOrderApiLog({
+        orderId: order.id,
+        provider: "BUNDLEPORTAL",
+        action: "SUBMIT_ORDER",
+        endpoint: endpointUrl,
+        method: "POST",
+        requestPayload: placePayload,
+        responsePayload: submitRes,
+        statusCode: 200,
+        success: true,
+        providerReference: providerRef,
+        durationMs,
+      });
+
+      const targetStatus: "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED" | "CANCELLED" =
+        ["SUCCESS", "FAILED", "CANCELLED"].includes(mappedStatus) ? mappedStatus : "PROCESSING";
+
+      if (targetStatus !== order.status) {
+        await changeOrderStatus(
+          order.id,
+          targetStatus,
+          `Dispatched to Bundle Portal (${bpNetwork} ${order.gbAmount}GB, Ref: ${bpRef})`,
+          { id: "system", label: "Bundle Portal Gateway" },
+          { force: true }
+        );
+      } else {
+        await prisma.orderStatusHistory.create({
+          data: {
+            orderId: order.id,
+            status: order.status,
+            previousStatus: order.status,
+            note: `Dispatched to Bundle Portal (${bpNetwork} ${order.gbAmount}GB, Ref: ${bpRef})`,
+            changedBy: "Bundle Portal Gateway",
+          },
+        });
+      }
+
+      return {
+        success: true,
+        provider: "BUNDLEPORTAL",
+        providerReference: providerRef,
+        status: targetStatus,
+        raw: submitRes,
+      };
+    } catch (err: any) {
+      const durationMs = Date.now() - bpStartTime;
+      const rawErrMsg = err?.message || "Failed to dispatch order to Bundle Portal";
+      const isUnverified = err?.code === "not_allowlisted";
+      const errMsg = isUnverified
+        ? `Unverified number: ${rawErrMsg}`
+        : sanitizeCustomerFacingText(rawErrMsg) || "Delivery processing failed";
+
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          failureReason: errMsg,
+          ...(isUnverified ? { status: "FAILED" } : {}),
+        },
+      });
+
+      await recordOrderApiLog({
+        orderId: order.id,
+        provider: "BUNDLEPORTAL",
+        action: "SUBMIT_ORDER",
+        endpoint: endpointUrl,
+        method: "POST",
+        requestPayload: placePayload,
+        responsePayload: err?.raw || { error: errMsg, code: err?.code },
+        statusCode: err?.statusCode || 500,
+        success: false,
+        errorMessage: errMsg,
+        providerReference: `BUNDLEPORTAL:${reference}`,
+        durationMs,
+      });
+
+      await prisma.orderStatusHistory.create({
+        data: {
+          orderId: order.id,
+          status: isUnverified ? "FAILED" : order.status,
+          previousStatus: order.status,
+          note: `Bundle Portal dispatch failed: ${errMsg}`,
+          changedBy: "Bundle Portal Gateway",
+        },
+      });
+
+      return {
+        success: false,
+        provider: "BUNDLEPORTAL",
         error: errMsg,
       };
     }

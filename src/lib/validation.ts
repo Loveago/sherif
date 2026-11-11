@@ -349,6 +349,14 @@ export const settingsSchema = z.object({
   tskconnect_webhook_secret: z.string().max(255).optional(),
   tskconnect_number_verification_enabled: z.enum(["true", "false"]).optional(),
 
+  // Bundle Portal Settings
+  bundleportal_enabled: z.enum(["true", "false"]).optional(),
+  bundleportal_api_key: z.string().max(255).optional(),
+  bundleportal_base_url: z.string().max(255).optional(),
+  bundleportal_webhook_secret: z.string().max(255).optional(),
+  bundleportal_mtn_route: z.enum(["mtn", "mtn_2", "mtn_3"]).optional(),
+  bundleportal_number_verification_enabled: z.enum(["true", "false"]).optional(),
+
   // GHConnect Settings
   ghconnect_enabled: z.enum(["true", "false"]).optional(),
   ghconnect_api_key: z.string().max(255).optional(),
