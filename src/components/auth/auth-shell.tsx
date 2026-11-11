@@ -172,14 +172,14 @@ export function AuthShell({
             <span>CleanDataPacks © 2026 · All Rights Reserved</span>
             <span>·</span>
             <a
-              href="https://wa.me/233242075374"
+              href="https://wa.me/233507904981"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-slate-300 hover:text-emerald-400 transition-colors group"
             >
               <span>Powered by</span>
               <span className="font-semibold text-white group-hover:text-emerald-400 group-hover:underline">
-                CleanDataPacks
+                CrazyTech Enterprise
               </span>
             </a>
           </div>

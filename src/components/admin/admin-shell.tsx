@@ -546,14 +546,14 @@ export function AdminShell({ user, children, allowedNavHrefs, supportWhatsapp, a
                   </Link>
                 </div>
                 <a
-                  href="https://wa.me/233242075374"
+                  href="https://wa.me/233507904981"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 font-medium transition-colors group"
                 >
                   <span>Powered by</span>
                   <span className="font-bold text-slate-700 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 underline decoration-slate-300 dark:decoration-slate-600 underline-offset-2">
-                    CleanDataPacks
+                    CrazyTech Enterprise
                   </span>
                 </a>
               </div>

@@ -457,14 +457,14 @@ export function AppShell({
             {supportTelegram && <p className="truncate">✈️ {supportTelegram}</p>}
             <div className="pt-2 border-t border-slate-200/40 dark:border-white/5">
               <a
-                href="https://wa.me/233242075374"
+                href="https://wa.me/233507904981"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-[10px] text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors group"
               >
                 <span>Powered by</span>
                 <span className="font-semibold text-slate-600 dark:text-slate-300 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 underline decoration-slate-300 dark:decoration-slate-600 underline-offset-2">
-                  CleanDataPacks
+                  CrazyTech Enterprise
                 </span>
               </a>
             </div>
@@ -514,14 +514,14 @@ export function AppShell({
                 </Link>
               </div>
               <a
-                href="https://wa.me/233242075374"
+                href="https://wa.me/233507904981"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 font-medium transition-colors group"
               >
                 <span>Powered by</span>
                 <span className="font-bold text-slate-700 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 underline decoration-slate-300 dark:decoration-slate-600 underline-offset-2">
-                  CleanDataPacks
+                  CrazyTech Enterprise
                 </span>
               </a>
             </div>
@@ -612,14 +612,14 @@ export function AppShell({
               </button>
               <div className="text-center">
                 <a
-                  href="https://wa.me/233242075374"
+                  href="https://wa.me/233507904981"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors group"
                 >
                   <span>Powered by</span>
                   <span className="font-semibold text-slate-600 dark:text-slate-300 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 underline underline-offset-2">
-                    CleanDataPacks
+                    CrazyTech Enterprise
                   </span>
                 </a>
               </div>

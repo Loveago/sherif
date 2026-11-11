@@ -247,14 +247,14 @@ export function StoreChrome(props: StoreChromeProps) {
               </p>
               <span>·</span>
               <a
-                href="https://wa.me/233242075374"
+                href="https://wa.me/233507904981"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-slate-500 hover:text-emerald-600 transition-colors group"
               >
                 <span>Powered by</span>
                 <span className="font-semibold text-slate-700 group-hover:underline">
-                  CleanDataPacks
+                  CrazyTech Enterprise
                 </span>
               </a>
             </div>
