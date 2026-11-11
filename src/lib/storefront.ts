@@ -236,8 +236,15 @@ export async function syncStorefrontWithPricingProfile(
 
     if (!existing) {
       operations.push(
-        prisma.storefrontProduct.create({
-          data: {
+        prisma.storefrontProduct.upsert({
+          where: {
+            storefrontId_packageId: {
+              storefrontId,
+              packageId: pkg.id,
+            },
+          },
+          update: {},
+          create: {
             storefrontId,
             packageId: pkg.id,
             sellingPrice: costP + markupP,
